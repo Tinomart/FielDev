@@ -475,7 +475,7 @@ reference_image("hero_front.png", plane="front", height=180, center=(0, 0, 90), 
 The picture stands in the scene **behind the models**, in the plane you name, `height` mm tall (its width follows the picture) and with its middle at `center` (a point, or three numbers). The camera is free -- orbit round it,
 zoom in on a hand, look at it from any side, in perspective -- and the models are in front of it. It is not a model, and nothing of it is exported; if its `center` is a point with a gizmo, that point is its handle.
 
-**Right-click → Character → Reference image →** *Front*, *Back*, *Right*, *Left*, *Top* or *Bottom* asks for a file and writes, at the insertion point, **a point with a gizmo** -- the middle of the picture, its handle --
+**Right-click → Character → Reference image →** *Front*, *Rear*, *Right*, *Left*, *Top* or *Bottom* asks for a file and writes, at the insertion point, **a point with a gizmo** -- the middle of the picture, its handle --
 and the `reference_image(...)` line that uses it as `center`: as tall as about six hundred pixels of the view, a round number, standing on the ground (a top or a bottom picture is round the origin). **Move and scale the picture
 like any model**: click the point's dot (or its row in the model tree) and drag the arrows of its gizmo to move the picture, drag its scale square to make it larger -- the picture is `height` times the scale of the gizmo. What you
 drag is written into the script as the point's numbers, and the picture follows when you let go. Change `height` in the script to fit the character. The planes are the standard views of the viewport, so a picture reads the right way
