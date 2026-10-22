@@ -171,6 +171,7 @@ static QString guideHtml()
               "<b>New surface</b> and <b>New field</b>, the most basic of each -- and <b>Parametric shapes</b> (a rounded box, a ring, noise, your own logic, custom blocks) "
               "write the call into the script where the cursor is "
               "(and select it, ready to drag); <b>Operations</b> work on the selected model (offsets, rounding, moving, repeating, combining); "
+              "<b>Character</b> builds a character: draw limbs node after node over a <b>reference image</b>, join them into a body and make its skeleton; "
               "<b>Python</b> writes the basic blocks of the language. Right-click a model for the same <b>Operations</b> on it (offsets, moving, field math ...), "
               "written with that model as the argument. Nothing is asked: what a menu entry writes is code, and the code is the place to change it."));
     h += li(T("<b>The same menu opens in the text editor and in the model tree</b>: right-click a line of the script that defines "
@@ -1098,7 +1099,7 @@ Window::Window(Arguments args)
             view->addAction(a);
             const QString mode = m.mode;
             auto scene = view->scenePanel();
-            // (E goes round the three kinds of what is put down while the work plane view is open: a click there is not a gizmo's)
+            // (E goes round the four kinds of what is put down while the work plane view is open: a click there is not a gizmo's)
             if (mode == "toggle") connect(a, &QAction::triggered, scene, [=]{
                 if (view->workPlane().open) view->cycleWorkPlaneMode();
                 else scene->toggleSelectedEdit();

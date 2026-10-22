@@ -3285,16 +3285,16 @@ void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, doub
     auto refs = menu->addMenu(T("Reference image"));
     refs->setToolTipsVisible(true);
     refs->setToolTip(T("A picture to model over: it stands in the scene behind the models, in the plane you choose, and the camera is free -- orbit round it, look at it from any side"));
-    struct Plane { const char* name; const char* label; const char* seen; };
-    static const Plane planes[] = {
-        {"front", "Front", "from -y"}, {"back", "Back", "from +y"}, {"right", "Right", "from +x"},
-        {"left", "Left", "from -x"}, {"top", "Top", "from above (+z)"}, {"bottom", "Bottom", "from below (-z)"}};
+    struct Plane { const char* name; QString label; QString seen; };
+    const Plane planes[] = {
+        {"front", T("Front"), T("from -y")}, {"back", T("Back"), T("from +y")}, {"right", T("Right"), T("from +x")},
+        {"left", T("Left"), T("from -x")}, {"top", T("Top"), T("from above (+z)")}, {"bottom", T("Bottom"), T("from below (-z)")}};
     for (const Plane& pl : planes)
     {
         const QString plane = QString::fromLatin1(pl.name);
-        auto action = refs->addAction(T(pl.label), this, [=]{ addReferenceImage(plane, point, scale, atLine); });
+        auto action = refs->addAction(pl.label, this, [=]{ addReferenceImage(plane, point, scale, atLine); });
         action->setToolTip(T("A picture of the character seen %1 (the same as that view of the viewport; the character faces -y, its up is +z): choose the file; it is written as a reference_image(...) line of the script")
-                               .arg(T(pl.seen)));
+                               .arg(pl.seen));
     }
 }
 
