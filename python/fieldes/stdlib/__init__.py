@@ -14,6 +14,7 @@ from fieldes.stdlib.custom_resolution import *
 from fieldes.stdlib.import_log import *
 from fieldes.stdlib.mesh_import import *
 from fieldes.stdlib.importing import *
+from fieldes.stdlib.materials import *
 from fieldes.stdlib.exporting import *
 from fieldes.stdlib.selection import *
 from fieldes.stdlib.fields import *

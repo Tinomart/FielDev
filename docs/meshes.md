@@ -95,6 +95,28 @@ line that starts with `ok` or `FAIL` for everything it checks.)
   the last bit, closed wherever the mesh was closed, and the two halves are joined with no seam. The vertices within a quarter of a cell of the plane
   are put on it. Model the half you want and the mirror does the rest; the body does not have to be symmetric itself.
 
+### Materials and vertex colours
+
+```python
+skin = material("skin", color=(0.93, 0.74, 0.62), roughness=0.7)                 # the base: everywhere
+metal = material("metal", color="#9aa0aa", metallic=1.0, roughness=0.3, where=box((-45, -30, 100), (45, 30, 150)))
+export_mesh(hero, "hero.glb", materials=[skin, metal], colors=(0.8, 0.8, 1 - z_field() / 200))
+```
+
+- **`material(name, color, roughness, metallic, emissive, where)`** says what a surface is made of and where. `color` is `(r, g, b)` from 0 to 1 or `"#rrggbb"`;
+  `where` is a body (the material is on what is inside it) or any field (where it is negative: `100 - z_field()` is negative above z = 100), or nothing
+  for everywhere.
+- **The materials of an export are layers**, painted in the order they are listed: each triangle takes the last material whose `where` is negative at the
+  middle of the triangle, so the base material, with no `where`, goes first. A triangle that no material covers has none. The edge between two materials
+  follows the triangles of the mesh, as fine as the resolution of the export.
+- **`materials=[...]`** is written in **OBJ** (`usemtl` for each group of triangles, and a `.mtl` file beside the OBJ with the colour, the shininess and the
+  physically based `Pr` roughness and `Pm` metalness that Blender and the engines read) and **glTF** (`.glb`, `.gltf`: a material with its
+  `pbrMetallicRoughness` for each, and one primitive of the mesh for each). The other formats have no materials: asking for them is an error.
+- **`colors=(r, g, b)`**, each a number or a field from 0 to 1, is evaluated at every vertex: vertex colours in **OBJ** (`v x y z r g b`), **PLY**
+  (`red`, `green`, `blue`) and **glTF** (`COLOR_0`).
+
+[`examples/34_materials.py`](../examples/34_materials.py) writes all of it for a figure, reads the files back and checks that each material is where it says.
+
 **FBX is a proprietary format** of Autodesk, whose SDK is available under its own licence and whose files have no published specification. FielDes
 reads and writes FBX **without the Autodesk SDK**, from the structure of the files as the community documents it (the node tree, the property types,
 the objects and their connections), and handles **meshes only**: geometry, the transform of the models that hold it, the scene's unit and up axis -- no

@@ -139,33 +139,64 @@ def convert_mesh(source, target):
 # ---------------------------------------------------------------------------
 # OBJ
 
-def write_obj(path, xyz, tri, name='fieldes', note='millimetres'):
-    out = ['# FielDes (%s)\n' % note, 'o %s\n' % _clean_name(name)]
-    for i in range(0, len(xyz), 3):
-        out.append('v %s %s %s\n' % (_num(xyz[i]), _num(xyz[i + 1]), _num(xyz[i + 2])))
-    for t in range(0, len(tri), 3):
-        out.append('f %d %d %d\n' % (tri[t] + 1, tri[t + 1] + 1, tri[t + 2] + 1))
+def _write_mtl(path, materials):
+    ''' The .mtl file of an OBJ: the colour (Kd), how it shines (Ns, Ks), the physically based roughness and metalness (Pr, Pm: the extension that Blender and the engines read) '''
+    out = ['# FielDes materials\n']
+    for m in materials:
+        spec = 0.04 * (1.0 - m.metallic) + m.metallic
+        out.append('\nnewmtl %s\nKd %s %s %s\nKs %s %s %s\nNs %s\nd 1\nillum 2\nPr %s\nPm %s\n' % (
+            (m.name,) + tuple(_num(c) for c in m.color) + (_num(spec),) * 3 + (_num(max(1.0, (1.0 - m.roughness) ** 2 * 1000.0)), _num(m.roughness), _num(m.metallic))))
+        if m.emissive:
+            out.append('Ke %s %s %s\n' % tuple(_num(c) for c in m.emissive))
     with open(path, 'w', encoding='ascii') as f:
         f.write(''.join(out))
+
+
+def write_obj(path, xyz, tri, name='fieldes', note='millimetres', materials=None, tri_material=None, colors=None):
+    ''' materials: the list of the materials (a .mtl file is written beside the OBJ), tri_material: the number of the material of each triangle (-1: none),
+        colors: r, g, b of each vertex (the "v x y z r g b" that Blender and MeshLab read) '''
+    mtl = os.path.splitext(path)[0] + '.mtl'
+    out = ['# FielDes (%s)\n' % note]
+    if materials:
+        out.append('mtllib %s\n' % os.path.basename(mtl))
+    out.append('o %s\n' % _clean_name(name))
+    for i in range(0, len(xyz), 3):
+        line = 'v %s %s %s' % (_num(xyz[i]), _num(xyz[i + 1]), _num(xyz[i + 2]))
+        if colors is not None:
+            line += ' %s %s %s' % (_num(colors[i]), _num(colors[i + 1]), _num(colors[i + 2]))
+        out.append(line + '\n')
+    for k, group in _by_material(tri, tri_material if materials else None):
+        if k >= 0:
+            out.append('usemtl %s\n' % materials[k].name)
+        for t in range(0, len(group), 3):
+            out.append('f %d %d %d\n' % (group[t] + 1, group[t + 1] + 1, group[t + 2] + 1))
+    with open(path, 'w', encoding='ascii') as f:
+        f.write(''.join(out))
+    if materials:
+        _write_mtl(mtl, materials)
 
 
 # ---------------------------------------------------------------------------
 # PLY
 
-def write_ply(path, xyz, tri, name='fieldes', note='millimetres'):
+def write_ply(path, xyz, tri, name='fieldes', note='millimetres', colors=None):
+    ''' colors: r, g, b (0 to 1) of each vertex, written as the uchar red, green, blue that every PLY reader knows '''
     nv, nt = len(xyz) // 3, len(tri) // 3
     head = ('ply\nformat binary_little_endian 1.0\ncomment FielDes (%s) %s\n'
-            'element vertex %d\nproperty float x\nproperty float y\nproperty float z\n'
+            'element vertex %d\nproperty float x\nproperty float y\nproperty float z\n%s'
             'element face %d\nproperty list uchar int vertex_indices\nend_header\n'
-            % (note, _clean_name(name), nv, nt)).encode('ascii')
-    verts = array('f', xyz)
-    if struct.pack('=I', 1) != struct.pack('<I', 1):
-        verts.byteswap()
+            % (note, _clean_name(name), nv, 'property uchar red\nproperty uchar green\nproperty uchar blue\n' if colors is not None else '', nt)).encode('ascii')
+    if colors is None:
+        verts = _little(array('f', xyz))
+    else:
+        pack_vertex = struct.Struct('<3f3B').pack
+        verts = b''.join(pack_vertex(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2], *(min(255, max(0, int(round(colors[3 * i + k] * 255)))) for k in range(3)))
+                         for i in range(nv))
     pack = struct.Struct('<B3i').pack
     faces = b''.join(pack(3, tri[t], tri[t + 1], tri[t + 2]) for t in range(0, len(tri), 3))
     with open(path, 'wb') as f:
         f.write(head)
-        f.write(verts.tobytes())
+        f.write(verts)
         f.write(faces)
 
 
@@ -222,48 +253,81 @@ def write_3mf_objects(path, objects):
 # ---------------------------------------------------------------------------
 # glTF 2.0 (.glb, .gltf): metres, Y up
 
-def _gltf_arrays(xyz, tri):
-    ''' The positions in metres with Y up (x, z, -y: FielDes's Z up turned the way mesh_import turns glTF back), as float32 bytes, and the indices '''
+def _little(values):
+    ''' The bytes of an array of numbers, little endian '''
+    values = array(values.typecode, values)
+    if struct.pack('=I', 1) != struct.pack('<I', 1):
+        values.byteswap()
+    return values.tobytes()
+
+
+def _by_material(tri, tri_material):
+    ''' The triangles of each material: [(the number of the material, its triangles as flat corners)], in the order of the materials; the ones that no material covers
+        (-1) first.  With no materials, all of them in one '''
+    if tri_material is None:
+        return [(-1, tri)]
+    groups = {}
+    for t in range(len(tri) // 3):
+        groups.setdefault(tri_material[t], array('I')).extend(tri[3 * t:3 * t + 3])
+    return [(k, groups[k]) for k in sorted(groups)]
+
+
+def _gltf_material(m):
+    out = {'name': m.name, 'pbrMetallicRoughness': {'baseColorFactor': [m.color[0], m.color[1], m.color[2], 1.0],
+                                                      'metallicFactor': m.metallic, 'roughnessFactor': m.roughness}}
+    if m.emissive:
+        out['emissiveFactor'] = list(m.emissive)
+    return out
+
+
+def _gltf_document(xyz, tri, name, materials=None, tri_material=None, colors=None):
+    ''' (the glTF document, its binary buffer).  The positions are in metres with Y up (x, z, -y: FielDes's Z up turned the way mesh_import turns glTF back); a primitive of
+        the mesh for each material (the whole mesh in one when there are none), and the vertex colours as COLOR_0 '''
     pos = array('f')
     for i in range(0, len(xyz), 3):
         pos.extend((xyz[i] * 0.001, xyz[i + 2] * 0.001, -xyz[i + 1] * 0.001))
-    idx = array('I', tri)
-    if struct.pack('=I', 1) != struct.pack('<I', 1):
-        pos.byteswap()
-        idx.byteswap()
     lo = [min(pos[i::3]) for i in range(3)] if len(pos) else [0.0] * 3
     hi = [max(pos[i::3]) for i in range(3)] if len(pos) else [0.0] * 3
-    return pos.tobytes(), idx.tobytes(), lo, hi
-
-
-def _gltf_document(nbytes_pos, nbytes_idx, nv, nt, lo, hi, name, uri=None):
-    buffer = {'byteLength': nbytes_pos + nbytes_idx}
-    if uri is not None:
-        buffer['uri'] = uri
-    return {
+    nv = len(xyz) // 3
+    binary = _little(pos)
+    views = [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(binary), 'target': 34962}]
+    accessors = [{'bufferView': 0, 'componentType': 5126, 'count': nv, 'type': 'VEC3', 'min': lo, 'max': hi}]
+    attributes = {'POSITION': 0}
+    if colors is not None:
+        data = _little(array('f', colors))
+        views.append({'buffer': 0, 'byteOffset': len(binary), 'byteLength': len(data), 'target': 34962})
+        accessors.append({'bufferView': len(views) - 1, 'componentType': 5126, 'count': nv, 'type': 'VEC3'})
+        attributes['COLOR_0'] = len(accessors) - 1
+        binary += data
+    primitives = []
+    for k, group in _by_material(tri, tri_material):
+        data = _little(group)
+        views.append({'buffer': 0, 'byteOffset': len(binary), 'byteLength': len(data), 'target': 34963})
+        accessors.append({'bufferView': len(views) - 1, 'componentType': 5125, 'count': len(group), 'type': 'SCALAR'})
+        primitive = {'attributes': attributes, 'indices': len(accessors) - 1, 'mode': 4}
+        if k >= 0:
+            primitive['material'] = k
+        primitives.append(primitive)
+        binary += data
+    doc = {
         'asset': {'version': '2.0', 'generator': 'FielDes'},
         'scene': 0,
         'scenes': [{'nodes': [0]}],
         'nodes': [{'mesh': 0, 'name': _clean_name(name)}],
-        'meshes': [{'name': _clean_name(name), 'primitives': [{'attributes': {'POSITION': 0}, 'indices': 1, 'mode': 4}]}],
-        'accessors': [
-            {'bufferView': 0, 'componentType': 5126, 'count': nv, 'type': 'VEC3', 'min': lo, 'max': hi},
-            {'bufferView': 1, 'componentType': 5125, 'count': nt * 3, 'type': 'SCALAR'},
-        ],
-        'bufferViews': [
-            {'buffer': 0, 'byteOffset': 0, 'byteLength': nbytes_pos, 'target': 34962},
-            {'buffer': 0, 'byteOffset': nbytes_pos, 'byteLength': nbytes_idx, 'target': 34963},
-        ],
-        'buffers': [buffer],
+        'meshes': [{'name': _clean_name(name), 'primitives': primitives}],
+        'accessors': accessors,
+        'bufferViews': views,
+        'buffers': [{'byteLength': len(binary)}],
     }
+    if materials:
+        doc['materials'] = [_gltf_material(m) for m in materials]
+    return doc, binary
 
 
-def write_glb(path, xyz, tri, name='fieldes'):
-    pos, idx, lo, hi = _gltf_arrays(xyz, tri)
-    doc = _gltf_document(len(pos), len(idx), len(xyz) // 3, len(tri) // 3, lo, hi, name)
+def write_glb(path, xyz, tri, name='fieldes', materials=None, tri_material=None, colors=None):
+    doc, binary = _gltf_document(xyz, tri, name, materials, tri_material, colors)
     text = json.dumps(doc, separators=(',', ':')).encode('utf-8')
     text += b' ' * (-len(text) % 4)
-    binary = pos + idx
     binary += b'\0' * (-len(binary) % 4)
     total = 12 + 8 + len(text) + 8 + len(binary)
     with open(path, 'wb') as f:
@@ -274,10 +338,9 @@ def write_glb(path, xyz, tri, name='fieldes'):
         f.write(binary)
 
 
-def write_gltf(path, xyz, tri, name='fieldes'):
-    pos, idx, lo, hi = _gltf_arrays(xyz, tri)
-    uri = 'data:application/octet-stream;base64,' + base64.b64encode(pos + idx).decode('ascii')
-    doc = _gltf_document(len(pos), len(idx), len(xyz) // 3, len(tri) // 3, lo, hi, name, uri)
+def write_gltf(path, xyz, tri, name='fieldes', materials=None, tri_material=None, colors=None):
+    doc, binary = _gltf_document(xyz, tri, name, materials, tri_material, colors)
+    doc['buffers'][0]['uri'] = 'data:application/octet-stream;base64,' + base64.b64encode(binary).decode('ascii')
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(doc, f, separators=(',', ':'))
 
@@ -436,7 +499,7 @@ def read_dxf(path):
 
 # ---------------------------------------------------------------------------
 
-def write_mesh(path, xyz, tri, name=None, ascii=False, note='millimetres'):
+def write_mesh(path, xyz, tri, name=None, ascii=False, note='millimetres', materials=None, tri_material=None, colors=None):
     ''' Writes a mesh in the format of the file's extension (see the top of this file).  `note` is what the comment of an OBJ or a PLY says of the numbers
         ("millimetres", "metres, Y up"): the unit and the axes are the caller's to say in the formats that have none of their own '''
     path = os.fspath(path)
@@ -447,15 +510,15 @@ def write_mesh(path, xyz, tri, name=None, ascii=False, note='millimetres'):
     if ext == '.stl':
         write_stl(path, xyz, tri, name, ascii)
     elif ext == '.obj':
-        write_obj(path, xyz, tri, name, note)
+        write_obj(path, xyz, tri, name, note, materials, tri_material, colors)
     elif ext == '.ply':
-        write_ply(path, xyz, tri, name, note)
+        write_ply(path, xyz, tri, name, note, colors)
     elif ext == '.3mf':
         write_3mf(path, xyz, tri, name)
     elif ext == '.glb':
-        write_glb(path, xyz, tri, name)
+        write_glb(path, xyz, tri, name, materials, tri_material, colors)
     elif ext == '.gltf':
-        write_gltf(path, xyz, tri, name)
+        write_gltf(path, xyz, tri, name, materials, tri_material, colors)
     elif ext == '.off':
         write_off(path, xyz, tri, name)
     elif ext == '.dxf':

@@ -18,6 +18,7 @@ MODULES = [
     ('text', 'Text', 'fieldes.stdlib.text'),
     ('importing', 'Importing models', 'fieldes.stdlib.importing'),
     ('mesh_import', 'Triangle meshes', 'fieldes.stdlib.mesh_import'),
+    ('materials', 'Materials of an export', 'fieldes.stdlib.materials'),
     ('exporting', 'Exporting files', 'fieldes.stdlib.exporting'),
     ('handles', 'Handles: editing shapes by dragging', 'fieldes.stdlib.handles'),
     ('instances', 'Linked copies', 'fieldes.stdlib.instances'),

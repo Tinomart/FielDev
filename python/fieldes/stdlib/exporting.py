@@ -19,6 +19,7 @@ from array import array
 from fieldes.ffi import lib, libfive_interval_t, libfive_region_t
 from fieldes.shape import Shape
 from fieldes.stdlib import meshfiles
+from fieldes.stdlib.materials import Material
 
 __all__ = ['export_mesh', 'export_field']
 
@@ -264,6 +265,53 @@ def _convert(xyz, units, up):
     return out
 
 
+_MATERIAL_FORMATS = ('.obj', '.glb', '.gltf')           # (the formats that carry materials: the OBJ with a .mtl file beside it)
+_COLOR_FORMATS = ('.obj', '.ply', '.glb', '.gltf')      # (and vertex colours)
+
+
+def _triangle_materials(xyz, tri, materials):
+    ''' (the list of materials, the number of the material of each triangle: the last whose `where` is negative at the middle of the triangle, -1 for none) '''
+    materials = list(materials) if isinstance(materials, (list, tuple)) else [materials]
+    names = set()
+    for m in materials:
+        if not isinstance(m, Material):
+            raise TypeError('export_mesh: materials is a list of material(...), not {!r}'.format(type(m).__name__))
+        if m.name in names:
+            raise ValueError('export_mesh: two materials are called {!r}'.format(m.name))
+        names.add(m.name)
+    nt = len(tri) // 3
+    centres = array('f', [0.0]) * (3 * nt)
+    for c in range(3):
+        a, b, d = tri[0::3], tri[1::3], tri[2::3]
+        centres[c::3] = array('f', [(xyz[3 * a[t] + c] + xyz[3 * b[t] + c] + xyz[3 * d[t] + c]) / 3.0 for t in range(nt)])
+    chosen = array('i', [-1]) * nt
+    for k, m in enumerate(materials):
+        if m.where is None:
+            chosen = array('i', [k]) * nt
+        else:
+            values = _eval_at(m.where, centres, nt)
+            for t in range(nt):
+                if values[t] < 0:
+                    chosen[t] = k
+    return materials, chosen
+
+
+def _vertex_colors(xyz, colors):
+    ''' r, g, b (0 to 1) of every vertex, flat: `colors` is three numbers or fields '''
+    try:
+        channels = list(colors)
+    except TypeError:
+        channels = []
+    if len(channels) != 3:
+        raise ValueError('export_mesh: colors is (r, g, b), each a number or a field from 0 to 1')
+    nv = len(xyz) // 3
+    out = array('f', [0.0]) * (3 * nv)
+    for c, channel in enumerate(channels):
+        values = _eval_at(channel, xyz, nv) if isinstance(channel, Shape) else [float(channel)] * nv
+        out[c::3] = array('f', [min(1.0, max(0.0, v)) for v in values])
+    return out
+
+
 def _half_of(symmetric):
     ''' (axis, plane, sign) from "x", "-y", ("z", 12.5) ...: the axis the mirror is across, where it is, and which side is kept '''
     if symmetric is None or symmetric is False:
@@ -281,7 +329,7 @@ def _half_of(symmetric):
     return 'xyz'.index(text), float(plane), sign
 
 
-def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None):
+def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None):
     ''' Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
             .stl (binary; ascii=True for text), .obj, .ply, .3mf, .glb, .gltf, .fbx (Autodesk FBX, ASCII 7.4: see fbx.py), .off, .dxf (3DFACE)
@@ -298,6 +346,9 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         symmetric   "x", "y" or "z" (or ("x", 12.5): the plane at that position): the half on the larger-coordinate side ("-x": the smaller) is the
                     model, cut exactly at the plane, and the other half is its mirror image -- exactly symmetric, and closed where the mesh was.
                     The model is only as symmetric as the half you give it: the mesh does not have to be
+        materials   a list of `material(...)`s (see materials.py), painted in the order given: each triangle has the LAST one whose `where` field is negative at the
+                    middle of the triangle (a material with no `where` covers everything: it goes first).  .obj (a .mtl file is written beside it), .glb, .gltf
+        colors      (r, g, b), each a number or a field from 0 to 1, evaluated at every vertex: vertex colours.  .obj, .ply, .glb, .gltf
 
         Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
         (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path. '''
@@ -307,6 +358,10 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         raise ValueError('export_mesh({!r}): the mesh formats are {}'.format(path, ', '.join(meshfiles.MESH_WRITE_FORMATS)))
     units, up = _conventions(ext, units, up)
     half = _half_of(symmetric)
+    if materials and ext not in _MATERIAL_FORMATS:
+        raise ValueError('export_mesh: materials are written in {} files, not {}'.format(', '.join(_MATERIAL_FORMATS), ext))
+    if colors is not None and ext not in _COLOR_FORMATS:
+        raise ValueError('export_mesh: vertex colours are written in {} files, not {}'.format(', '.join(_COLOR_FORMATS), ext))
     if max_triangles is not None and int(max_triangles) < 4:
         raise ValueError('export_mesh: max_triangles={!r} -- a closed surface has at least four'.format(max_triangles))
     from fieldes.stdlib.fields import _shape_bounds
@@ -317,11 +372,16 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         xyz, tri = _meshes(bodies, bounds, resolutions, 1.0, half)
     else:
         xyz, tri = _within_budget(bodies, bounds, resolutions, half, max_triangles)
+    # (the materials and the colours are asked of the fields where the model is: before the numbers are turned into another unit and another up axis)
+    tri_material = None
+    if materials:
+        materials, tri_material = _triangle_materials(xyz, tri, materials)
+    vertex_colors = _vertex_colors(xyz, colors) if colors is not None else None
     xyz = _convert(xyz, units, up)
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
     note = '%s%s' % (_UNIT_NAMES[units], ', Y up' if up == 'y' else '')
-    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note)
+    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note, materials=materials or None, tri_material=tri_material, colors=vertex_colors)
     return path
 
 

@@ -3,7 +3,7 @@
 Every public function and class of the FielDes library, generated from its docstrings
 (`python scripts/gen_reference.py`).  `from fieldes import *` brings all of them in.
 
-Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: limbs made of points](#characters-limbs-made-of-points) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDes apps: the inputs of a script](#fieldes-apps-the-inputs-of-a-script)
+Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Materials of an export](#materials-of-an-export) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: limbs made of points](#characters-limbs-made-of-points) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDes apps: the inputs of a script](#fieldes-apps-the-inputs-of-a-script)
 
 ## Primitive shapes
 
@@ -495,6 +495,42 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 The summary of the last import of `path` in this session (triangle
 count, whether it is watertight, ...) as a dict, or None.
 
+## Materials of an export
+
+Materials: a name, a colour, how it shines -- and where on the model it applies, as a field.
+
+    skin = material("skin", color=(0.9, 0.72, 0.6), roughness=0.7)
+    metal = material("metal", color="#9aa0aa", metallic=1.0, roughness=0.3, where=box((-40, -30, 100), (40, 30, 150)))
+    export_mesh(character, "hero.glb", materials=[skin, metal])
+
+The materials of an export are LAYERS, painted in the order they are listed: each triangle takes the last material whose `where` is negative at the middle of the
+triangle (inside the body or the field it names), so a material without a `where` -- the base -- goes first.  A triangle no material covers has none.  OBJ files
+get a .mtl file next to them (`usemtl` for each group of triangles), glTF files a material for each and a primitive of the mesh for each.
+
+`where` is any field: a body (the material is on what is inside it), or a field -- `100 - z_field()` is negative above z = 100.  The edge between two materials
+runs along the triangles of the mesh: as fine as the resolution of the export.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+
+### `Material`
+
+A material for `export_mesh(..., materials=[...])`: see `material`
+
+### `material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=None, where=None)`
+
+A material of a mesh export (`export_mesh(part, "hero.glb", materials=[...])`).
+
+name       what the file calls it (letters, digits, - and _)
+color      (r, g, b) from 0 to 1, or "#rrggbb"
+roughness  0 (a mirror) to 1 (chalk)
+metallic   0 (a dielectric) to 1 (a metal)
+emissive   (r, g, b) or "#rrggbb" for a surface that glows, or None
+where      a body or a field: the material is on the triangles whose middle is inside it (where its value is negative).  None: everywhere
+
+The materials of an export are layers: each triangle takes the LAST one that covers it, so the base material (no `where`) goes first.
+
 ## Exporting files
 
 Exporting: a body as a mesh file, a field sampled on a grid.
@@ -521,7 +557,7 @@ resolution  samples per mm (the scene's resolution by default, limited to 2 mill
 
 A field is not a mesh: this is the sampling of it that other programs work with, at the resolution asked for.  Returns the path.
 
-### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None)`
+### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None)`
 
 Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
@@ -539,6 +575,9 @@ max_triangles   a budget: the finest mesh of at most this many triangles (the re
 symmetric   "x", "y" or "z" (or ("x", 12.5): the plane at that position): the half on the larger-coordinate side ("-x": the smaller) is the
             model, cut exactly at the plane, and the other half is its mirror image -- exactly symmetric, and closed where the mesh was.
             The model is only as symmetric as the half you give it: the mesh does not have to be
+materials   a list of `material(...)`s (see materials.py), painted in the order given: each triangle has the LAST one whose `where` field is negative at the
+            middle of the triangle (a material with no `where` covers everything: it goes first).  .obj (a .mtl file is written beside it), .glb, .gltf
+colors      (r, g, b), each a number or a field from 0 to 1, evaluated at every vertex: vertex colours.  .obj, .ply, .glb, .gltf
 
 Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
 (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path.

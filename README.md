@@ -35,7 +35,7 @@ the viewport. **A mesh is only ever the output**: the field is the model.
 
 New here? A welcome card offers a **guided tour** the first time FielDes starts (**Help → Guided tour** any time after): short cards over the
 program itself that point at what they talk about and let you try it. The [tutorial](docs/tutorial.md) is the written version.
-**File → Open example file** has 15 scripts (`00_START_HERE.py` says where everything is); the [examples README](examples/README.md) lists them.
+**File → Open example file** has 16 scripts (`00_START_HERE.py` says where everything is); the [examples README](examples/README.md) lists them.
 
 ## What it does
 
@@ -109,6 +109,7 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [`31_texture.py`](examples/31_texture.py) | A pattern of small bumps and pits laid over the surface of a body: grit, stipple, leather, ribs, dimples, knurl |
 | [`32_game_export.py`](examples/32_game_export.py) | Exporting for a game engine: the unit and the up axis, a budget of triangles, a mesh that is exactly symmetric — each checked by reading the files back |
 | [`33_character.py`](examples/33_character.py) | A character from points: limbs that taper between joints (`chain`, `round_cone`), blended into one body, the other half made by a mirror |
+| [`34_materials.py`](examples/34_materials.py) | Materials by region (a body or a field) and vertex colours from fields, written as OBJ + MTL, glTF and PLY — each checked by reading the files back |
 
 ## Documentation
 
