@@ -666,7 +666,7 @@ QIcon itemIcon(const QJsonObject& it, bool failed)
     const QString kind = it["kind"].toString();
     if (kind == "import") return TypeIcons::icon("import");
     const QString type = it["type"].toString();
-    if (!type.isEmpty()) return TypeIcons::icon(type, it.contains("block"), it["domain"].toString());
+    if (!type.isEmpty()) return TypeIcons::icon(type, it.contains("block"));
     return kindIcon(kind, false);
 }
 
@@ -829,32 +829,6 @@ bool allFields(const QList<QJsonObject>& models)
     return true;
 }
 
-// Whether a drop of these models on `target` is for the REGION of a condition: a body, a surface or a field dropped on a support, a load or a
-// thermal or flow condition becomes (part of) the place it acts -- `fixed(region)`.  A field is a region only where the condition has no
-// plain number a field would take the place of (a temperature, a coefficient: those keep the field as their value)
-bool regionDrop(const QJsonObject& target, const QList<QJsonObject>& models)
-{
-    if (target["type"].toString() != "conditions" || models.isEmpty() || target["failed"].toBool()) return false;
-    bool fields = true;
-    for (const auto& m : models)
-    {
-        const QString type = m["type"].toString();
-        if (!(type == "solid" || type == "profile" || type == "surface" || type == "field" || type == "lattice")) return false;
-        if (type != "field") fields = false;
-    }
-    if (target["region_args"].toArray().isEmpty()) return false;        // (the call has no region written: nothing to put the model beside)
-    if (fields)
-    {
-        for (const auto nv : target["numbers"].toArray())
-        {
-            const auto n = nv.toObject();
-            if (n["label"].toString().contains('[') || n["discrete"].toBool()) continue;
-            return false;               // (a plain number: the field is its value, as it always was)
-        }
-    }
-    return true;
-}
-
 // Whether every one of these models is a point (a point reads as its coordinates, so it can take the place of a position
 // written as a tuple in a call: distance_to_point((0, 0, 0)) -> distance_to_point(anchor))
 bool allPoints(const QList<QJsonObject>& models)
@@ -908,7 +882,7 @@ QString unmarkShadow(const QString& line, const QString& name)
 // What a model may be swapped for another of: a field for a field, a body (3D or 2D) for a body, any other kind for its own
 QString typeClass(const QString& type)
 {
-    return type == "solid" || type == "profile" || type == "lattice" ? QString("shape") : type;
+    return type == "solid" || type == "profile" ? QString("shape") : type;
 }
 
 // The editor of a name in the tree: only the rows of a variable have one (a double click), and what is typed goes to the panel
@@ -990,17 +964,12 @@ public:
     std::function<void(QTreeWidgetItem*)> gapPlaced;
     std::function<void()> gapEndPlaced;
     std::function<QTreeWidgetItem*(bool* end, bool* active)> markRow;
-    // the hovered row whose model has properties (a result: its fields and numbers): the panel shows its tab for it; the row that is hovered
-    // changes (null: none)
-    std::function<bool(QTreeWidgetItem*)> hasProperties;
-    std::function<void(QTreeWidgetItem*)> propertyRowChanged;
-
     bool dragging() const { return m_dragging; }
     int endGapY() const { return lastRowBottom(); }         // (where the gap after the last row is: the bottom of the last row that is shown)
     bool isEditing() const { return state() == EditingState; }
     QTreeWidgetItem* rowOf(const QModelIndex& index) const { return itemFromIndex(index); }
     // (the rows are made again when the scene changes: a row that was pressed or is hovered is gone with them)
-    void resetDrop() { m_ok = false; m_over = nullptr; m_gap = nullptr; m_gapEnd = false; m_gapHot = false; m_propRow = nullptr; m_pressRow = nullptr; m_toggleRow = nullptr; m_replay.reset(); viewport()->update(); }
+    void resetDrop() { m_ok = false; m_over = nullptr; m_gap = nullptr; m_gapEnd = false; m_gapHot = false; m_pressRow = nullptr; m_toggleRow = nullptr; m_replay.reset(); viewport()->update(); }
 
     // Where in the tree a point is: above a row (its top third), on it (the middle), below it, or in the empty space
     int where(const QPoint& pos, QTreeWidgetItem** over) const
@@ -1011,7 +980,7 @@ public:
         const QRect r = visualItemRect(row);
         const double f = double(pos.y() - r.top()) / std::max(1, r.height());
         const QString rowType = row->data(COL_NAME, ROLE_TYPE).toString();
-        if (rowType == "hole" || rowType == "bcgroup") return ScenePanel::DropOn;     // (a placeholder: a model goes on it, whole row)
+        if (rowType == "hole") return ScenePanel::DropOn;     // (a placeholder: a model goes on it, whole row)
         if (takesOn && takesOn(row)) return f < 0.28 ? ScenePanel::DropAbove : f > 0.72 ? ScenePanel::DropBelow : ScenePanel::DropOn;
         return f < 0.5 ? ScenePanel::DropAbove : ScenePanel::DropBelow;
     }
@@ -1019,16 +988,13 @@ public:
 protected:
     bool viewportEvent(QEvent* e) override
     {
-        if (e->type() == QEvent::Leave && (m_gap || m_gapEnd || m_propRow))
+        if (e->type() == QEvent::Leave && (m_gap || m_gapEnd))
         {
             m_gap = nullptr;
             m_gapEnd = false;
             m_gapHot = false;
-            const bool hadProperties = m_propRow != nullptr;
-            m_propRow = nullptr;
             viewport()->unsetCursor();
             viewport()->update();
-            if (hadProperties && propertyRowChanged) propertyRowChanged(nullptr);
         }
         return QTreeWidget::viewportEvent(e);
     }
@@ -1136,7 +1102,6 @@ protected:
         if (!m_dragging && !(e->buttons() & Qt::LeftButton))
         {
             updateGap(e->pos());
-            updateProp(e->pos());
         }
         if (m_dragging)
         {
@@ -1488,20 +1453,6 @@ private:
     bool m_gapLine = false;                 // (the mouse is on the line of the gap that shows, a few pixels each side: a press puts the insertion point there)
     bool m_gapEnd = false;                  // (the gap that shows is the one at the end of the tree: after the last row)
     QTreeWidgetItem* m_gap = nullptr;       // (the row the lit gap is above)
-    QTreeWidgetItem* m_propRow = nullptr;   // (the hovered row that has properties: its arrow is drawn)
-    void updateProp(const QPoint& pos)
-    {
-        QTreeWidgetItem* row = nullptr;
-        if (hasProperties && !isEditing())
-        {
-            row = itemAt(pos);
-            if (row && !hasProperties(row)) row = nullptr;
-        }
-        if (row == m_propRow) return;
-        m_propRow = row;
-        viewport()->update();
-        if (propertyRowChanged) propertyRowChanged(row);
-    }
 
     // (Ctrl makes a drag a copy; so does what is carried when it can only be copied)
     bool copyFor(Qt::KeyboardModifiers mods) const { return (mods & Qt::ControlModifier) || (alwaysCopy && alwaysCopy()); }
@@ -1546,60 +1497,6 @@ private:
 }   // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-// The tab that opens the drawer of a model's properties: a small tab that sticks out of the right edge of the panel
-class PropertyTab : public QWidget
-{
-public:
-    explicit PropertyTab(QWidget* parent) : QWidget(parent)
-    {
-        setObjectName("PropertyTab");
-        setCursor(Qt::PointingHandCursor);
-        setMouseTracking(true);
-        hide();
-    }
-    std::function<void()> clicked, entered, left;
-    bool active = false;                        // (its drawer is open)
-protected:
-    void enterEvent(QEvent*) override { m_hover = true; if (entered) entered(); update(); }
-    void leaveEvent(QEvent*) override { m_hover = false; if (left) left(); update(); }
-    void mousePressEvent(QMouseEvent* e) override
-    {
-        if (e->button() != Qt::LeftButton) return;
-        e->accept();
-        if (clicked) clicked();
-    }
-    void paintEvent(QPaintEvent*) override
-    {
-        QPainter p(this);
-        p.setRenderHint(QPainter::Antialiasing);
-        const bool lit = m_hover || active;
-        const QRectF r = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-        // (square where it meets the panel, round on the outside)
-        QPainterPath tab;
-        tab.moveTo(r.left(), r.top());
-        tab.lineTo(r.right() - 8, r.top());
-        tab.quadTo(r.right(), r.top(), r.right(), r.top() + 8);
-        tab.lineTo(r.right(), r.bottom() - 8);
-        tab.quadTo(r.right(), r.bottom(), r.right() - 8, r.bottom());
-        tab.lineTo(r.left(), r.bottom());
-        p.fillPath(tab, lit ? QColor(0x2a, 0xa1, 0x98) : QColor(0x16, 0x4c, 0x5e, 248));
-        p.setPen(QPen(lit ? QColor(0x4a, 0xc4, 0xb8) : QColor(0x2a, 0xa1, 0x98, 200), 1.2));
-        p.setBrush(Qt::NoBrush);
-        p.drawPath(tab);
-        const QPointF c = r.center() + QPointF(-0.5, 0);
-        p.setPen(QPen(lit ? QColor(0x06, 0x26, 0x30) : QColor(0xee, 0xe8, 0xd5), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        QPolygonF chevron;
-        chevron << QPointF(c.x() - 2.4, c.y() - 4.8) << QPointF(c.x() + 2.6, c.y()) << QPointF(c.x() - 2.4, c.y() + 4.8);
-        p.drawPolyline(chevron);
-    }
-private:
-    bool m_hover = false;
-};
-
-}   // anonymous namespace
 
 ScenePanel::ScenePanel(QWidget* parent)
     : QFrame(parent), m_tree(new SceneTree), m_header(new QToolButton),
@@ -1670,13 +1567,11 @@ ScenePanel::ScenePanel(QWidget* parent)
         tree->accepts = [this](QTreeWidgetItem* over, int at, bool copy, QString* why) { return canDrop(over, at, copy, why); };
         tree->takesOn = [this](QTreeWidgetItem* row) {
             const QString type = row->data(COL_NAME, ROLE_TYPE).toString();
-            if (type == "hole" || type == "dep" || type == "bcgroup") return true;     // (a model goes on a placeholder, or takes the place of a shadow; the
-                                                                                        // conditions row of a simulation takes what the simulation takes)
+            if (type == "hole" || type == "dep") return true;     // (a model goes on a placeholder, or takes the place of a shadow)
             if (type != "item") return false;
             const auto it = row->data(COL_NAME, ROLE_ITEM).toJsonObject();
             const auto models = m_dragging ? m_dragModels : draggedModels();
-            if (takesInput(it) || it["hole"].toBool() || (takesNumber(it) && allFields(models)) || (takesPoint(it) && allPoints(models))
-                || regionDrop(it, models))
+            if (takesInput(it) || it["hole"].toBool() || (takesNumber(it) && allFields(models)) || (takesPoint(it) && allPoints(models)))
                 return true;
             // (one of the models of a call can be replaced by a model of its kind dropped on it)
             if (!it.contains("owner") || models.isEmpty()) return false;
@@ -1708,23 +1603,6 @@ ScenePanel::ScenePanel(QWidget* parent)
         tree->gapPlaced = [this](QTreeWidgetItem* row) { placeInsertion(gapKey(row), false); };
         tree->gapEndPlaced = [this] { placeInsertion(QString(), true); };
         tree->markRow = [this](bool* end, bool* active) { return insertionRow(end, active); };
-        tree->hasProperties = [this](QTreeWidgetItem* row) {
-            return row->data(COL_NAME, ROLE_TYPE).toString() == "item" &&
-                   !row->data(COL_NAME, ROLE_ITEM).toJsonObject()["properties"].toArray().isEmpty() && !m_dragging;
-        };
-        tree->propertyRowChanged = [this](QTreeWidgetItem* row) {
-            if (row) showPropertyTab(row);
-            else m_propTabHide.start();
-        };
-        m_propTabHide.setSingleShot(true);
-        m_propTabHide.setInterval(220);
-        connect(&m_propTabHide, &QTimer::timeout, this, [this] {
-            // (it stays while the mouse is on it, or the drawer it opened is there)
-            if (m_propTab && (m_propTab->underMouse() || m_drawer)) return;
-            hidePropertyTab();
-        });
-        connect(m_tree->verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { hidePropertyTab(); });
-        installEventFilter(this);               // (the tab follows the panel when it is moved, sized or hidden)
 
         auto renamer = new RenameDelegate;
         renamer->setParent(m_tree);
@@ -1855,11 +1733,6 @@ bool ScenePanel::eventFilter(QObject* obj, QEvent* e)
     {
         setCollapsed(m_collapsed);
     }
-    if (obj == this && (e->type() == QEvent::Move || e->type() == QEvent::Resize))
-    {
-        if (m_propTab && m_propTab->isVisible()) placePropertyTab();
-    }
-    if (obj == this && e->type() == QEvent::Hide) hidePropertyTab();
     // (the modifiers of a click on the tree: itemClicked, which comes after the release, does not carry them)
     if (obj == m_tree->viewport() && (e->type() == QEvent::MouseButtonPress || e->type() == QEvent::MouseButtonRelease))
     {
@@ -1892,7 +1765,7 @@ void ScenePanel::setCollapsed(bool c)
         return;
     }
     adjustSize();
-    resize(360, height());                  // (wide enough for "boundary conditions" under a simulation; the user can make it wider or narrower)
+    resize(360, height());                  // (the user can make it wider or narrower)
     if (parentWidget())
     {
         const int maxH = parentWidget()->height() * 0.62;
@@ -1953,7 +1826,6 @@ void ScenePanel::setScene(const QString& json)
     if (m_source && m_scene["run_done"].toBool() && !m_scene["errored"].toBool() && m_scene["source_md5"].toString() == md5Hex(m_source()))
         saveSceneCache(json, m_scene["source_md5"].toString());
     TypeIcons::setKinds(m_scene["kinds"].toObject());
-    TypeIcons::setDomains(m_scene["domains"].toObject());
     ++m_generation;
     rebuild();
     // Expressions that were named for a multi-selection: the selection is the same models again, under their new names
@@ -2083,7 +1955,7 @@ void ScenePanel::fitRegion()
     bool any = false;
     int unknown = 0;                // (bodies that are meshed in the region and whose extent is not known: the region cannot be said to hold them.
                                     // A profile or a line is drawn from its points, not meshed: the region has nothing to hold of it)
-    auto drawnBody = [](const QString& t) { return t == "solid" || t == "lattice" || t == "import"; };
+    auto drawnBody = [](const QString& t) { return t == "solid" || t == "import"; };
     for (const auto v : m_scene["items"].toArray())
     {
         const auto it = v.toObject();
@@ -2460,7 +2332,6 @@ void ScenePanel::rebuild()
     }
     QHash<QString, QTreeWidgetItem*> rowOfKey;
     QHash<QTreeWidgetItem*, bool> expandedByDefault;
-    QList<QPair<QTreeWidgetItem*, QString>> conditionGroups;      // (the "boundary conditions" rows, and the keys they are remembered by)
 
     // Render settings: the numbers are fields, typed in here (the call in the script is rewritten, or added)
     const auto settings = m_scene["settings"].toObject();
@@ -2952,81 +2823,6 @@ void ScenePanel::rebuild()
             return positionOfName.value(name, qint64(1) << 40);
         };
         std::stable_sort(rows.begin(), rows.end(), [&](QTreeWidgetItem* a, QTreeWidgetItem* b) { return place(a) < place(b); });
-        // The conditions of a simulation -- and a placeholder for each kind of them it still waits for -- stand under one row of their
-        // own, "boundary conditions": its eye shows or hides every one of them at once.  Each condition keeps its own row, its own eye,
-        // and shows itself on its own.  The kinds stand in the order the simulation takes them (supports, loads ... / inlets, outlets ...)
-        {
-            const QJsonArray holesOf = pit["holes"].toArray();
-            QStringList slotOrder;
-            for (const auto sv : pit["slots"].toObject()["params"].toArray()) slotOrder << sv.toString();
-            QList<QTreeWidgetItem*> group;
-            QHash<QTreeWidgetItem*, QString> roleOf;
-            for (auto c : rows)
-            {
-                const QString t = c->data(COL_NAME, ROLE_TYPE).toString();
-                QString role;
-                bool isCondition = false;
-                if (t == "arg")
-                {
-                    continue;
-                }
-                else if (t == "hole")
-                {
-                    const QJsonObject h = holesOf[c->data(COL_NAME, ROLE_PART).toInt()].toObject();
-                    if (h["list"].toBool()) { isCondition = true; role = h["param"].toString(); }
-                }
-                else
-                {
-                    const QJsonObject m = t == "dep" ? itemBefore(c->data(COL_NAME, ROLE_PART).toString(), pit["line"].toInt())
-                                                     : c->data(COL_NAME, ROLE_ITEM).toJsonObject();
-                    if (m["type"].toString() == "conditions") { isCondition = true; role = m["condition_role"].toString(); }
-                }
-                if (!isCondition) continue;
-                group << c;
-                roleOf[c] = role;
-            }
-            if (!group.isEmpty())
-            {
-                std::stable_sort(group.begin(), group.end(), [&](QTreeWidgetItem* a, QTreeWidgetItem* b) {
-                    const int x = slotOrder.indexOf(roleOf[a]), y = slotOrder.indexOf(roleOf[b]);
-                    return (x < 0 ? 1000 : x) < (y < 0 ? 1000 : y);
-                });
-                int at = int(rows.size());
-                for (auto c : group) at = std::min(at, int(rows.indexOf(c)));
-                for (auto c : group) rows.removeAll(c);
-                const QString gkey = parent->data(COL_NAME, ROLE_KEY).toString() + ">bc";
-                auto g = makeRow(nullptr, T("boundary conditions"), TypeIcons::icon("conditions", false, pit["domain"].toString()), "bcgroup", pit, gkey);
-                nested.insert(g);
-                conditionGroups << qMakePair(g, gkey);
-                g->setToolTip(COL_NAME, T("The conditions of %1: a placeholder for every kind it takes, and the conditions in them.\n"
-                                        "The eye shows or hides all of them at once; each condition has its own eye and shows itself on its own.\n"
-                                        "Conditions dropped here go in the input of their kind.").arg(pit["var"].toString()));
-                QSet<QString> counted;
-                int shown = 0, total = 0;
-                for (auto c : group)
-                {
-                    g->addChild(c);
-                    const QString t = c->data(COL_NAME, ROLE_TYPE).toString();
-                    if (t == "hole") continue;
-                    const QJsonObject m = t == "dep" ? itemBefore(c->data(COL_NAME, ROLE_PART).toString(), pit["line"].toInt())
-                                                     : c->data(COL_NAME, ROLE_ITEM).toJsonObject();
-                    if (!m.contains("var") || m["failed"].toBool() || (m.contains("displayable") && !m["displayable"].toBool())) continue;
-                    if (counted.contains(keyOf(m))) continue;
-                    counted.insert(keyOf(m));
-                    ++total;
-                    if (m["visible"].toBool()) ++shown;
-                }
-                if (total > 0)
-                {
-                    const bool all = shown == total;
-                    g->setIcon(COL_EYE, eyeIcon(all));
-                    g->setData(COL_EYE, Qt::UserRole, all);
-                    g->setToolTip(COL_EYE, all ? T("Hide all the boundary conditions") : T("Show all the boundary conditions"));
-                    if (shown == 0) g->setForeground(COL_NAME, kDim);
-                }
-                rows.insert(std::min(at, int(rows.size())), g);
-            }
-        }
         // (the models that a block of Python holds stand above what is in it, as they stand above it in the script)
         if (parent->data(COL_NAME, ROLE_TYPE).toString() == "python")
         {
@@ -3188,7 +2984,6 @@ void ScenePanel::rebuild()
         for (int k = 0; k < row->childCount() && onlyArguments; ++k) onlyArguments = row->child(k)->data(COL_NAME, ROLE_TYPE).toString() == "arg";
         row->setExpanded(m_expandState.value(row->data(COL_NAME, ROLE_KEY).toString(), onlyArguments ? false : expandedByDefault.value(row, true)));
     }
-    for (const auto& g : conditionGroups) g.first->setExpanded(m_expandState.value(g.second, true));
     for (auto row : sectionRows)
     {
         if (row->childCount() > 0) row->setExpanded(m_expandState.value(row->data(COL_NAME, ROLE_KEY).toString(), true));
@@ -3938,7 +3733,6 @@ void ScenePanel::showCached()
     m_sceneClock.start();
     m_predicted = false;
     TypeIcons::setKinds(m_scene["kinds"].toObject());
-    TypeIcons::setDomains(m_scene["domains"].toObject());
     ++m_generation;
     rebuild();
     updateMultiNote();
@@ -4797,7 +4591,6 @@ void ScenePanel::deleteRow(QTreeWidgetItem* row)
         }
         return;
     }
-    if (type == "bcgroup") return;              // (a group is not a model: the conditions in it are deleted one by one)
     if (type == "dep")
     {
         deleteReferences({qMakePair(it, row->data(COL_NAME, ROLE_PART).toString())});
@@ -5035,13 +4828,13 @@ void ScenePanel::duplicateLinkedSelected()
         m_afterRun = [=] { duplicateLinkedSelected(); };       // (the script is being edited to get the models ready: the scene is a run behind)
         return;
     }
-    // What can be linked: a shape (a body, a 2D shape, a surface, a lattice).  A profile or a curve is made of its points, a number or a material has no shape to follow
+    // What can be linked: a shape (a body, a 2D shape, a surface).  A profile or a curve is made of its points, a number has no shape to follow
     QList<QJsonObject> items;
     QStringList refused;
     for (const auto& it : selected)
     {
         const QString type = it["type"].toString(), callee = it["callee"].toString();
-        const bool shape = type.isEmpty() || type == "solid" || type == "profile" || type == "surface" || type == "lattice";
+        const bool shape = type.isEmpty() || type == "solid" || type == "profile" || type == "surface";
         if (shape && callee != "profile" && callee != "polyline" && callee != "spline") items << it;
         else refused << it["var"].toString();
     }
@@ -5850,13 +5643,6 @@ void ScenePanel::select(QTreeWidgetItem* row, bool focus)
         emit(highlightLines({}));
         return;
     }
-    if (type == "bcgroup")
-    {
-        // (the conditions of a simulation: the code shows the simulation's call; nothing is carried to the view)
-        emit(goToLine(it["line"].toInt() - 1));
-        emit(highlightLines(linesOf(it)));
-        return;
-    }
     if (type == "python")
     {
         // (plain Python: the code editor shows it; nothing is carried to the view)
@@ -5989,30 +5775,6 @@ void ScenePanel::onItemClicked(QTreeWidgetItem* row, int column)
             const bool toggles = p.contains("var") || (it.contains("index") && it["index"].toInt() == k);
             showPart(it, k);
             if (toggles) flipEye(row);
-        }
-        else if (type == "bcgroup")
-        {
-            // "boundary conditions": every condition of the simulation is shown -- or, when they are all shown, hidden
-            QList<QJsonObject> conditions;
-            QSet<QString> seen;
-            bool all = true;
-            for (int k = 0; k < row->childCount(); ++k)
-            {
-                auto c = row->child(k);
-                const QString ct = c->data(COL_NAME, ROLE_TYPE).toString();
-                QJsonObject m;
-                if (ct == "item") m = c->data(COL_NAME, ROLE_ITEM).toJsonObject();
-                else if (ct == "dep")
-                    m = itemBefore(c->data(COL_NAME, ROLE_PART).toString(), c->data(COL_NAME, ROLE_ITEM).toJsonObject()["line"].toInt());
-                if (!m.contains("var") || m["failed"].toBool() || (m.contains("displayable") && !m["displayable"].toBool())) continue;
-                if (seen.contains(keyOf(m))) continue;
-                seen.insert(keyOf(m));
-                conditions << m;
-                all = all && m["visible"].toBool();
-            }
-            if (conditions.isEmpty()) return;
-            flipEye(row);
-            setVisibleAll(conditions, !all);
         }
         else
         {
@@ -7027,7 +6789,6 @@ bool ScenePanel::combines(const QString& operation) const
         for (const auto v : doc.object()["operations"].toArray())
         {
             const auto o = v.toObject();
-            if (o["group"].toString() == "Simulations") m_simulations.insert(o["name"].toString());
             m_combining[o["name"].toString()] = o["other"].toBool();
             m_needsSecond[o["name"].toString()] = o["needs_other"].toBool(o["other"].toBool());
         }
@@ -7050,12 +6811,6 @@ bool ScenePanel::pointsOnly(int line0) const
         if (m.item["type"].toString() != "point") return false;
     }
     return true;
-}
-
-bool ScenePanel::isSimulation(const QString& operation) const
-{
-    combines(operation);            // (reads the interpreter's list the first time)
-    return m_simulations.contains(operation);
 }
 
 bool ScenePanel::takesBodies(const QString& primitive) const
@@ -7181,7 +6936,7 @@ bool ScenePanel::fitsOperands(const QString& kind, const QString& name, int line
     const bool regionOnly = picked.size() == 1 && regionKind(picked[0].item) && (line0 >= 0 || !selectedModels().isEmpty());
     const bool withBodies = picked.size() >= 2 || regionOnly || (kind == "primitive" && !picked.isEmpty() && (fromSelection(name) || onModel));
     if (!operation && !withBodies) return true;             // (no model is needed for it, or none is selected)
-    const QList<Model> operands = operandsFor(line0, !(operation && isSimulation(name)));
+    const QList<Model> operands = operandsFor(line0);
     if (operands.isEmpty()) return true;                    // (no model to work on: the menu says so itself -- a simulation writes placeholders)
     const bool combining = withBodies || combines(name);
     QJsonObject bodyItem = operands[0].item;
@@ -7209,7 +6964,6 @@ bool ScenePanel::fitsOperands(const QString& kind, const QString& name, int line
             QJsonObject info;
             info["name"] = operands[i].source;
             info["type"] = operands[i].item["type"].toString();
-            info["role"] = operands[i].item["condition_role"].toString();
             info["cls"] = operands[i].item["cls"].toString();
             info["symmetry_image"] = operands[i].item["symmetry_image"].toBool();       // (what is the images of a model has no images of its own made)
             othersInfo.append(info);
@@ -7231,7 +6985,6 @@ bool ScenePanel::fitsOperands(const QString& kind, const QString& name, int line
         QJsonObject info;
         info["name"] = second["var"].toString();
         info["type"] = second["type"].toString();
-        info["role"] = second["condition_role"].toString();
         info["cls"] = second["cls"].toString();
         info["symmetry_image"] = second["symmetry_image"].toBool();       // (what is the images of a model has no images of its own made)
         othersInfo.append(info);
@@ -7251,7 +7004,6 @@ bool ScenePanel::fitsOperands(const QString& kind, const QString& name, int line
     {
         QJsonObject info;
         info["type"] = bodyItem["type"].toString();
-        info["role"] = bodyItem["condition_role"].toString();
         info["cls"] = bodyItem["cls"].toString();
         info["symmetry_image"] = bodyItem["symmetry_image"].toBool();       // (what is the images of a model has no images of its own made)
         info["part"] = bodyItem["part_name"].toString();
@@ -7551,7 +7303,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
     if (kind == "operation" || withBodies)
     {
         // What it works on: the model that was right-clicked, or the selected ones, in the order they were selected
-        QList<Model> operands = operandsFor(line0, !(operation && isSimulation(name)));
+        QList<Model> operands = operandsFor(line0);
         // (nothing selected, in the menu of empty space: the last model of the script is what the operation works on -- unless that is not what it takes, then it has none)
         if (operation && line0 < 0 && !operands.isEmpty() && selectedModels().isEmpty() && !fitsOperands(kind, name, line0)) operands.clear();
         for (const Model& m : operands)
@@ -7610,7 +7362,6 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
                     QJsonObject info;
                     info["name"] = operands[i].source;
                     info["type"] = operands[i].item["type"].toString();
-                    info["role"] = operands[i].item["condition_role"].toString();
                     info["cls"] = operands[i].item["cls"].toString();
                     info["symmetry_image"] = operands[i].item["symmetry_image"].toBool();       // (what is the images of a model has no images of its own made)
                     othersInfo.append(info);
@@ -7672,10 +7423,9 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
     if (!othersInfo.isEmpty()) request["others"] = othersInfo;
     if (!bodyItem.isEmpty())
     {
-        // (what the first model selected is: a set of boundary conditions made for a part is the conditions of an analysis of that part)
+        // (what the first model selected is)
         QJsonObject info;
         info["type"] = bodyItem["type"].toString();
-        info["role"] = bodyItem["condition_role"].toString();
         info["cls"] = bodyItem["cls"].toString();
         info["symmetry_image"] = bodyItem["symmetry_image"].toBool();       // (what is the images of a model has no images of its own made)
         info["part"] = bodyItem["part_name"].toString();
@@ -7686,12 +7436,6 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
     request["var"] = var;
     // (how far the statement is indented: the library lays the call out for that column)
     request["indent"] = ((kind == "operation" || withBodies) && !bare) ? int(indentOf(lineText(target["line"].toInt() - 1)).size()) : 0;
-    const QJsonObject sized = bodyItem.isEmpty() ? target : bodyItem;
-    if (sized["bounds"].toArray().size() == 2)             // (what a simulation lays its supports and loads on)
-    {
-        request["lo"] = sized["bounds"].toArray()[0];
-        request["hi"] = sized["bounds"].toArray()[1];
-    }
     QString error;
     QString call = m_support("menu_call", QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)),
                              &error);
@@ -7905,8 +7649,6 @@ QString ScenePanel::dumpRows() const
         else if (type == "section") out += "  [section]";
         else if (type == "python") out += "  [python block]";
         else if (type == "pychild") out += "  [python, locked]";
-        else if (type == "bcgroup")
-            out += QString("  [conditions of %1, eye %2]").arg(it["var"].toString(), r->icon(COL_EYE).isNull() ? "none" : r->data(COL_EYE, Qt::UserRole).toBool() ? "on" : "off");
         if (r->childCount() > 0 && !r->isExpanded()) out += "  {closed}";
         out += "\n";
         for (int k = 0; k < r->childCount(); ++k) walk(r->child(k), depth + 1);
@@ -8046,17 +7788,10 @@ bool ScenePanel::dependsOn(const QJsonObject& model, const QJsonObject& on) cons
     return walk(model);
 }
 
-// What a model is for the kinds a call takes (the library's: see menu_catalog._tag): its kind, for a condition the input it goes in, for a material whether it is a fluid
+// What a model is for the kinds a call takes (the library's: see menu_catalog._tag): its kind
 static QString modelKindTag(const QJsonObject& m)
 {
-    const QString kind = m["type"].toString();
-    if (kind == "conditions")
-    {
-        const QString role = m["condition_role"].toString();
-        return role.isEmpty() ? QString("conditions") : role;
-    }
-    if (kind == "material") return m["cls"].toString() == "Fluid" ? QString("fluid") : QString("material");
-    return kind;
+    return m["type"].toString();
 }
 
 // Kinds of model in words, for the reason a drop is refused (many kinds at once -- everything geometric -- is said once)
@@ -8073,14 +7808,9 @@ static QString kindWords(const QStringList& kinds)
         else if (k == "point") w = T("a point");
         else if (k == "field") w = T("a field");
         else if (k == "surface") w = T("a surface");
-        else if (k == "lattice") w = T("a lattice");
         else if (k == "import") w = T("an imported part");
-        else if (k == "simulation") w = T("an analysis");
-        else if (k == "material") w = T("a material");
-        else if (k == "fluid") w = T("a fluid");
         else if (k == "points") w = T("points");
-        else if (k == "cell") w = T("a lattice cell");
-        else w = T("a condition");
+        else w = T("a model");
         if (!words.contains(w)) words << w;
     }
     return words.join(T(" or "));
@@ -8101,34 +7831,15 @@ ScenePanel::OnPlan ScenePanel::planFill(const QList<QJsonObject>& models, const 
         return p;
     }
     const QJsonObject hole = holes[which].toObject();
-    const bool listed = hole["list"].toBool();           // (an input that takes conditions: one, or a list of them)
     const QString slot = hole["param"].toString();
-    if (listed)
-    {
-        for (const auto& m : models)
-        {
-            if (m["type"].toString() != "conditions")
-            {
-                p.why = T("%1 takes conditions: '%2' is not one. Make one of it first (the Engineering menu: New support or load, New thermal condition, "
-                          "New flow condition).").arg(slot, m["var"].toString());
-                return p;
-            }
-            if (m["condition_role"].toString() != slot)
-            {
-                const QString role = m["condition_role"].toString();
-                p.why = T("'%1' goes in %2=, not in %3=.").arg(m["var"].toString(), role.isEmpty() ? T("another input") : role, slot);
-                return p;
-            }
-        }
-    }
-    else if (models.size() > 1)
+    if (models.size() > 1)
     {
         p.why = T("A placeholder takes one model: drop one of %1 on it.").arg("'" + names.join("', '") + "'");
         return p;
     }
     // (a place that takes certain kinds of model only: another kind is not put there, whatever the run would say of it)
     const QJsonArray accepts = hole["accepts"].toArray();
-    if (!listed && !accepts.isEmpty())
+    if (!accepts.isEmpty())
     {
         QStringList kinds;
         for (const auto a : accepts) kinds << a.toString();
@@ -8151,7 +7862,7 @@ ScenePanel::OnPlan ScenePanel::planFill(const QList<QJsonObject>& models, const 
     }
     p.ok = true;
     p.replace = holes[which].toObject()["span"].toArray();
-    p.text = listed ? "[" + names.join(", ") + "]" : names[0];
+    p.text = names[0];
     p.what = T("Use %1 in place of a placeholder of %2").arg(names.join(", "), sname);
     return p;
 }
@@ -8178,196 +7889,9 @@ ScenePanel::OnPlan ScenePanel::planDropOn(const QList<QJsonObject>& models, cons
             return p;
         }
     }
-    // (dropped on a statement that has placeholders: a model takes the first of them.  Conditions go in the inputs of their kinds -- the
-    // placeholders among them -- one kind at a time, or all at once)
-    bool onlyConditions = !models.isEmpty();
-    for (const auto& m : models) onlyConditions = onlyConditions && m["type"].toString() == "conditions";
-    if (target["hole"].toBool() && !onlyConditions) return planFill(models, target, 0);
+    // (dropped on a statement that has placeholders: a model takes the first of them)
+    if (target["hole"].toBool()) return planFill(models, target, 0);
     const QJsonArray inputs = target["inputs"].toArray();
-    if (regionDrop(target, models))
-    {
-        const QJsonObject callSlots = target["slots"].toObject();
-        const QJsonObject given = callSlots["args"].toObject();
-        // The region: a condition takes any number of them, one argument after the other, so the models dropped are more arguments
-        // (`fixed(a)` + b -> `fixed(a, b)`).  The box the menu made for it (`fixed_1_region`) is swapped for them
-        const QJsonArray regs = target["region_args"].toArray();
-        QStringList written;
-        for (const auto rv : regs) written << rv.toObject()["text"].toString().trimmed();
-        for (const QString& n : names)
-        {
-            for (const QString& w : written)
-            {
-                if (QRegularExpression("\\b" + QRegularExpression::escape(n) + "\\b").match(w).hasMatch())
-                {
-                    p.why = T("'%1' is already part of the region of '%2' (%3), so dropping it here changes nothing.").arg(n, tname, w);
-                    return p;
-                }
-            }
-        }
-        static const QRegularExpression identifier(R"(^[A-Za-z_]\w*$)");
-        p.ok = true;
-        if (regs.size() == 1 && identifier.match(written[0]).hasMatch() && written[0].endsWith("_region"))
-        {
-            p.replace = regs[0].toObject()["span"].toArray();
-            p.text = names.join(", ");
-            p.what = T("Use %1 as the region of %2 (in place of its box %3)").arg(names.join(", "), tname, written[0]);
-        }
-        else
-        {
-            p.after = regs.last().toObject()["span"].toArray();
-            p.text = names.join(", ");
-            p.what = T("Add %1 to the regions of %2").arg(names.join(", "), tname);
-        }
-        return p;
-    }
-    // A material or a condition goes where an analysis asks for one: in place of the one it is given, or as the argument it is
-    // not given yet (`material=`, `conditions=`, or the list of supports and loads).  Never a question
-    {
-        const auto allOfType = [&](const char* type) {
-            for (const auto& m : models) if (m["type"].toString() != type) return false;
-            return !models.isEmpty();
-        };
-        const QJsonObject callSlots = target["slots"].toObject();
-        const QJsonObject given = callSlots["args"].toObject();
-        const auto hasParam = [&](const QString& name) {
-            for (const auto pv : callSlots["params"].toArray()) if (pv.toString() == name) return true;
-            return false;
-        };
-        // (written in place of the argument the call has, or as a keyword after its last argument)
-        const auto place = [&](const QString& param, const QString& text, const QString& what) {
-            const QJsonObject cur = given[param].toObject();
-            p.ok = true;
-            if (!cur.isEmpty()) p.replace = cur["span"].toArray();
-            else p.after = callSlots["last"].toArray();
-            p.text = cur.isEmpty() ? param + "=" + text : text;
-            p.what = what;
-            return p;
-        };
-        if (allOfType("material"))
-        {
-            if (models.size() > 1)
-            {
-                p.why = T("An analysis is made of one material (or one fluid): drop one of %1 on it.").arg(quoted);
-                return p;
-            }
-            const QString param = hasParam("material") ? "material" : hasParam("fluid") ? "fluid" : QString();
-            if (param.isEmpty())
-            {
-                p.why = T("'%1' is made by %2, which is not given a material or a fluid: the analyses are "
-                        "(static_analysis(part, supports, loads, material=steel), fluid_analysis(body, domain, inlets, outlets, boundaries, fluid=water)).")
-                            .arg(tname, fnText);
-                return p;
-            }
-            if (given[param].toObject()["text"].toString() == names[0])
-            {
-                p.why = T("'%1' is already the %2 of '%3', so dropping it here changes nothing.").arg(names[0], T(param), tname);
-                return p;
-            }
-            return place(param, names[0], T("Use %1 as the %2 of %3").arg(names[0], T(param), tname));
-        }
-        if (allOfType("conditions"))
-        {
-            // Every kind of condition is an input of its own, named like the kind (supports, loads, inlets ...: the model says which in
-            // its `condition_role`).  The conditions go into the input of their kind, as a list -- all of them at once when they are of
-            // one kind, an input that is a placeholder or has one item or a list written in the call alike -- and conditions of several
-            // kinds each go to theirs, in the one edit: the simulation takes them all, or the drop says why it cannot
-            QStringList roles;
-            QHash<QString, QStringList> namesOf;
-            for (const auto& m : models)
-            {
-                const QString r = m["condition_role"].toString();
-                if (!roles.contains(r)) roles << r;
-                namesOf[r] << m["var"].toString();
-            }
-            struct Put { QString role, text, list; QJsonArray replace, after; };
-            QList<Put> puts;
-            QString nothing;                                // (why a kind adds nothing: all of it is in the call already)
-            for (const QString& role : roles)
-            {
-                if (role.isEmpty() || !hasParam(role))
-                {
-                    p.why = T("'%1' is made by %2, which has no input for %3: they go in an analysis that takes them.")
-                                .arg(tname, fnText, role.isEmpty() ? T("conditions") : role);
-                    return p;
-                }
-                const QJsonObject cur = given[role].toObject();
-                const QString curText = cur["text"].toString().trimmed();
-                QStringList have;                           // (what the input holds already: a list written in the call, or one name)
-                if (curText.startsWith('[') && curText.endsWith(']') && !curText.contains('('))
-                    for (const QString& h : curText.mid(1, curText.size() - 2).split(',', Qt::SkipEmptyParts)) have << h.trimmed();
-                else if (!curText.isEmpty() && curText != "...")
-                    have << curText;
-                QStringList added;
-                for (const QString& n : namesOf[role])
-                    if (!have.contains(n)) added << n;
-                if (added.isEmpty())
-                {
-                    nothing = T("%1 is already in the %2 of '%3', so dropping it here changes nothing.")
-                                  .arg("'" + namesOf[role].join("', '") + "'", role, tname);
-                    continue;
-                }
-                Put put;
-                put.role = role;
-                put.list = added.join(", ");
-                if (cur.isEmpty())
-                {
-                    put.after = callSlots["last"].toArray();
-                    put.text = role + "=[" + put.list + "]";
-                }
-                else if (curText == "..." || curText == "[]")
-                {
-                    put.replace = cur["span"].toArray();
-                    put.text = "[" + put.list + "]";
-                }
-                else if (cur["list"].toBool() && cur.contains("last"))
-                {
-                    put.after = cur["last"].toArray();
-                    put.text = put.list;
-                }
-                else if (have.size() == 1 && curText == have[0])
-                {
-                    put.replace = cur["span"].toArray();        // (one condition written: it becomes the list with the new ones)
-                    put.text = "[" + curText + ", " + put.list + "]";
-                }
-                else
-                {
-                    p.why = T("The %1 of '%2' is given as %3, which is neither a condition nor a list of them written in the call: "
-                              "write the list in the script.").arg(role, tname, curText);
-                    return p;
-                }
-                puts << put;
-            }
-            if (puts.isEmpty())
-            {
-                p.why = nothing;
-                return p;
-            }
-            // (several new keywords after the call's last argument are one place: `, inlets=[a], boundaries=[b]`)
-            QList<Put> places;
-            for (const Put& put : puts)
-            {
-                bool merged = false;
-                if (put.replace.isEmpty())
-                    for (Put& q : places)
-                        if (q.replace.isEmpty() && q.after == put.after)
-                        {
-                            q.text += ", " + put.text;
-                            merged = true;
-                            break;
-                        }
-                if (!merged) places << put;
-            }
-            p.ok = true;
-            p.after = places[0].after;
-            p.replace = places[0].replace;
-            p.text = places[0].text;
-            for (int k = 1; k < places.size(); ++k) p.more << OnPlan::Piece{places[k].replace, places[k].after, places[k].text};
-            QStringList kinds, all;
-            for (const Put& put : puts) { kinds << put.role; all << put.list; }
-            p.what = T("Add %1 to the %2 of %3").arg(all.join(", "), kinds.join(", "), tname);
-            return p;
-        }
-    }
     if (allPoints(models) && models.size() == 1)
     {
         // A point is the position wherever one is asked for: it takes the place of another point the call is given, or else of the
@@ -8534,9 +8058,7 @@ bool ScenePanel::sameKind(const QJsonObject& a, const QJsonObject& b) const
         const QString type = m["type"].toString();
         return typeClass(type.isEmpty() ? QString("solid") : type);
     };
-    if (kind(a) != kind(b)) return false;
-    // (a support is not a load: they stand in different lists of a set of conditions)
-    return a["condition_role"].toString() == b["condition_role"].toString();
+    return kind(a) == kind(b);
 }
 
 ScenePanel::OnPlan ScenePanel::planReplace(const QList<QJsonObject>& models, const QJsonObject& parent, const QString& replaced) const
@@ -8650,15 +8172,8 @@ bool ScenePanel::canDrop(QTreeWidgetItem* over, int at, bool copy, QString* why)
         if (at == DropOn) return false;
         return copy ? refuse(copyNeedsCall) : true;
     }
-    if (type != "item" && type != "dep" && type != "hole" && type != "bcgroup") return false;
+    if (type != "item" && type != "dep" && type != "hole") return false;
     const QJsonObject t = over->data(COL_NAME, ROLE_ITEM).toJsonObject();
-    if (type == "bcgroup")
-    {
-        // dropped on the "boundary conditions" row of a simulation: it is dropped on the simulation (the conditions go in the input of their kind)
-        if (at != DropOn) return false;
-        const OnPlan plan = planDropOn(models, t);
-        return plan.ok ? true : refuse(plan.why);
-    }
     if (type == "hole")
     {
         // dropped on a placeholder: it is replaced by the model (nothing is dropped between placeholders)
@@ -8687,8 +8202,7 @@ bool ScenePanel::canDrop(QTreeWidgetItem* over, int at, bool copy, QString* why)
     }
     if (at == DropOn)
     {
-        const bool nests = takesInput(t) || t["hole"].toBool() || (allFields(models) && takesNumber(t)) || (allPoints(models) && takesPoint(t))
-                           || regionDrop(t, models);
+        const bool nests = takesInput(t) || t["hole"].toBool() || (allFields(models) && takesNumber(t)) || (allPoints(models) && takesPoint(t));
         QString nestWhy;
         if (nests)
         {
@@ -9797,7 +9311,7 @@ void ScenePanel::finishDrop(const QString& overKey, int at, const QPoint& global
         for (QTreeWidgetItemIterator i(m_tree); *i; ++i)
         {
             const QString type = (*i)->data(COL_NAME, ROLE_TYPE).toString();
-            if ((*i)->data(COL_NAME, ROLE_KEY).toString() == overKey && (type == "item" || type == "dep" || type == "hole" || type == "bcgroup" || type == "section"))
+            if ((*i)->data(COL_NAME, ROLE_KEY).toString() == overKey && (type == "item" || type == "dep" || type == "hole" || type == "section"))
             {
                 target = (*i)->data(COL_NAME, ROLE_ITEM).toJsonObject();
                 if (type == "dep") shadowOf = (*i)->data(COL_NAME, ROLE_PART).toString();
@@ -9873,7 +9387,7 @@ void ScenePanel::finishDrop(const QString& overKey, int at, const QPoint& global
         }
         // On a row: what can go into it goes into it; what cannot, and is of the kind of a model a call is given, takes its place
         const bool nests = takesInput(target) || target["hole"].toBool() || (allFields(models) && takesNumber(target))
-                           || (allPoints(models) && takesPoint(target)) || regionDrop(target, models);
+                           || (allPoints(models) && takesPoint(target));
         if (!nests || !planDropOn(models, target).ok)
         {
             const QJsonObject owner = target.contains("owner") ? itemByKey(target["owner"].toString()) : QJsonObject();
@@ -10499,7 +10013,6 @@ QTreeWidgetItem* ScenePanel::rowUnder(const QString& parentVar, const QString& m
         if (!p || p->data(COL_NAME, ROLE_ITEM).toJsonObject()["var"].toString() != parentVar) continue;
         const QString type = r->data(COL_NAME, ROLE_TYPE).toString();
         if (type == "hole" && (modelVar == "placeholder" || r->text(COL_NAME) == modelVar)) return r;    // (the first placeholder of the statement, or the one for that input)
-        if (type == "bcgroup" && modelVar == "boundary conditions") return r;      // (the conditions row of the simulation)
         if (type != "dep" && type != "item") continue;
         const QString name = type == "dep" ? r->data(COL_NAME, ROLE_PART).toString()
                                            : r->data(COL_NAME, ROLE_ITEM).toJsonObject()["var"].toString();
@@ -11084,235 +10597,6 @@ void ScenePanel::setEditorCursor(int line0, int col0)
     m_tree->viewport()->update();
 }
 
-void ScenePanel::openProperties(QTreeWidgetItem* row, const QPoint& global)
-{
-    const QJsonObject it = row->data(COL_NAME, ROLE_ITEM).toJsonObject();
-    const QJsonArray props = it["properties"].toArray();
-    if (props.isEmpty()) return;
-    if (m_drawer) m_drawer->close();
-    const QString var = it["var"].toString();
-    // The drawer: opens at the side of the tab, lists what the model has -- its fields first, then its numbers -- and a click on one writes it as a
-    // model of its own, under the statement
-    auto drawer = new QFrame(this, Qt::Popup);
-    m_drawer = drawer;
-    drawer->setObjectName("PropertyDrawer");
-    drawer->setAttribute(Qt::WA_DeleteOnClose);
-    drawer->setStyleSheet(
-        "#PropertyDrawer { background: rgb(16, 56, 72); border: 1px solid rgba(42, 161, 152, 190); border-radius: 9px; }"
-        "QLabel { color: #93a1a1; font-size: 8pt; padding: 0px; background: transparent; }"
-        "QLabel#DrawerTitle { color: #eee8d5; font-weight: bold; font-size: 10pt; }"
-        "QLabel#DrawerSub { color: #2aa198; font-size: 8pt; font-weight: bold; }"
-        "QFrame#DrawerRule { background: rgba(147, 161, 161, 70); border: none; max-height: 1px; min-height: 1px; }"
-        "QPushButton[propertyRow=\"true\"] { background: transparent; border: none; border-radius: 5px; text-align: left; padding: 0px; }"
-        "QPushButton[propertyRow=\"true\"]:hover { background: rgba(38, 139, 210, 170); }");
-    auto outer = new QVBoxLayout(drawer);
-    outer->setContentsMargins(10, 9, 10, 9);
-    outer->setSpacing(5);
-    // The head: the model, and what this is
-    {
-        auto head = new QHBoxLayout;
-        head->setSpacing(7);
-        auto icon = new QLabel;
-        icon->setPixmap(TypeIcons::icon(it["type"].toString("simulation"), false, it["domain"].toString()).pixmap(16, 16));
-        auto title = new QLabel(var);
-        title->setObjectName("DrawerTitle");
-        auto sub = new QLabel(T("PROPERTIES"));
-        sub->setObjectName("DrawerSub");
-        head->addWidget(icon);
-        head->addWidget(title);
-        head->addStretch(1);
-        head->addWidget(sub);
-        outer->addLayout(head);
-        auto rule = new QFrame;
-        rule->setObjectName("DrawerRule");
-        outer->addWidget(rule);
-    }
-    auto holder = new QWidget;
-    holder->setStyleSheet("background: transparent;");
-    auto lay = new QVBoxLayout(holder);
-    lay->setContentsMargins(0, 0, 0, 0);
-    lay->setSpacing(1);
-    QString lastKind;
-    int rows = 0, groups = 0;
-    for (const auto pv : props)
-    {
-        const QJsonObject p = pv.toObject();
-        const QString name = p["name"].toString();
-        const QString kind = p["kind"].toString();
-        const QString group = kind == "field" ? T("FIELDS") : T("NUMBERS");
-        if (group != lastKind)
-        {
-            lastKind = group;
-            auto g = new QLabel(group);
-            g->setStyleSheet("color: #2aa198; font-size: 7.5pt; font-weight: bold; padding: 7px 0px 2px 3px;");
-            lay->addWidget(g);
-            ++groups;
-        }
-        auto b = new QPushButton;
-        b->setObjectName("prop_" + name);
-        b->setProperty("propertyRow", true);
-        b->setFixedHeight(24);
-        b->setCursor(Qt::PointingHandCursor);
-        b->setToolTip(kind == "field"
-            ? T("A field of %1: `%2_1 = %1.%2` is written below it, a model like any other (shown in the field viewer, sliced, used in other models)").arg(var, name)
-            : T("A number of %1: `%2_1 = %1.%2` is written below it").arg(var, name));
-        auto row2 = new QHBoxLayout(b);
-        row2->setContentsMargins(7, 0, 8, 0);
-        row2->setSpacing(7);
-        auto glyph = new QLabel;
-        glyph->setAttribute(Qt::WA_TransparentForMouseEvents);
-        glyph->setFixedWidth(16);
-        glyph->setAlignment(Qt::AlignCenter);
-        if (kind == "field") glyph->setPixmap(TypeIcons::icon("field").pixmap(14, 14));
-        else
-        {
-            glyph->setText("#");
-            glyph->setStyleSheet("color: #93a1a1; font-size: 9pt; font-weight: bold; background: transparent;");
-        }
-        row2->addWidget(glyph);
-        auto nameLabel = new QLabel(name);
-        nameLabel->setStyleSheet("color: #eee8d5; font-size: 9pt; background: transparent;");
-        nameLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-        row2->addWidget(nameLabel);
-        row2->addStretch(1);
-        if (!p["text"].toString().isEmpty())
-        {
-            auto value = new QLabel(p["text"].toString());
-            value->setStyleSheet("color: #b4c0c0; font-size: 8.5pt; font-family: Consolas, monospace; background: transparent;");
-            value->setAttribute(Qt::WA_TransparentForMouseEvents);
-            row2->addSpacing(16);
-            row2->addWidget(value);
-        }
-        connect(b, &QPushButton::clicked, this, [this, it, name, drawer] {
-            drawer->close();
-            addProperty(it, name);
-        });
-        lay->addWidget(b);
-        ++rows;
-    }
-    auto scroll = new QScrollArea;
-    scroll->setWidget(holder);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; } QScrollBar:vertical { width: 8px; background: transparent; }"
-                          "QScrollBar::handle:vertical { background: rgba(147, 161, 161, 120); border-radius: 3px; }"
-                          "QScrollBar::add-line, QScrollBar::sub-line { height: 0px; }");
-    scroll->setMinimumWidth(270);
-    scroll->setFixedHeight(std::min(rows * 25 + groups * 24 + 4, 470));
-    outer->addWidget(scroll);
-    // (what the result found, written as text: the key numbers a result card shows)
-    QStringList exports;
-    for (const auto ev : it["exports"].toArray()) exports << ev.toString();
-    {
-        auto rule = new QFrame;
-        rule->setObjectName("DrawerRule");
-        outer->addWidget(rule);
-        auto hint = new QLabel(T("Click one: it is written below %1 as a model of its own.").arg(var));
-        hint->setWordWrap(true);
-        hint->setMaximumWidth(270);
-        outer->addWidget(hint);
-    }
-    if (exports.contains("summary"))
-    {
-        auto save = new QPushButton(T("Export the key numbers as text..."));
-        save->setObjectName("exportKeyNumbers");
-        save->setCursor(Qt::PointingHandCursor);
-        save->setStyleSheet("QPushButton { color: #eee8d5; background: rgba(147, 161, 161, 36); border: 1px solid rgba(147, 161, 161, 100);"
-                            " border-radius: 5px; padding: 4px 9px; font-size: 8.5pt; text-align: left; }"
-                            "QPushButton:hover { background: rgba(38, 139, 210, 170); border-color: rgba(38, 139, 210, 220); }");
-        connect(save, &QPushButton::clicked, this, [this, var, drawer] {
-            drawer->close();
-            emit(exportRequested(var, "results", ".txt"));
-        });
-        outer->addWidget(save);
-    }
-    drawer->adjustSize();
-    // (it opens at the right of the tab, level with it: a drawer that comes out of the panel, not a menu on top of the rows)
-    QPoint at = mapToGlobal(QPoint(width() + 30, 0));
-    if (m_propTab && m_propTab->isVisible()) at = m_propTab->mapToGlobal(QPoint(m_propTab->width() + 6, -2));
-    else at.setY(global.y());
-    if (auto screen = QGuiApplication::screenAt(global))
-    {
-        const QRect avail = screen->availableGeometry();
-        at.setX(std::min(at.x(), avail.right() - drawer->width()));
-        at.setY(std::max(avail.top(), std::min(at.y(), avail.bottom() - drawer->height())));
-    }
-    drawer->move(at);
-    if (auto tab = static_cast<PropertyTab*>(m_propTab.data())) { tab->active = true; tab->update(); }
-    connect(drawer, &QObject::destroyed, this, [this] {
-        if (auto tab = static_cast<PropertyTab*>(m_propTab.data())) { tab->active = false; tab->update(); }
-        m_propTabHide.start();
-    });
-    drawer->show();
-}
-
-// The tab that opens the drawer: it sticks out of the right edge of the panel, level with the hovered row of a model that has properties
-void ScenePanel::showPropertyTab(QTreeWidgetItem* row)
-{
-    if (!parentWidget() || !row) return;
-    m_propTabHide.stop();
-    m_propTabKey = row->data(COL_NAME, ROLE_KEY).toString();
-    if (!m_propTab)
-    {
-        auto tab = new PropertyTab(parentWidget());
-        tab->clicked = [this] {
-            if (!m_propTab) return;
-            QTreeWidgetItem* r = nullptr;
-            for (QTreeWidgetItemIterator i(m_tree); *i; ++i)
-                if ((*i)->data(COL_NAME, ROLE_KEY).toString() == m_propTabKey) { r = *i; break; }
-            if (r) openProperties(r, m_propTab->mapToGlobal(QPoint(m_propTab->width(), 0)));
-        };
-        tab->entered = [this] { m_propTabHide.stop(); };
-        tab->left = [this] { m_propTabHide.start(); };
-        m_propTab = tab;
-    }
-    placePropertyTab();
-}
-
-void ScenePanel::placePropertyTab()
-{
-    if (!m_propTab || !parentWidget()) return;
-    QTreeWidgetItem* row = nullptr;
-    for (QTreeWidgetItemIterator i(m_tree); *i; ++i)
-        if ((*i)->data(COL_NAME, ROLE_KEY).toString() == m_propTabKey) { row = *i; break; }
-    if (!row || !isVisible()) { hidePropertyTab(); return; }
-    const QRect r = m_tree->visualItemRect(row);
-    if (r.isEmpty() || r.bottom() < 0 || r.top() > m_tree->viewport()->height()) { hidePropertyTab(); return; }
-    const QPoint top = m_tree->viewport()->mapTo(parentWidget(), QPoint(0, r.top()));
-    const QString var = row->data(COL_NAME, ROLE_ITEM).toJsonObject()["var"].toString();
-    m_propTab->setToolTip(T("Properties of %1: its fields and numbers").arg(var));
-    m_propTab->setGeometry(geometry().right() - 1, top.y() - 1, 20, std::max(22, r.height() + 2));
-    m_propTab->show();
-    m_propTab->raise();
-}
-
-void ScenePanel::hidePropertyTab()
-{
-    if (m_propTab && m_propTab->isVisible() && !m_drawer) m_propTab->hide();
-}
-
-QPoint ScenePanel::propertyArrowPoint(const QString& prefix, QWidget* in)
-{
-    const QRect r = propertyTabRect(prefix, in);
-    return r.isEmpty() ? QPoint() : r.center();
-}
-
-QRect ScenePanel::propertyTabRect(const QString& prefix, QWidget* in)
-{
-    for (auto r : m_tree->findItems(prefix, Qt::MatchStartsWith | Qt::MatchRecursive, 0))
-    {
-        if (isShadow(r)) continue;
-        expandTo(r);
-        m_tree->scrollToItem(r);
-        const QRect rect = m_tree->visualItemRect(r);
-        if (rect.isEmpty() || !parentWidget()) return QRect();
-        const QPoint top = m_tree->viewport()->mapTo(parentWidget(), QPoint(0, rect.top()));
-        const QRect inParent(geometry().right() - 1, top.y() - 1, 20, std::max(22, rect.height() + 2));
-        return QRect(in->mapFromGlobal(parentWidget()->mapToGlobal(inParent.topLeft())), inParent.size());
-    }
-    return QRect();
-}
-
 void ScenePanel::showOnly(const QStringList& open)
 {
     m_showOnly = true;
@@ -11412,38 +10696,6 @@ QRect ScenePanel::visibleRowRect(const QString& prefix, QWidget* in)
         return QRect(m_tree->viewport()->mapTo(in, full.topLeft()), full.size());
     }
     return QRect();
-}
-
-void ScenePanel::addProperty(const QJsonObject& it, const QString& property)
-{
-    if (!m_source) return;
-    // (the rows must be of the text that is in the editor: the line it is written under comes from them)
-    const QString current = md5Hex(m_source());
-    const bool fresh = m_predicted ? m_predictedMd5 == current : m_scene["source_md5"].toString() == current;
-    if (!fresh)
-    {
-        refuseOutOfDate();
-        return;
-    }
-    const QString var = it["var"].toString();
-    if (var.isEmpty()) return;
-    const QStringList lines = m_source().split('\n');
-    // The name: the property and a number (`stress_1`, then `stress_2` ...), one the script does not use yet
-    const QString src = m_source();
-    QString name;
-    for (int n = 1;; ++n)
-    {
-        name = property + "_" + QString::number(n);
-        if (!QRegularExpression("\\b" + QRegularExpression::escape(name) + "\\b").match(src).hasMatch()) break;
-    }
-    const QString text = name + " = " + var + "." + property;
-    const int at = groupEnd(it);
-    QList<TextEdit> edits;
-    if (at < lines.size()) edits << TextEdit{at, 0, at, 0, text + "\n"};
-    else edits << TextEdit{int(lines.size()) - 1, int(lines.last().size()), int(lines.size()) - 1, int(lines.last().size()), "\n" + text};
-    m_selectNew = name;                 // (selected once it is a model of the script: a number is none, and the wait gives up)
-    m_selectNewTries = 0;
-    emit(editScript(edits, "Take " + property + " of " + var));
 }
 
 void ScenePanel::liveRenameSection(QTreeWidgetItem* row, const QString& typed)

@@ -126,18 +126,13 @@ public:
      *  numbers of the drag -- the region is never behind what is on the screen  */
     void growRegionTo(const QVector3D& lo, const QVector3D& hi);
     /*  For the guided tour: close or open the first row whose text starts with `prefix` (as the arrow in front of it does), and whether it
-     *  is open; whether a section is closed; every section closed or opened; where the arrow in front of the first section is, and the
-     *  property arrow at the end of a row (in the coordinates of `in`); whether the name of a section is being typed  */
+     *  is open; whether a section is closed; every section closed or opened; where the arrow in front of the first section is; whether the
+     *  name of a section is being typed  */
     void setRowOpen(const QString& prefix, bool open);
     bool rowIsOpen(const QString& prefix) const;
     bool sectionClosed() const;
     void setSectionsOpen(bool open);
     QPoint sectionArrowPoint(QWidget* in);
-    QPoint propertyArrowPoint(const QString& prefix, QWidget* in);
-    /*  The property tab (it sticks out of the right edge of the panel, level with the hovered row of a model that has properties): the widget, when it is
-     *  shown, and where it is for the first row whose text starts with `prefix` (in the coordinates of `in`), shown or not  */
-    QWidget* propertyTab() const { return m_propTab; }
-    QRect propertyTabRect(const QString& prefix, QWidget* in);
     /*  For the guided tour: every row that has rows under it is closed, except the models named here (and what holds a placeholder) -- for every
      *  tree that is built until showAll(); and where a row is, without opening or scrolling to it (empty when it is not in view)  */
     void showOnly(const QStringList& open);
@@ -576,7 +571,7 @@ protected:
 
     /*  Actions (all become script edits)  */
     void toggleVisible(const QJsonObject& it);
-    /*  Shows (or hides) all these models in one edit of the script (the eye of a "boundary conditions" row)  */
+    /*  Shows (or hides) all these models in one edit of the script  */
     void setVisibleAll(const QList<QJsonObject>& models, bool show);
     void reimport(const QJsonObject& it);
     void importMenu(const QJsonObject& it, const QPoint& global);
@@ -687,9 +682,6 @@ protected:
     /*  Whether the library writes the call of this entry for the models `operandsFor(line0)` gives (entryAllowed is this, and also true for an operation in the menu of empty space
      *  with nothing selected: it is written with a placeholder where the model goes)  */
     bool fitsOperands(const QString& kind, const QString& name, int line0) const;
-    /*  Whether the entry is a simulation of the menu (static_analysis ...): it works on what is selected and writes a placeholder for what is
-     *  not -- the part, the conditions -- so it is never greyed out for lack of them, and never takes "the last model" for its part  */
-    bool isSimulation(const QString& operation) const;
 
     /*  Whether an operation of the menu takes several models (union, difference, intersection, surface_from_bodies)  */
     bool combines(const QString& operation) const;
@@ -749,7 +741,6 @@ protected:
     mutable QHash<QString, bool> m_needsSecond;
     mutable QSet<QString> m_withBodies;
     mutable QSet<QString> m_fromSelection;      // (the entries that are made of the models selected: profile, curve, extrude, path_extrude)
-    mutable QSet<QString> m_simulations;
 
     /*  A variable to select once the script that creates it has run (tries counts the runs waited)  */
     QList<QPair<QString, QString>> m_copied;     // (the models of the last Ctrl+C: name, statements)
@@ -859,17 +850,6 @@ protected:
     bool m_insertSet = false;
     QString m_insertKey;                        // (the key of the row the point is above; empty: the end)
 
-    /*  The property arrow (the end of a row that is hovered, when the model has properties: the fields and numbers of a result) opens a
-     *  drawer that lists them; one that is clicked is written as a new model of its own, under the statement: `stress_1 = result.von_mises`  */
-    void openProperties(QTreeWidgetItem* row, const QPoint& global);
-    void addProperty(const QJsonObject& item, const QString& property);
-    QPointer<QFrame> m_drawer;
-    QPointer<QWidget> m_propTab;                // (the tab that opens the drawer)
-    QString m_propTabKey;                       // (the row it is for)
-    QTimer m_propTabHide;                       // (it goes a moment after the mouse leaves the row and the tab)
-    void showPropertyTab(QTreeWidgetItem* row);
-    void placePropertyTab();
-    void hidePropertyTab();
     bool m_showOnly = false;                    // (a step of the tour: only the rows it is about are open)
     QStringList m_showOnlyOpen;
     void applyShowOnly();

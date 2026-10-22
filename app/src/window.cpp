@@ -2196,33 +2196,6 @@ Window::Window(Arguments args)
                 QApplication::processEvents();
             }
         });
-        // treearrow <hover|click> <text prefix>: the mouse on the arrow at the end of a row (the properties of a result): a hover shows it, a click opens the drawer
-        a->add("treearrow", [=](const QString& args){
-            const QString what = args.section(' ', 0, 0);
-            auto row = findRow(args.section(' ', 1));
-            if (!row) { std::cerr << "automation: no tree row " << args.toStdString() << "\n"; return; }
-            auto tree = row->treeWidget();
-            tree->scrollToItem(row);
-            QApplication::processEvents();
-            row = findRow(args.section(' ', 1));
-            if (!row) { std::cerr << "automation: no tree row " << args.toStdString() << "\n"; return; }
-            // (the mouse over the row shows the tab at the panel's right edge; a click is on the tab)
-            const QPoint pos(tree->columnViewportPosition(0) + 60, tree->visualItemRect(row).center().y());
-            auto send = [&](QWidget* w, const QPoint& at, QEvent::Type t, Qt::MouseButton b, Qt::MouseButtons bs) {
-                QMouseEvent e(t, at, w->mapToGlobal(at), b, bs, Qt::NoModifier);
-                QApplication::sendEvent(w, &e);
-                QApplication::processEvents();
-            };
-            send(tree->viewport(), pos, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
-            auto tab = view->scenePanel()->propertyTab();
-            std::cerr << "automation: property tab " << (tab && tab->isVisible() ? "shown" : "NOT shown") << "\n";
-            if (what == "click" && tab && tab->isVisible())
-            {
-                const QPoint at = tab->rect().center();
-                send(tab, at, QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton);
-                send(tab, at, QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
-            }
-        });
         // treearrowdbl <text prefix>: a quick double click on the arrow in front of a row of the model tree (the second click must toggle it again), and
         // whether the row is open after each click
         a->add("treearrowdbl", [=](const QString& prefix){
