@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017-2021  Matt Keeter
 
@@ -21,9 +21,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QTextBlockUserData>
 #include <cassert>
 
-#include "fieldes/syntax.hpp"
+#include "fieldev/syntax.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Syntax::Syntax(QTextDocument* doc)
     : QSyntaxHighlighter(doc)
@@ -108,4 +108,4 @@ void Syntax::setKeywords(QStringList kws) {
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

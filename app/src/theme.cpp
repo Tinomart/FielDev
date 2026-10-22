@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -10,10 +10,10 @@ of the License, or (at your option) any later version.
 #include <QPalette>
 #include <QStyleFactory>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/theme.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/theme.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 const QColor Theme::chrome("#ebe8de");
 const QColor Theme::surface("#ffffff");
@@ -112,4 +112,4 @@ void Theme::apply(QApplication& app)
         .arg(surface.name(), border.name(), text.name(), accent.name(), chrome.name()));   // (%6 is the fifth: markers are filled in order)
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

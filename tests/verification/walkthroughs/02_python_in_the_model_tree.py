@@ -25,7 +25,7 @@
 #      print.  Pick one: its code is written at the insertion point (see 03) as plain Python -- no `name =` in front, no line that shows it, because it is no model.
 #   6. Only what the script shows at the top level is drawn: `post` and `last` (a line with the name alone).  `b` and `a` are made inside blocks and are not shown.
 
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([33, 13, -3], [67, 27, 23], auto_scale=True)
 view.set_resolution(3)

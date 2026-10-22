@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -15,9 +15,9 @@ of the License, or (at your option) any later version.
 #include <QSettings>
 #include <QWidget>
 
-#include "fieldes/carddrag.hpp"
+#include "fieldev/carddrag.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 const int kEdge = 6;                // (the margin of a card that resizes it)
@@ -115,7 +115,7 @@ void CardController::remember()
 {
     QWidget* parent = m_card->parentWidget();
     if (!parent) return;
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) return;       // (a scripted test never changes the user's settings)
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) return;       // (a scripted test never changes the user's settings)
     const int fw = std::max(1, parent->width() - m_card->width()), fh = std::max(1, parent->height() - m_card->height());
     m_fx = std::max(0.0, std::min(1.0, double(m_card->x()) / fw));
     m_fy = std::max(0.0, std::min(1.0, double(m_card->y()) / fh));
@@ -162,7 +162,7 @@ void CardController::restore()
 {
     if (m_restored) return;
     m_restored = true;
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) return;
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) return;
     QSettings s;
     s.beginGroup("cards/" + m_key);
     if (!s.contains("fx")) return;
@@ -258,4 +258,4 @@ bool CardController::eventFilter(QObject* obj, QEvent* e)
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

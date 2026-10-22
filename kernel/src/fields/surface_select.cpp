@@ -51,11 +51,11 @@ class Field
 public:
     // The field is evaluated by several threads, each with an evaluator of its own (a Deck holds its oracles: one Deck per thread).  A batch of points is cut into runs of
     // ArrayEvaluator::N points, the way a single evaluator would take it, and the threads take the runs one after another, so that every point gets exactly the value and the
-    // gradient it would get from one thread alone.  FIELDES_SC_THREADS=n sets the number of threads (1: one thread)
+    // gradient it would get from one thread alone.  FIELDEV_SC_THREADS=n sets the number of threads (1: one thread)
     Field(const Tree& t, const std::map<Tree::Id, float>& vars) : tree_(t.optimized()), vars_(vars), e(tree_, vars)
     {
         unsigned n = std::thread::hardware_concurrency();
-        if (const char* env = std::getenv("FIELDES_SC_THREADS")) n = unsigned(std::max(1, std::atoi(env)));
+        if (const char* env = std::getenv("FIELDEV_SC_THREADS")) n = unsigned(std::max(1, std::atoi(env)));
         threads_ = int(std::min(16u, std::max(1u, n)));
     }
     Field(const Field&) = delete;

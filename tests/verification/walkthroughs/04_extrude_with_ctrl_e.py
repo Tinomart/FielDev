@@ -17,7 +17,7 @@
 #      A 2D shape always takes the press before a face of a solid, where the two overlap.
 #   (Export mesh is on F7 and Ctrl+Alt+E: Ctrl+E is extruding.)
 
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-30, -60, -17], [90, 45, 60], auto_scale=True)
 view.set_resolution(3)

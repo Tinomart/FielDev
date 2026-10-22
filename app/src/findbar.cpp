@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -16,12 +16,12 @@ of the License, or (at your option) any later version.
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/findbar.hpp"
-#include "fieldes/script.hpp"
-#include "fieldes/color.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/findbar.hpp"
+#include "fieldev/script.hpp"
+#include "fieldev/color.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 FindBar::FindBar(Script* script, QWidget* parent)
     : QWidget(parent), m_script(script),
@@ -390,4 +390,4 @@ bool FindBar::eventFilter(QObject* obj, QEvent* e)
     return QWidget::eventFilter(obj, e);
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

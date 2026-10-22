@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -36,17 +36,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <cstdio>
 #endif
 
-#include "fieldes/app.hpp"
-#include "fieldes/documentation.hpp"
-#include "fieldes/python/interpreter.hpp"
-#include "fieldes/result.hpp"
+#include "fieldev/app.hpp"
+#include "fieldev/documentation.hpp"
+#include "fieldev/python/interpreter.hpp"
+#include "fieldev/result.hpp"
 
-using namespace FielDes;
+using namespace FielDev;
 
 #ifdef _WIN32
 namespace {
 
-// What a crash leaves behind: a text file in %LOCALAPPDATA%\FielDes\FielDes\crash with the exception, the thread, and the places the
+// What a crash leaves behind: a text file in %LOCALAPPDATA%\FielDev\FielDev\crash with the exception, the thread, and the places the
 // program was at (module + offset, read with the .map files that go with the build), so that a crash that happens on one machine can be
 // found on another.  It writes what it can and lets Windows go on with its own report
 LONG WINAPI crashFilter(EXCEPTION_POINTERS* info)
@@ -56,7 +56,7 @@ LONG WINAPI crashFilter(EXCEPTION_POINTERS* info)
     wchar_t dir[MAX_PATH];
     const DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH);
     if (!n || n + 40 >= MAX_PATH) return EXCEPTION_CONTINUE_SEARCH;
-    static const wchar_t* tail[] = {L"\\FielDes", L"\\FielDes", L"\\crash"};
+    static const wchar_t* tail[] = {L"\\FielDev", L"\\FielDev", L"\\crash"};
     size_t len = n;
     for (const wchar_t* part : tail)
     {
@@ -71,7 +71,7 @@ LONG WINAPI crashFilter(EXCEPTION_POINTERS* info)
     FILE* f = nullptr;
     if (_wfopen_s(&f, path, L"w") != 0 || !f) return EXCEPTION_CONTINUE_SEARCH;
     EXCEPTION_RECORD* rec = info->ExceptionRecord;
-    std::fprintf(f, "FielDes crash %04d-%02d-%02d %02d:%02d:%02d\n", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
+    std::fprintf(f, "FielDev crash %04d-%02d-%02d %02d:%02d:%02d\n", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
     std::fprintf(f, "exception 0x%08lX at %p, thread %lu\n", rec->ExceptionCode, rec->ExceptionAddress,
                  GetCurrentThreadId());
     if (rec->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && rec->NumberParameters >= 2)
@@ -135,7 +135,7 @@ LONG WINAPI crashFilter(EXCEPTION_POINTERS* info)
 
 namespace {
 
-// `FielDes run|export|info ...`: the command line of the apps (fieldes.app_package), which needs no window: Python starts here and the
+// `FielDev run|export|info ...`: the command line of the apps (fieldev.app_package), which needs no window: Python starts here and the
 // library does the work.  The answer is the exit code (0 done, 1 the app failed, 2 said wrongly on the command line)
 bool isCommandLine(int argc, char** argv)
 {
@@ -162,15 +162,15 @@ int runCommandLine(int argc, char** argv)
     }
 #endif
     QCoreApplication core(argc, argv);
-    QCoreApplication::setOrganizationName("FielDes");
-    QCoreApplication::setApplicationName("FielDes");
-    QCoreApplication::setApplicationVersion(FIELDES_VERSION);
-    if (!qEnvironmentVariableIsSet("FIELDES_DIR"))
-        qputenv("FIELDES_DIR", QCoreApplication::applicationDirPath().toLocal8Bit());
-    if (!qEnvironmentVariableIsSet("FIELDES_BLOCKS"))
+    QCoreApplication::setOrganizationName("FielDev");
+    QCoreApplication::setApplicationName("FielDev");
+    QCoreApplication::setApplicationVersion(FIELDEV_VERSION);
+    if (!qEnvironmentVariableIsSet("FIELDEV_DIR"))
+        qputenv("FIELDEV_DIR", QCoreApplication::applicationDirPath().toLocal8Bit());
+    if (!qEnvironmentVariableIsSet("FIELDEV_BLOCKS"))
     {
         const QString blocks = QSettings().value("blocks-folder").toString();
-        if (!blocks.isEmpty()) qputenv("FIELDES_BLOCKS", blocks.toLocal8Bit());
+        if (!blocks.isEmpty()) qputenv("FIELDEV_BLOCKS", blocks.toLocal8Bit());
     }
     auto interpreter = new Python::Interpreter();
     interpreter->preinit();
@@ -182,7 +182,7 @@ int runCommandLine(int argc, char** argv)
     std::fflush(nullptr);
     if (answer.isEmpty())
     {
-        std::fprintf(stderr, "FielDes: %s\n", error.toLocal8Bit().constData());
+        std::fprintf(stderr, "FielDev: %s\n", error.toLocal8Bit().constData());
         std::fflush(nullptr);
         std::_Exit(2);
     }
@@ -210,9 +210,9 @@ int main(int argc, char** argv)
     qRegisterMetaType<Result>("Result");
     qRegisterMetaType<Documentation>("Documentation");
 
-    QCoreApplication::setOrganizationName("FielDes");
-    QCoreApplication::setApplicationName("FielDes");
-    QCoreApplication::setApplicationVersion(FIELDES_VERSION);
+    QCoreApplication::setOrganizationName("FielDev");
+    QCoreApplication::setApplicationName("FielDev");
+    QCoreApplication::setApplicationVersion(FIELDEV_VERSION);
 
     App a(argc, argv);
     a.exec();

@@ -7,7 +7,7 @@
 # The script writes the files, reads them back with a reader of its own and prints what it finds in the output pane: every line starts with ok or FAIL.
 import os
 import struct
-from fieldes import *
+from fieldev import *
 
 view.set_bounds((-45, -30, -30), (45, 30, 30))
 view.set_resolution(1)       # (the meshes the script exports are made at the scene's resolution: a cell of a millimetre)

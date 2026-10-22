@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -22,9 +22,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <cmath>
 #include <QtMath>
 
-#include "fieldes/camera.hpp"
+#include "fieldev/camera.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Camera::Camera(QSize size)
     : size(size), anim(this, "perspective")
@@ -234,4 +234,4 @@ void Camera::zoomTo(const QVector3D& min, const QVector3D& max)
     a->start(a->DeleteWhenStopped);
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

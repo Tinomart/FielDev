@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017-2021  Matt Keeter
 
@@ -61,17 +61,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
-#include "fieldes/appwindow.hpp"
-#include "fieldes/automation.hpp"
-#include "fieldes/i18n.hpp"
-#include "fieldes/python/interpreter.hpp"
-#include "fieldes/section.hpp"
-#include "fieldes/shape.hpp"
-#include "fieldes/theme.hpp"
-#include "fieldes/view.hpp"
+#include "fieldev/appwindow.hpp"
+#include "fieldev/automation.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/python/interpreter.hpp"
+#include "fieldev/section.hpp"
+#include "fieldev/shape.hpp"
+#include "fieldev/theme.hpp"
+#include "fieldev/view.hpp"
 #include "libfive/run_progress.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 
@@ -92,7 +92,7 @@ protected:
     }
 };
 
-// The name an option goes by: the letters and digits of a label, in lower case (fieldes.app.key_of)
+// The name an option goes by: the letters and digits of a label, in lower case (fieldev.app.key_of)
 QString keyOf(const QString& label)
 {
     QString out;
@@ -127,7 +127,7 @@ QString sizeText(qint64 n)
     return QString("%1 MB").arg(n / 1024.0 / 1024.0, 0, 'f', 1);
 }
 
-// The colours of FielDes: the dark teal of the viewport's cards and the model tree (#164c5e) and a deeper one for what is typed in (#0f3a49), cream
+// The colours of FielDev: the dark teal of the viewport's cards and the model tree (#164c5e) and a deeper one for what is typed in (#0f3a49), cream
 // text (#eee8d5), Solarized's greys for what is said quietly, the blue of the selection (#268bd2) for what is pressed
 const char* kMuted = "#93a1a1";
 const char* kError = "#ff8f7f";
@@ -218,7 +218,7 @@ AppWindow::AppWindow(const QString& path, const QStringList& presets, bool run)
     m_documents = QDir::toNativeSeparators(m_documents);
 
     // ---- the window: the form above, what the run made below
-    // (the FielDes colours: the palette and the style sheet of this window; its dialogs take them from it)
+    // (the FielDev colours: the palette and the style sheet of this window; its dialogs take them from it)
     setPalette(appPalette());
     setStyleSheet(appStyleSheet());
     auto central = new QWidget(this);
@@ -344,10 +344,10 @@ AppWindow::AppWindow(const QString& path, const QStringList& presets, bool run)
     m_open = openApp(path, false);
 
     m_interp->moveToThread(&m_thread);
-    connect(&m_thread, &QThread::started, m_interp, &::FielDes::Interpreter::init);
-    connect(m_interp, &::FielDes::Interpreter::ready, this, &AppWindow::onReady);
-    connect(m_interp, &::FielDes::Interpreter::done, this, &AppWindow::onDone);
-    connect(this, &AppWindow::evalRequested, m_interp, &::FielDes::Interpreter::eval);
+    connect(&m_thread, &QThread::started, m_interp, &::FielDev::Interpreter::init);
+    connect(m_interp, &::FielDev::Interpreter::ready, this, &AppWindow::onReady);
+    connect(m_interp, &::FielDev::Interpreter::done, this, &AppWindow::onDone);
+    connect(this, &AppWindow::evalRequested, m_interp, &::FielDev::Interpreter::eval);
     m_thread.start();
     if (m_open) setStatus(T("Starting..."), kMuted);
 
@@ -406,7 +406,7 @@ bool AppWindow::openApp(const QString& path, bool again)
     m_id = m_manifest["id"].toString();
     m_title = m_manifest["title"].toString();
     const QString version = m_manifest["version"].toString();
-    setWindowTitle(m_title + (m_kind == "script" ? "  (" + T("preview") + ")" : QString()) + " - FielDes");
+    setWindowTitle(m_title + (m_kind == "script" ? "  (" + T("preview") + ")" : QString()) + " - FielDev");
     m_titleLabel->setText(m_title + (version.isEmpty() ? QString() : "  " + QString("<span style='font-size:12px; font-weight:400; color:%1'>%2</span>").arg(kMuted, version)));
     m_titleLabel->setTextFormat(Qt::RichText);
     const QString description = m_manifest["description"].toString();
@@ -638,7 +638,7 @@ QJsonObject AppWindow::values() const
 void AppWindow::applySaved()
 {
     // (a test run of the program does not read or write the user's settings)
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) return;
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) return;
     QSettings s;
     const auto saved = QJsonDocument::fromJson(s.value("apps/" + m_id + "/values").toString().toUtf8()).object();
     for (auto it = saved.begin(); it != saved.end(); ++it)
@@ -653,7 +653,7 @@ void AppWindow::applySaved()
 
 void AppWindow::saveValues()
 {
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) return;
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) return;
     QSettings s;
     QJsonObject keep;
     for (const auto& f : m_fields)
@@ -1001,7 +1001,7 @@ void AppWindow::onOpen()
 {
     if (m_running) return;
     const QString f = QFileDialog::getOpenFileName(this, T("Open app"), QFileInfo(m_path).absolutePath(),
-                                                   T("FielDes apps") + " (*.fieldesapp);;" + T("FielDes scripts") + " (*.py)");
+                                                   T("FielDev apps") + " (*.fieldevapp);;" + T("FielDev scripts") + " (*.py)");
     if (f.isEmpty()) return;
     // (a new app is a new process: this window keeps its interpreter, which has the app it was started with)
     QProcess::startDetached(QCoreApplication::applicationFilePath(), {f});
@@ -1381,11 +1381,11 @@ void AppWindow::applyVarValues(const QMap<libfive::Tree::Id, float>& vs)
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
-// The automation: a developer's way of driving this window in a test run (FIELDES_AUTOMATION)
+// The automation: a developer's way of driving this window in a test run (FIELDEV_AUTOMATION)
 
 void AppWindow::registerAutomation()
 {
-    const QString file = qEnvironmentVariable("FIELDES_AUTOMATION");
+    const QString file = qEnvironmentVariable("FIELDEV_AUTOMATION");
     if (file.isEmpty()) return;
     auto a = new Automation(this, this);
     // appset <key> <value>: sets an input as a hand does
@@ -1579,4 +1579,4 @@ void AppWindow::registerAutomation()
     else std::cerr << "AppWindow: could not read the automation file " << file.toStdString() << "\n";
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

@@ -1,4 +1,4 @@
-from fieldes import *
+from fieldev import *
 view.set_bounds([-5, -7, -4], [3, 2, 5], auto_scale=True)
 
 # START HERE (for the maintainer): THE FILES THAT SHOW WHETHER THE WORK IS RIGHT.
@@ -22,7 +22,7 @@ view.set_bounds([-5, -7, -4], [3, 2, 5], auto_scale=True)
 #  3. THE END FACES OF AN EXTRUSION.  Open walkthroughs/04_extrude_with_ctrl_e.py, click `extrude_2`, then press its TOP face (the flat end) and drag it up or down.  YOU MUST SEE: the length changes
 #     and the radius stays; the number moves in the `handles(extrude_2, [...])` line.  The same on the plate of examples/26_profiles_and_sweeps.py (an extrusion of a profile of points): click it, then
 #     drag its top face -- the 6 of `extrude(outline, 0, 6)` changes.  Drag the BASE of an extrusion, where its 2D shape lies over it, and the 2D shape's own edge or face is what moves.
-#     (If a press on a face pulls nothing, start FielDes with FIELDES_TIMING=1: the log has a line `[drag] nothing to pull ...` that says why.)
+#     (If a press on a face pulls nothing, start FielDev with FIELDEV_TIMING=1: the log has a line `[drag] nothing to pull ...` that says why.)
 #
 #  4. PRIMITIVES > MANAGE PRIMITIVES.  Click a profile (a 2D shape) in the tree first, then open the window.  YOU MUST SEE: it opens on "2D shapes"; the list of kinds (3D shapes, 2D shapes, Lines,
 #     Surfaces, Fields -- a point and a symmetry are one button in the menus, so they have no section) opens white with grey borders and dark text, readable, the item under the mouse blue; ticking a shape moves it between Primitives and the Parametric

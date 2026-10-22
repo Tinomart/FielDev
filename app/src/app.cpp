@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -21,13 +21,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QTimer>
 #include <QSettings>
 
-#include "fieldes/app.hpp"
-#include "fieldes/args.hpp"
-#include "fieldes/i18n.hpp"
-#include "fieldes/icons.hpp"
-#include "fieldes/theme.hpp"
+#include "fieldev/app.hpp"
+#include "fieldev/args.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/icons.hpp"
+#include "fieldev/theme.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 App::App(int& argc, char** argv)
     : QApplication(argc, argv)
@@ -35,17 +35,17 @@ App::App(int& argc, char** argv)
     // The Python package loads the kernel's libraries itself: point it at the ones
     // this program already uses, so both share their state (an import's progress,
     // the tessellation cache)
-    if (!qEnvironmentVariableIsSet("FIELDES_DIR"))
-        qputenv("FIELDES_DIR", QCoreApplication::applicationDirPath().toLocal8Bit());
+    if (!qEnvironmentVariableIsSet("FIELDEV_DIR"))
+        qputenv("FIELDEV_DIR", QCoreApplication::applicationDirPath().toLocal8Bit());
 
     // The language of the program's own words: the setting, or the language of the computer (before any window is made)
     i18n::load();
 
     // The folder of the custom blocks that was chosen in Settings (the Python package reads it from the environment)
-    if (!qEnvironmentVariableIsSet("FIELDES_BLOCKS"))
+    if (!qEnvironmentVariableIsSet("FIELDEV_BLOCKS"))
     {
         const QString blocks = QSettings().value("blocks-folder").toString();
-        if (!blocks.isEmpty()) qputenv("FIELDES_BLOCKS", blocks.toLocal8Bit());
+        if (!blocks.isEmpty()) qputenv("FIELDEV_BLOCKS", blocks.toLocal8Bit());
     }
 
     if (QFontDatabase::addApplicationFont(":/font/Inconsolata.otf") == -1) {
@@ -58,7 +58,7 @@ App::App(int& argc, char** argv)
     const Arguments args(this);
     if (args.app)
     {
-        // A FielDes app: the form of its inputs, not the editor
+        // A FielDev app: the form of its inputs, not the editor
         appWindow.reset(new AppWindow(args.appPath, args.appPresets, args.appRun));
         if (appWindow->isOpen()) appWindow->show();
         else QTimer::singleShot(0, this, &QCoreApplication::quit);
@@ -77,4 +77,4 @@ bool App::event(QEvent *event)
     return QApplication::event(event);
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

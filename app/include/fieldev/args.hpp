@@ -1,0 +1,42 @@
+/*
+FielDev: field-driven design
+Derived from Studio, a simple GUI for the libfive CAD kernel
+Copyright (C) 2018  Matt Keeter
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+#pragma once
+#include <QCoreApplication>
+
+#include "fieldev/language.hpp"
+
+namespace FielDev {
+struct Arguments
+{
+    Arguments(QCoreApplication* app);
+
+    QString filename;
+    bool vertical=false;
+    Language::Type language=Language::LANGUAGE_NONE;
+
+    /*  The program is asked to open a FielDev app, not the editor: `FielDev tool.fieldevapp [--Radius 7 ...] [--run]` (or `FielDev app script.py`
+     *  to try a script as an app).  `appPresets` is the rest of the command line, values for the form  */
+    bool app=false;
+    QString appPath;
+    QStringList appPresets;
+    bool appRun=false;
+};
+
+}   // namespace FielDev

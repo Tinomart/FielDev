@@ -1,4 +1,4 @@
-// The Windows installer of FielDes (and, built without the payload, its uninstaller).
+// The Windows installer of FielDev (and, built without the payload, its uninstaller).
 //
 // One program, two builds (see build-installer.ps1):
 //   * Setup:       the portable folder as a zip resource ("payload.zip"), the uninstaller ("uninstall.exe") and "version.txt".
@@ -9,13 +9,13 @@
 // Command line (Setup and uninstaller):
 //   /S                 silent: no window, the defaults and what follows
 //   /language=xx       en, es, fr, de, ja, zh or ru (default: the language of Windows)
-//   /dir=PATH          the install folder (default: %LOCALAPPDATA%\Programs\FielDes, or where FielDes is installed already)
+//   /dir=PATH          the install folder (default: %LOCALAPPDATA%\Programs\FielDev, or where FielDev is installed already)
 //   /nodesktop         no desktop shortcut
-//   /nolaunch          do not start FielDes when the installation is finished (with the window: when Finish is clicked, if the box is ticked;
+//   /nolaunch          do not start FielDev when the installation is finished (with the window: when Finish is clicked, if the box is ticked;
 //                      silent: right away)
-//   /uninstall         (Setup) remove FielDes
+//   /uninstall         (Setup) remove FielDev
 //
-// It installs for the current user only: it needs no administrator rights.  That includes the file type of FielDes apps (.fieldesapp, a script
+// It installs for the current user only: it needs no administrator rights.  That includes the file type of FielDev apps (.fieldevapp, a script
 // bundled with its inputs: a double click opens it in its form), registered under HKEY_CURRENT_USER\Software\Classes.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -35,7 +35,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace FielDesSetup
+namespace FielDevSetup
 {
     static class Texts
     {
@@ -46,21 +46,21 @@ namespace FielDesSetup
         // key -> the text in en, es, fr, de, ja, zh, ru
         static readonly Dictionary<string, string[]> table = new Dictionary<string, string[]>
         {
-            { "title", new[] { "FielDes Setup", "Instalación de FielDes", "Installation de FielDes", "FielDes-Setup", "FielDes セットアップ", "安装 FielDes", "Установка FielDes" } },
-            { "uninstall_title", new[] { "FielDes Uninstall", "Desinstalación de FielDes", "Désinstallation de FielDes", "FielDes deinstallieren", "FielDes のアンインストール", "卸载 FielDes", "Удаление FielDes" } },
+            { "title", new[] { "FielDev Setup", "Instalación de FielDev", "Installation de FielDev", "FielDev-Setup", "FielDev セットアップ", "安装 FielDev", "Установка FielDev" } },
+            { "uninstall_title", new[] { "FielDev Uninstall", "Desinstalación de FielDev", "Désinstallation de FielDev", "FielDev deinstallieren", "FielDev のアンインストール", "卸载 FielDev", "Удаление FielDev" } },
             { "welcome", new[] {
-                "FielDes will be installed for your user account. No administrator rights are needed.",
-                "FielDes se instalará para tu cuenta de usuario. No se necesitan permisos de administrador.",
-                "FielDes sera installé pour votre compte utilisateur. Aucun droit d'administrateur n'est nécessaire.",
-                "FielDes wird für Ihr Benutzerkonto installiert. Administratorrechte sind nicht nötig.",
-                "FielDes はお使いのユーザーアカウント用にインストールされます。管理者権限は必要ありません。",
-                "FielDes 将安装到您的用户账户下，无需管理员权限。",
-                "FielDes будет установлен для вашей учётной записи. Права администратора не нужны." } },
+                "FielDev will be installed for your user account. No administrator rights are needed.",
+                "FielDev se instalará para tu cuenta de usuario. No se necesitan permisos de administrador.",
+                "FielDev sera installé pour votre compte utilisateur. Aucun droit d'administrateur n'est nécessaire.",
+                "FielDev wird für Ihr Benutzerkonto installiert. Administratorrechte sind nicht nötig.",
+                "FielDev はお使いのユーザーアカウント用にインストールされます。管理者権限は必要ありません。",
+                "FielDev 将安装到您的用户账户下，无需管理员权限。",
+                "FielDev будет установлен для вашей учётной записи. Права администратора не нужны." } },
             { "language", new[] { "Language of the program", "Idioma del programa", "Langue du programme", "Sprache des Programms", "プログラムの言語", "程序语言", "Язык программы" } },
             { "folder", new[] { "Install folder", "Carpeta de instalación", "Dossier d'installation", "Installationsordner", "インストール先フォルダー", "安装文件夹", "Папка установки" } },
             { "browse", new[] { "Browse...", "Examinar...", "Parcourir...", "Durchsuchen...", "参照...", "浏览...", "Обзор..." } },
             { "desktop", new[] { "Create a desktop shortcut", "Crear un acceso directo en el escritorio", "Créer un raccourci sur le bureau", "Verknüpfung auf dem Desktop anlegen", "デスクトップにショートカットを作成する", "创建桌面快捷方式", "Создать ярлык на рабочем столе" } },
-            { "launch", new[] { "Start FielDes when the installation is finished", "Iniciar FielDes al terminar la instalación", "Lancer FielDes à la fin de l'installation", "FielDes nach der Installation starten", "インストール完了後に FielDes を起動する", "安装完成后启动 FielDes", "Запустить FielDes после установки" } },
+            { "launch", new[] { "Start FielDev when the installation is finished", "Iniciar FielDev al terminar la instalación", "Lancer FielDev à la fin de l'installation", "FielDev nach der Installation starten", "インストール完了後に FielDev を起動する", "安装完成后启动 FielDev", "Запустить FielDev после установки" } },
             { "install", new[] { "Install", "Instalar", "Installer", "Installieren", "インストール", "安装", "Установить" } },
             { "update", new[] { "Update", "Actualizar", "Mettre à jour", "Aktualisieren", "更新", "更新", "Обновить" } },
             { "cancel", new[] { "Cancel", "Cancelar", "Annuler", "Abbrechen", "キャンセル", "取消", "Отмена" } },
@@ -68,24 +68,24 @@ namespace FielDesSetup
             { "remove", new[] { "Uninstall", "Desinstalar", "Désinstaller", "Deinstallieren", "アンインストール", "卸载", "Удалить" } },
             { "installing", new[] { "Installing...", "Instalando...", "Installation en cours...", "Installation läuft...", "インストール中...", "正在安装...", "Установка..." } },
             { "removing", new[] { "Removing...", "Eliminando...", "Suppression en cours...", "Wird entfernt...", "削除中...", "正在卸载...", "Удаление..." } },
-            { "done", new[] { "FielDes is installed.", "FielDes está instalado.", "FielDes est installé.", "FielDes ist installiert.", "FielDes をインストールしました。", "FielDes 已安装。", "FielDes установлен." } },
-            { "removed", new[] { "FielDes was removed.", "FielDes se ha eliminado.", "FielDes a été supprimé.", "FielDes wurde entfernt.", "FielDes を削除しました。", "FielDes 已卸载。", "FielDes удалён." } },
+            { "done", new[] { "FielDev is installed.", "FielDev está instalado.", "FielDev est installé.", "FielDev ist installiert.", "FielDev をインストールしました。", "FielDev 已安装。", "FielDev установлен." } },
+            { "removed", new[] { "FielDev was removed.", "FielDev se ha eliminado.", "FielDev a été supprimé.", "FielDev wurde entfernt.", "FielDev を削除しました。", "FielDev 已卸载。", "FielDev удалён." } },
             { "remove_ask", new[] {
-                "Remove FielDes from this computer?\nYour own scripts and the folders you made are not touched.",
-                "¿Eliminar FielDes de este equipo?\nTus propios scripts y las carpetas que creaste no se tocan.",
-                "Supprimer FielDes de cet ordinateur ?\nVos propres scripts et les dossiers que vous avez créés ne sont pas touchés.",
-                "FielDes von diesem Computer entfernen?\nIhre eigenen Skripte und die von Ihnen angelegten Ordner bleiben unberührt.",
-                "このコンピューターから FielDes を削除しますか？\nご自身のスクリプトや作成したフォルダーはそのまま残ります。",
-                "要从这台电脑上卸载 FielDes 吗？\n您自己的脚本和您创建的文件夹不会被改动。",
-                "Удалить FielDes с этого компьютера?\nВаши собственные скрипты и созданные вами папки не затрагиваются." } },
+                "Remove FielDev from this computer?\nYour own scripts and the folders you made are not touched.",
+                "¿Eliminar FielDev de este equipo?\nTus propios scripts y las carpetas que creaste no se tocan.",
+                "Supprimer FielDev de cet ordinateur ?\nVos propres scripts et les dossiers que vous avez créés ne sont pas touchés.",
+                "FielDev von diesem Computer entfernen?\nIhre eigenen Skripte und die von Ihnen angelegten Ordner bleiben unberührt.",
+                "このコンピューターから FielDev を削除しますか？\nご自身のスクリプトや作成したフォルダーはそのまま残ります。",
+                "要从这台电脑上卸载 FielDev 吗？\n您自己的脚本和您创建的文件夹不会被改动。",
+                "Удалить FielDev с этого компьютера?\nВаши собственные скрипты и созданные вами папки не затрагиваются." } },
             { "close_first", new[] {
-                "FielDes is running from this folder. Close it, then try again.",
-                "FielDes se está ejecutando desde esta carpeta. Ciérralo y vuelve a intentarlo.",
-                "FielDes s'exécute depuis ce dossier. Fermez-le, puis réessayez.",
-                "FielDes läuft aus diesem Ordner. Schließen Sie es und versuchen Sie es erneut.",
-                "FielDes がこのフォルダーから実行されています。終了してからもう一度お試しください。",
-                "FielDes 正在从此文件夹运行。请先关闭它，然后重试。",
-                "FielDes запущен из этой папки. Закройте его и повторите попытку." } },
+                "FielDev is running from this folder. Close it, then try again.",
+                "FielDev se está ejecutando desde esta carpeta. Ciérralo y vuelve a intentarlo.",
+                "FielDev s'exécute depuis ce dossier. Fermez-le, puis réessayez.",
+                "FielDev läuft aus diesem Ordner. Schließen Sie es und versuchen Sie es erneut.",
+                "FielDev がこのフォルダーから実行されています。終了してからもう一度お試しください。",
+                "FielDev 正在从此文件夹运行。请先关闭它，然后重试。",
+                "FielDev запущен из этой папки. Закройте его и повторите попытку." } },
             { "error", new[] { "The installation failed", "La instalación ha fallado", "L'installation a échoué", "Die Installation ist fehlgeschlagen", "インストールに失敗しました", "安装失败", "Не удалось установить" } },
             { "error_remove", new[] { "The removal failed", "La desinstalación ha fallado", "La désinstallation a échoué", "Die Deinstallation ist fehlgeschlagen", "アンインストールに失敗しました", "卸载失败", "Не удалось удалить" } },
             { "why_folder", new[] {
@@ -96,7 +96,7 @@ namespace FielDesSetup
                 "書き込み可能なフォルダー（たとえばユーザーフォルダー内）を選んでください。",
                 "请选择一个可以写入的文件夹，例如用户文件夹中的某个文件夹。",
                 "Выберите папку, в которую можно записывать, например папку в вашем профиле." } },
-            { "app_name", new[] { "FielDes", "FielDes", "FielDes", "FielDes", "FielDes", "FielDes", "FielDes" } },
+            { "app_name", new[] { "FielDev", "FielDev", "FielDev", "FielDev", "FielDev", "FielDev", "FielDev" } },
             { "tagline", new[] {
                 "field-driven design", "diseño basado en campos", "conception par champs", "feldbasiertes Design",
                 "フィールド駆動デザイン", "场驱动设计", "проектирование на основе полей" } },
@@ -154,17 +154,17 @@ namespace FielDesSetup
 
     static class Install
     {
-        public const string Key = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\FielDes";
+        public const string Key = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\FielDev";
         public const string Manifest = "install.manifest";
 
         public static string DefaultDir()
         {
             string existing = Existing();
             if (existing != null) return existing;
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\FielDes");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\FielDev");
         }
 
-        // Where FielDes is installed already (the entry in Settings > Apps), or null
+        // Where FielDev is installed already (the entry in Settings > Apps), or null
         public static string Existing()
         {
             try
@@ -195,19 +195,19 @@ namespace FielDesSetup
 
         public static string StartMenuLink()
         {
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "FielDes.lnk");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "FielDev.lnk");
         }
 
         public static string DesktopLink()
         {
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "FielDes.lnk");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "FielDev.lnk");
         }
 
-        // Is a FielDes running from this folder?
+        // Is a FielDev running from this folder?
         public static bool Running(string dir)
         {
             string full = Path.GetFullPath(dir).TrimEnd('\\') + "\\";
-            foreach (Process p in Process.GetProcessesByName("FielDes"))
+            foreach (Process p in Process.GetProcessesByName("FielDev"))
             {
                 try
                 {
@@ -246,7 +246,7 @@ namespace FielDesSetup
             List<string> written = new List<string>();
             HashSet<string> writtenSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             Assembly self = Assembly.GetExecutingAssembly();
-            string temp = Path.Combine(Path.GetTempPath(), "fieldes-payload-" + Guid.NewGuid().ToString("N") + ".zip");
+            string temp = Path.Combine(Path.GetTempPath(), "fieldev-payload-" + Guid.NewGuid().ToString("N") + ".zip");
             using (Stream src = self.GetManifestResourceStream("payload.zip"))
             using (FileStream dst = File.Create(temp)) src.CopyTo(dst);
             try
@@ -289,7 +289,7 @@ namespace FielDesSetup
             written.Add(Manifest);
             File.WriteAllLines(manifestPath, written.ToArray(), new UTF8Encoding(false));
 
-            string exe = Path.Combine(dir, "FielDes.exe");
+            string exe = Path.Combine(dir, "FielDev.exe");
             string name = Texts.Get("app_name", language);
             string description = name + " - " + Texts.Get("tagline", language);
             Directory.CreateDirectory(Path.GetDirectoryName(StartMenuLink()));
@@ -301,9 +301,9 @@ namespace FielDesSetup
             using (RegistryKey k = Registry.CurrentUser.CreateSubKey(Key))
             {
                 string version = Version();
-                k.SetValue("DisplayName", "FielDes");
+                k.SetValue("DisplayName", "FielDev");
                 k.SetValue("DisplayVersion", version);
-                k.SetValue("Publisher", "FielDes");
+                k.SetValue("Publisher", "FielDev");
                 k.SetValue("InstallLocation", dir);
                 k.SetValue("DisplayIcon", exe);
                 k.SetValue("UninstallString", "\"" + uninstaller + "\"");
@@ -314,7 +314,7 @@ namespace FielDesSetup
             }
 
             // The program's language: "system" follows Windows, a code is that language whatever Windows speaks
-            using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\FielDes\FielDes"))
+            using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\FielDev\FielDev"))
                 k.SetValue("language", language == Texts.SystemCode() ? "system" : language);
 
             RegisterApps(exe);
@@ -322,16 +322,16 @@ namespace FielDesSetup
             progress(100);
         }
 
-        // The file type of FielDes apps: a double click on a .fieldesapp opens it in FielDes (the program does the same for a copy that is not installed)
+        // The file type of FielDev apps: a double click on a .fieldevapp opens it in FielDev (the program does the same for a copy that is not installed)
         static void RegisterApps(string exe)
         {
             try
             {
-                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\.fieldesapp")) k.SetValue("", "FielDes.App");
-                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDes.App")) k.SetValue("", "FielDes app");
-                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDes.App\DefaultIcon")) k.SetValue("", "\"" + exe + "\",0");
-                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDes.App\shell\open")) k.SetValue("", "Open");
-                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDes.App\shell\open\command")) k.SetValue("", "\"" + exe + "\" \"%1\"");
+                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\.fieldevapp")) k.SetValue("", "FielDev.App");
+                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDev.App")) k.SetValue("", "FielDev app");
+                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDev.App\DefaultIcon")) k.SetValue("", "\"" + exe + "\",0");
+                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDev.App\shell\open")) k.SetValue("", "Open");
+                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\FielDev.App\shell\open\command")) k.SetValue("", "\"" + exe + "\" \"%1\"");
                 SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);        // SHCNE_ASSOCCHANGED
             }
             catch { }
@@ -342,14 +342,14 @@ namespace FielDesSetup
         {
             try
             {
-                string exe = Path.Combine(dir, "FielDes.exe");
-                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Classes\FielDes.App\shell\open\command"))
+                string exe = Path.Combine(dir, "FielDev.exe");
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Classes\FielDev.App\shell\open\command"))
                 {
                     string command = k == null ? null : k.GetValue("") as string;
                     if (command == null || command.IndexOf(exe, StringComparison.OrdinalIgnoreCase) < 0) return;
                 }
-                Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\FielDes.App", false);
-                Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\.fieldesapp", false);
+                Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\FielDev.App", false);
+                Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\.fieldevapp", false);
                 SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
             }
             catch { }
@@ -412,7 +412,7 @@ namespace FielDesSetup
     {
         readonly Options options;
         readonly bool uninstalling;
-        readonly string installed;          // (where FielDes is already installed, or null)
+        readonly string installed;          // (where FielDev is already installed, or null)
         string language;
         Label welcome, languageLabel, folderLabel, status;
         ComboBox languageBox;
@@ -421,7 +421,7 @@ namespace FielDesSetup
         CheckBox desktop, launch;
         ProgressBar bar;
         bool finished;
-        string installedDir;                // (where it was installed: FielDes is started there when Finish is clicked)
+        string installedDir;                // (where it was installed: FielDev is started there when Finish is clicked)
 
         public SetupForm(Options o, bool uninstall, string dir)
         {
@@ -459,8 +459,8 @@ namespace FielDesSetup
                     {
                         d.SelectedPath = folderBox.Text;
                         if (d.ShowDialog(this) == DialogResult.OK)
-                            folderBox.Text = Path.GetFileName(d.SelectedPath).Equals("FielDes", StringComparison.OrdinalIgnoreCase)
-                                ? d.SelectedPath : Path.Combine(d.SelectedPath, "FielDes");
+                            folderBox.Text = Path.GetFileName(d.SelectedPath).Equals("FielDev", StringComparison.OrdinalIgnoreCase)
+                                ? d.SelectedPath : Path.Combine(d.SelectedPath, "FielDev");
                     }
                 };
                 desktop = new CheckBox { Left = 16, Top = 174, Width = 528, Height = 22, Checked = true };
@@ -566,7 +566,7 @@ namespace FielDesSetup
 
         public static void Launch(string dir)
         {
-            try { Process.Start(new ProcessStartInfo(Path.Combine(dir, "FielDes.exe")) { WorkingDirectory = dir }); } catch { }
+            try { Process.Start(new ProcessStartInfo(Path.Combine(dir, "FielDev.exe")) { WorkingDirectory = dir }); } catch { }
         }
     }
 
@@ -591,7 +591,7 @@ namespace FielDesSetup
             }
             catch (Exception ex)
             {
-                if (!o.Silent) MessageBox.Show(ex.Message, "FielDes", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!o.Silent) MessageBox.Show(ex.Message, "FielDev", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
         }
@@ -620,7 +620,7 @@ namespace FielDesSetup
             string full = Path.GetFullPath(dir).TrimEnd('\\') + "\\";
             if (o.RunFrom == null && Path.GetFullPath(me).StartsWith(full, StringComparison.OrdinalIgnoreCase))
             {
-                string copy = Path.Combine(Path.GetTempPath(), "fieldes-uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
+                string copy = Path.Combine(Path.GetTempPath(), "fieldev-uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
                 File.Copy(me, copy, true);
                 StringBuilder a = new StringBuilder();
                 a.Append("/runfrom=\"" + dir + "\"");
@@ -645,7 +645,7 @@ namespace FielDesSetup
         // The temporary copy of the uninstaller removes itself once it has exited
         static void CleanUp(string me)
         {
-            if (!Path.GetFileName(me).StartsWith("fieldes-uninstall-", StringComparison.OrdinalIgnoreCase)) return;
+            if (!Path.GetFileName(me).StartsWith("fieldev-uninstall-", StringComparison.OrdinalIgnoreCase)) return;
             try
             {
                 ProcessStartInfo p = new ProcessStartInfo("cmd.exe", "/c ping -n 3 127.0.0.1 >nul & del /f /q \"" + me + "\"");

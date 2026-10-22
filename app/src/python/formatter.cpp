@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017-2021  Matt Keeter
 
@@ -20,9 +20,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QEvent>
 #include <QTextBlock>
 
-#include "fieldes/python/formatter.hpp"
+#include "fieldev/python/formatter.hpp"
 
-namespace FielDes {
+namespace FielDev {
 namespace Python {
 
 void Formatter::keyPressEvent(QPlainTextEdit* doc, QKeyEvent* e)
@@ -141,4 +141,4 @@ void Formatter::keyPressEvent(QPlainTextEdit* doc, QKeyEvent* e)
 }
 
 }   // namespace Python
-}   // namespace FielDes
+}   // namespace FielDev

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Build FielDes on Windows (MSVC + vcpkg) and, optionally, make a portable folder.
+    Build FielDev on Windows (MSVC + vcpkg) and, optionally, make a portable folder.
 
 .DESCRIPTION
     One-time prerequisites:
@@ -9,21 +9,21 @@
       * the dependencies:  .\scripts\build-windows.ps1 -InstallDeps   (about an hour: it builds Qt)
 
 .EXAMPLE
-    .\scripts\build-windows.ps1                 # incremental build of FielDes.exe
+    .\scripts\build-windows.ps1                 # incremental build of FielDev.exe
     .\scripts\build-windows.ps1 -Package        # build, then make / refresh the portable folder
     .\scripts\build-windows.ps1 -InstallDeps    # first time only: the vcpkg dependencies
 
 .NOTES
-    FielDes.exe finds its Python package by walking up from its own folder looking for
-    python\fieldes, and its Python runtime for runtime\python3 (the portable folder) or
+    FielDev.exe finds its Python package by walking up from its own folder looking for
+    python\fieldev, and its Python runtime for runtime\python3 (the portable folder) or
     vcpkg\installed\x64-windows\tools\python3 (next to a vcpkg checkout).
 #>
 param(
     [string]$Source     = (Split-Path -Parent $PSScriptRoot),
     [string]$Vcpkg      = 'C:\dev\vcpkg',
-    [string]$BuildDir   = 'C:\dev\fieldes-build',
+    [string]$BuildDir   = 'C:\dev\fieldev-build',
     [string]$Config     = 'Release',
-    [string]$PackageDir = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist\FielDes'),
+    [string]$PackageDir = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist\FielDev'),
     [switch]$InstallDeps,
     [switch]$Package
 )
@@ -60,20 +60,20 @@ foreach ($need in 'include\eigen3\Eigen', 'tools\python3\python.exe', 'bin\Qt5Co
 }
 
 # --- Configure and build -------------------------------------------------------
-# A build tree that builds FielDes.exe straight into a folder (FIELDES_OUTPUT_DIR) keeps an older copy of the exe and the DLLs in app\Release, and the portable
+# A build tree that builds FielDev.exe straight into a folder (FIELDEV_OUTPUT_DIR) keeps an older copy of the exe and the DLLs in app\Release, and the portable
 # folder is a mirror of that: mirrored, it would put the old files over the new ones.  When that folder IS the portable folder (the one build tree of a developer, which
-# builds into dist\FielDes), the exe and the kernel's DLLs are already there, new: the first step of the package then copies only what is newer or missing, and mirrors
+# builds into dist\FielDev), the exe and the kernel's DLLs are already there, new: the first step of the package then copies only what is newer or missing, and mirrors
 # nothing.  A build tree that builds into some other folder cannot be packaged: its files are not the ones in the folder.
 $cache = Join-Path $BuildDir 'CMakeCache.txt'
 $intoPackage = $false
 if ($Package -and (Test-Path $cache)) {
-    $line = Select-String -Path $cache -Pattern '^FIELDES_OUTPUT_DIR:PATH=(.+)$' | Select-Object -First 1
+    $line = Select-String -Path $cache -Pattern '^FIELDEV_OUTPUT_DIR:PATH=(.+)$' | Select-Object -First 1
     if ($line) {
         $dir = $line.Matches[0].Groups[1].Value
         $same = (Resolve-Path -LiteralPath $dir -ErrorAction SilentlyContinue) -and (Resolve-Path -LiteralPath $PackageDir -ErrorAction SilentlyContinue) -and
                 ((Resolve-Path -LiteralPath $dir).Path.TrimEnd('\') -ieq (Resolve-Path -LiteralPath $PackageDir).Path.TrimEnd('\'))
         if (-not $same) {
-            throw "$BuildDir builds into $dir, which is not the portable folder ($PackageDir); package from a build tree that builds into it, or without FIELDES_OUTPUT_DIR."
+            throw "$BuildDir builds into $dir, which is not the portable folder ($PackageDir); package from a build tree that builds into it, or without FIELDEV_OUTPUT_DIR."
         }
         $intoPackage = $true
     }
@@ -85,10 +85,10 @@ Run $cmake @('-S', $Source, '-B', $BuildDir, '-G', 'Visual Studio 17 2022', '-A'
 
 # /nr:false: no MSBuild node reuse (a worker left over from this build can keep the
 # DLLs locked and make the next build's copy step fail)
-Run $cmake @('--build', $BuildDir, '--config', $Config, '--target', 'FielDes', '--parallel', '--', '/nr:false')
+Run $cmake @('--build', $BuildDir, '--config', $Config, '--target', 'FielDev', '--parallel', '--', '/nr:false')
 
 $out = Join-Path $BuildDir "app\$Config"
-Write-Host "`nBuilt: $out\FielDes.exe" -ForegroundColor Green
+Write-Host "`nBuilt: $out\FielDev.exe" -ForegroundColor Green
 
 # --- Portable folder -----------------------------------------------------------
 if ($Package) {
@@ -97,7 +97,7 @@ if ($Package) {
         if ($LASTEXITCODE -ge 8) { throw "robocopy $from -> $to failed ($LASTEXITCODE)" }
         $global:LASTEXITCODE = 0
     }
-    # 1. FielDes.exe, the kernel's DLLs, Qt / Python / PNG runtime DLLs, Qt plugins
+    # 1. FielDev.exe, the kernel's DLLs, Qt / Python / PNG runtime DLLs, Qt plugins
     #    (/MIR would remove the pieces below, so this one goes first)
     if ($intoPackage) {
         # (the build wrote the exe and the DLLs here already: only what is missing or newer comes over, and nothing is deleted)
@@ -113,9 +113,9 @@ if ($Package) {
     # 3. The Python package
     Mirror (Join-Path $Source 'python') (Join-Path $PackageDir 'python') @('/XD', '__pycache__')
     # 4. The examples
-    Mirror (Join-Path $Source 'examples') (Join-Path $PackageDir 'examples') @('/XD', '__pycache__', '*.fieldes-cache.trees', '*.fieldes-bspline', '*.fieldes-tessellation', 'meshes', '/XF', '*.fieldes-cache.py')
-    # The command line of the apps (`fieldes run tool.fieldesapp --Radius 7`): FielDes.exe is a window program, this waits for it
-    Copy-Item (Join-Path $Source 'scripts\fieldes.cmd') $PackageDir -Force
+    Mirror (Join-Path $Source 'examples') (Join-Path $PackageDir 'examples') @('/XD', '__pycache__', '*.fieldev-cache.trees', '*.fieldev-bspline', '*.fieldev-tessellation', 'meshes', '/XF', '*.fieldev-cache.py')
+    # The command line of the apps (`fieldev run tool.fieldevapp --Radius 7`): FielDev.exe is a window program, this waits for it
+    Copy-Item (Join-Path $Source 'scripts\fieldev.cmd') $PackageDir -Force
     foreach ($doc in 'README.md', 'LICENSE-GPL-2.0', 'LICENSE-MPL-2.0', 'NOTICE.md', 'CHANGELOG.md') {
         if (Test-Path (Join-Path $Source $doc)) { Copy-Item (Join-Path $Source $doc) $PackageDir -Force }
     }

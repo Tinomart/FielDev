@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2021  Matt Keeter
 
@@ -17,10 +17,10 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
-#include "fieldes/language.hpp"
+#include "fieldev/language.hpp"
 #include "libfive/run_progress.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Language::Language(Interpreter* interpreter,
                    Formatter* formatter,
@@ -32,7 +32,7 @@ Language::Language(Interpreter* interpreter,
     // into the interpreter worker thread
     connect(this, &Language::onScriptChanged,
             this, [=](QString text){
-                // The run that is going is asked what the edit does to it (fieldes.app_support.edit_in_place).  An edit that changes nothing of
+                // The run that is going is asked what the edit does to it (fieldev.app_support.edit_in_place).  An edit that changes nothing of
                 // what the statement that runs is made of or makes -- a model shown or hidden, whatever comes after it -- is put into the run:
                 // it is not stopped, a calculation of minutes goes on, and no run follows.  One at or above what that statement is made of
                 // changes what it makes: a solver that works on it is stopped now, not waited for.  One in a text that is being typed, below
@@ -119,4 +119,4 @@ void Language::onInterpreterReady(QStringList keywords, Documentation docs) {
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

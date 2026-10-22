@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Makes a Debian / Ubuntu package (.deb) from the Linux package folder:
 #
-#   scripts/make-deb.sh <the FielDes-linux folder or its .tar.gz> <out.deb> [version]
+#   scripts/make-deb.sh <the FielDev-linux folder or its .tar.gz> <out.deb> [version]
 #
-# It installs FielDes into /opt/fieldes, the command `fieldes` into /usr/bin, and the menu entry and icon where the desktop looks for them;
-# `sudo apt install ./FielDes_0.6.0_amd64.deb` (or double-click it in the software centre) does it.  It depends on nothing but the C library
+# It installs FielDev into /opt/fieldev, the command `fieldev` into /usr/bin, and the menu entry and icon where the desktop looks for them;
+# `sudo apt install ./FielDev_0.6.0_amd64.deb` (or double-click it in the software centre) does it.  It depends on nothing but the C library
 # (Qt, Python and the other libraries are inside) -- which one, is what the build machine had: build on Ubuntu 22.04 for the oldest.
 #
 # The .deb is written with ar and tar (a .deb is an ar archive of debian-binary, control.tar.gz and data.tar.gz), so dpkg-deb is not needed.
@@ -27,36 +27,36 @@ else
     tar -xzf "$SRC" -C "$WORK/unpacked"
     FOLDER=$(find "$WORK/unpacked" -mindepth 1 -maxdepth 1 -type d | head -n 1)
 fi
-[ -x "$FOLDER/FielDes" ] || { echo "no FielDes program in $FOLDER"; exit 1; }
+[ -x "$FOLDER/FielDev" ] || { echo "no FielDev program in $FOLDER"; exit 1; }
 
 # --- what goes where
 ROOT="$WORK/root"
 mkdir -p "$ROOT/opt" "$ROOT/usr/bin" "$ROOT/usr/share/applications" "$ROOT/usr/share/icons/hicolor/256x256/apps" "$ROOT/usr/share/mime/packages"
-cp -a "$FOLDER" "$ROOT/opt/fieldes"
-rm -f "$ROOT/opt/fieldes/run.sh"
-ln -s /opt/fieldes/FielDes "$ROOT/usr/bin/fieldes"
-[ -f "$FOLDER/fieldes.png" ] && cp "$FOLDER/fieldes.png" "$ROOT/usr/share/icons/hicolor/256x256/apps/fieldes.png"
-cat > "$ROOT/usr/share/applications/fieldes.desktop" <<'EOF'
+cp -a "$FOLDER" "$ROOT/opt/fieldev"
+rm -f "$ROOT/opt/fieldev/run.sh"
+ln -s /opt/fieldev/FielDev "$ROOT/usr/bin/fieldev"
+[ -f "$FOLDER/fieldev.png" ] && cp "$FOLDER/fieldev.png" "$ROOT/usr/share/icons/hicolor/256x256/apps/fieldev.png"
+cat > "$ROOT/usr/share/applications/fieldev.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=FielDes
+Name=FielDev
 GenericName=Field-driven design
 Comment=CAD and simulation made of fields
-Exec=/opt/fieldes/FielDes %f
-Icon=fieldes
+Exec=/opt/fieldev/FielDev %f
+Icon=fieldev
 Terminal=false
 Categories=Graphics;Engineering;Science;
-StartupWMClass=FielDes
-MimeType=application/x-fieldesapp;
+StartupWMClass=FielDev
+MimeType=application/x-fieldevapp;
 EOF
-# (the file type of FielDes apps: a double click on a .fieldesapp opens it in its form)
-cat > "$ROOT/usr/share/mime/packages/application-x-fieldesapp.xml" <<'EOF'
+# (the file type of FielDev apps: a double click on a .fieldevapp opens it in its form)
+cat > "$ROOT/usr/share/mime/packages/application-x-fieldevapp.xml" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-  <mime-type type="application/x-fieldesapp">
-    <comment>FielDes app</comment>
-    <glob pattern="*.fieldesapp"/>
-    <icon name="fieldes"/>
+  <mime-type type="application/x-fieldevapp">
+    <comment>FielDev app</comment>
+    <glob pattern="*.fieldevapp"/>
+    <icon name="fieldev"/>
   </mime-type>
 </mime-info>
 EOF
@@ -66,15 +66,15 @@ SIZE=$(du -sk "$ROOT" | cut -f1)
 CONTROL="$WORK/control"
 mkdir -p "$CONTROL"
 cat > "$CONTROL/control" <<EOF
-Package: fieldes
+Package: fieldev
 Version: $VERSION
 Architecture: amd64
-Maintainer: FielDes developers <noreply@users.noreply.github.com>
+Maintainer: FielDev developers <noreply@users.noreply.github.com>
 Installed-Size: $SIZE
 Section: graphics
 Priority: optional
-Homepage: https://github.com/Tinomart/FielDes
-Description: FielDes, field-driven design
+Homepage: https://github.com/Tinomart/FielDev
+Description: FielDev, field-driven design
  CAD, finite-element analysis, flow and optimisation made of fields: every shape is a field, and wherever a number goes, a field goes.
  Qt, Python and every library it needs are inside the package.
 EOF

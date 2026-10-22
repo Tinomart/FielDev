@@ -1,6 +1,6 @@
 # Meshes
 
-FielDes models with fields, and moves between fields and triangle meshes in both directions.
+FielDev models with fields, and moves between fields and triangle meshes in both directions.
 
 - [Importing meshes](#importing-meshes)
 - [Exporting and importing meshes](#exporting-and-importing-meshes)
@@ -10,7 +10,7 @@ FielDes models with fields, and moves between fields and triangle meshes in both
 
 ## Importing meshes
 
-**File → Import model…** (`Ctrl+I`) or drop a file on the window. FielDes writes
+**File → Import model…** (`Ctrl+I`) or drop a file on the window. FielDev writes
 
 ```python
 # Imported model: bracket.stl
@@ -114,6 +114,17 @@ export_mesh(hero, "hero.glb", materials=[skin, metal], colors=(0.8, 0.8, 1 - z_f
   `pbrMetallicRoughness` for each, and one primitive of the mesh for each). The other formats have no materials: asking for them is an error.
 - **`colors=(r, g, b)`**, each a number or a field from 0 to 1, is evaluated at every vertex: vertex colours in **OBJ** (`v x y z r g b`), **PLY**
   (`red`, `green`, `blue`) and **glTF** (`COLOR_0`).
+- **The whole PBR material.** `material(...)` also takes `opacity` (a number or a field) and `alpha_mode` (`"OPAQUE"`, `"MASK"` for leaves and fences, `"BLEND"`; blend by
+  default below an opacity of 1), `double_sided`, `emissive_strength` (a lamp is brighter than 1), `ior` (1.5 is glass), `transmission` (1 for glass that light passes
+  through), `clearcoat` and `clearcoat_roughness` (car paint, varnish), `sheen` (the soft glow of cloth), `normal_scale`, and the file names of images of your own for
+  the colour, the normal map, the packed occlusion / roughness / metalness map and the glow (`texture`, `normal_texture`, `orm_texture`, `emissive_texture`). In
+  glTF they are written as `pbrMetallicRoughness`, `normalTexture`, `occlusionTexture`, `emissiveTexture`, `alphaMode`, `doubleSided` and the extensions
+  `KHR_materials_emissive_strength`, `_transmission`, `_ior`, `_clearcoat` and `_sheen`; in the OBJ's `.mtl` as `d`, `Ni`, `Ke`, `map_Kd`, `map_Bump`, `map_Ke`.
+- **Presets.** `material_preset("gold")` is a material that looks like the thing: `gold`, `silver`, `copper`, `brass`, `iron`, `steel`, `aluminium`, `chrome`, `plastic`,
+  `rubber`, `wood`, `stone`, `concrete`, `brick`, `ceramic`, `skin`, `leather`, `cloth`, `paper`, `bone`, `glass`, `water`, `paint`, `glow` (`material_presets()` lists
+  them). The other options replace the preset's: `material_preset("plastic", color="#2060c0", where=body)`.
+- **Fields instead of numbers.** The colour (each channel), the roughness, the metalness, the glow and the opacity can be fields -- noise, a gradient, a pattern. Such a
+  material needs the textures baked (below): the picture is the field.
 
 [`examples/34_materials.py`](../examples/34_materials.py) writes all of it for a figure, reads the files back and checks that each material is where it says.
 
@@ -139,6 +150,58 @@ export_mesh(wall, "wall.obj", uvs=("box", 500))                                 
 
 [`examples/35_uvs.py`](../examples/35_uvs.py) checks it by reading the files back: the areas in the texture against the areas in space, the seams, the tiling.
 
+**More UV maps.** `uvs=` takes a text, a UV map made by a function, or a list of two (the second set is `TEXCOORD_1`, for a lightmap):
+
+| | |
+|---|---|
+| `"box"`, `uv_box(size)` | the box projection above |
+| `uv_planar("z", size)` | one projection along an axis for the whole surface (`"-z"` from below): a floor, a wall, a relief |
+| `uv_cylinder("z", turns, size)` | u is the angle round the axis, v the height; the cap on the axis itself is stretched, as a cylinder map has it |
+| `uv_sphere("z")` | longitude and latitude: the map a globe is drawn on |
+| `"unwrap"`, `uv_unwrap(angle=60, margin=4, size=1024)` | the surface cut into **islands**, laid flat and packed into the square: a texture atlas |
+
+`uv_unwrap` works in four steps. (1) The **islands** are grown from the largest triangle over the neighbours whose direction is within `angle` degrees of the
+island's average; on a rough surface the directions are smoothed first (the rougher, the more) so that the islands follow the shape and not the bumps; the
+ragged edges are made smooth, and the small islands that are left between the large are taken into the one they touch most. (2) Each island is laid flat by the
+**conformal map** (least squares conformal maps: angles are kept, so a texture is not sheared) when it is a disc of at most 6000 triangles; else by projection
+along its average direction. (3) Every island is scaled to the same density -- a texel is the same size everywhere on the model -- and turned to the angle where
+its box is smallest. (4) The boxes are packed in the square, `margin` texels of a `size` x `size` texture apart (maximal rectangles, a quarter turn allowed), at the
+largest scale where they fit. `uv_unwrap(...).report` says what it made: the islands, how many were laid flat conformally, how much of the square they cover, the
+millimetres of a texel and the stretch. `export_mesh(..., uv_layout="layout.png")` writes a picture of the first map -- the islands and the edges of the
+triangles -- to look at.
+
+[`examples/38_uv_maps.py`](../examples/38_uv_maps.py) writes each map for a figure and a crate, reads the files back, and checks that the places are inside the square,
+that no two islands overlap, that a texel is the same size everywhere, the repeat of the box and the seam of the cylinder.
+
+### Baked textures
+
+```python
+export_mesh(rock, "rock.glb", max_triangles=3000, uvs=uv_unwrap(angle=45, size=1024), materials=[stone, moss, gold], textures=bake(size=1024))
+```
+
+A texture is a picture the surface is painted with. A mesh program paints it by hand; here the surface *is* a field, so the picture is asked of the field: every texel
+is a place on the surface (the UV map says which place), and what is there is read from the model. `bake(size, maps, padding, occlusion_samples, occlusion_distance,
+occlusion_strength, uv_set)` says which pictures and how fine; `export_mesh(..., textures=bake(...))` makes them, writes them beside the mesh
+(`rock_color.png`, `rock_normal.png`, `rock_orm.png`, `rock_emissive.png`), wires them to the materials, and a `.glb` has them inside as well.
+
+- **`color`** (sRGB) is the material of the place -- `where` is read **at the texel**, so the edge between two materials is as sharp as the picture, not as coarse as the
+  triangles -- times the vertex colours (`colors=`). A material's colour can be a field.
+- **`normal`** is the normal map: the exact normal of the field at the place, in the tangent space of the mesh (red right, green up, blue out). A coarse mesh
+  (`max_triangles`) shaded with it looks like the fine surface: the detail of the field is in the picture, not in the triangles. The file has the exact vertex normals
+  and the tangents (`NORMAL`, `TANGENT`).
+- **`orm`** is occlusion (red), roughness (green), metalness (blue), one linear picture, which glTF and the engines read. `"mr"` is roughness and metalness only,
+  `"occlusion"` the occlusion alone.
+- **`emissive`** is the glow of the materials.
+- **The occlusion** is the ambient occlusion of the field: rays go out over the hemisphere from every texel, and a ray is blocked where the field gets near zero
+  again (cone tracing along the ray: exact for a field that is a distance, a good guess for one that is nearly). It is made from the field, so it has no triangles in it.
+- **`padding`** grows each island by that many texels, so that a filter or a mip map does not take in the empty ground beside it.
+- **Needs** `uvs=` with islands that do not overlap (`"unwrap"`); the pictures are for the first map (`uv_set=1`: the second). In **OBJ** the `.mtl` names the colour,
+  the normal map and the glow; the packed picture is a file beside it, since an OBJ has no way to say which channel is the roughness.
+
+[`examples/39_baked_textures.py`](../examples/39_baked_textures.py) bakes a rock with a moss layer and gold in its cracks, reads the pictures back and checks the colours,
+the metalness, the roughness, the occlusion, that every normal is a unit vector, that a coarse sphere has far more in its normal map than a fine one, and what the glTF
+says.
+
 ### Skeleton and skin weights (glTF)
 
 ```python
@@ -159,7 +222,14 @@ export_mesh(hero, "hero.glb", skeleton=bones)                              # ski
   the elbow is turned). A vertex belongs to the **nearest bone**, and so to its joint; near the two ends of the bone it is shared with the joint beside it --
   the parent at the start, the child at the end -- half at the very joint, less and less over `skin_falloff` millimetres along the bone (4 % of the model by
   default), none beyond. A bone that is only *near* -- the other leg -- never moves a vertex.
-- It can be written with the materials, the colours and the texture coordinates in the same file.
+- **A joint can own a place.** `joint(name, position, parent, tip, influence=body_or_field)`: where `influence` is negative the skin follows that joint alone, fading
+  to the bones' weights over `skin_falloff` millimetres outside. The joints are layers, as materials are: the later one is on top. A jaw, a finger, a tail tip, a cape --
+  anything the bones do not shape. The weights are *functions of the place* of a vertex, not of the triangles it is in, so they are as smooth as the model and the same
+  on both sides of a seam.
+- **`max_influences=4`** (1 to 8) is the most joints that move a vertex: the strongest are kept and the weights made to add up to 1. Above 4 the file has `JOINTS_1` and
+  `WEIGHTS_1` as well.
+- It can be written with the materials, the colours, the texture coordinates and the baked textures in the same file. A whole character -- limbs, body and skeleton
+  from the same nodes -- is in [Characters](characters.md#armatures-limbs-a-character-a-skeleton).
 
 ### The origin of the asset, and levels of detail
 
@@ -183,10 +253,10 @@ budgets of three levels.
 [`examples/36_skeleton.py`](../examples/36_skeleton.py) reads the file back and checks the nodes and the hierarchy, the inverse bind matrices, that the tip of the
 hand, the head, the forearms, the shin and the foot are moved by their joints, that no joint of the left half moves a vertex of the right, and the refusals.
 
-**FBX is a proprietary format** of Autodesk, whose SDK is available under its own licence and whose files have no published specification. FielDes
+**FBX is a proprietary format** of Autodesk, whose SDK is available under its own licence and whose files have no published specification. FielDev
 reads and writes FBX **without the Autodesk SDK**, from the structure of the files as the community documents it (the node tree, the property types,
 the objects and their connections), and handles **meshes only**: geometry, the transform of the models that hold it, the scene's unit and up axis -- no
-materials, animation, skins or cameras. Because the format is not specified, another program may read less of what FielDes writes than FielDes reads of
+materials, animation, skins or cameras. Because the format is not specified, another program may read less of what FielDev writes than FielDev reads of
 its own files: STL, OBJ, PLY, 3MF and glTF are the safer ways to hand a model on. DXF is the same: only meshes made of faces.
 
 When no `bounds` is given a body is meshed in its own extent plus one cell all round (a face that lies exactly on the edge of the region meshed is not found by it).

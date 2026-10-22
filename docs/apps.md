@@ -1,8 +1,8 @@
-# FielDes apps: a script that anyone can run
+# FielDev apps: a script that anyone can run
 
-**Custom blocks are for FielDes users. Apps are for everyone else.** An engineer writes a script once -- a part that
+**Custom blocks are for FielDev users. Apps are for everyone else.** An engineer writes a script once -- a part that
 is made to fit a pipe, a rock generator, a batch of exports -- and says which things the person who uses it may
-choose: a radius, a model file, where to save the result. FielDes turns that into **one file** (`bracket_maker.fieldesapp`).
+choose: a radius, a model file, where to save the result. FielDev turns that into **one file** (`bracket_maker.fieldevapp`).
 Whoever opens it sees **a form with those inputs, a Run button, a log and the files that were made** -- no editor, no
 model tree, no code -- and presses Run.
 
@@ -29,7 +29,7 @@ model tree, no code -- and presses Run.
 - [Open it: a double click](#open-it-a-double-click)
 - [Run it without a window](#run-it-without-a-window)
 - [Watch: run again when a file changes](#watch-run-again-when-a-file-changes)
-- [What is inside a `.fieldesapp`](#what-is-inside-a-fieldesapp)
+- [What is inside a `.fieldevapp`](#what-is-inside-a-fieldevapp)
 - [Limits](#limits)
 
 ## The three roles
@@ -38,15 +38,15 @@ model tree, no code -- and presses Run.
 |---|---|---|---|
 | **Engineer** | writes the script | declares inputs with `app.`, previews, exports | the editor, as always |
 | **User** | an artist, a designer, a colleague | opens the app file, fills in the form, presses Run | the form, the log, the outputs |
-| **A program** | a build server, a batch file | `FielDes run bracket.fieldesapp --Radius 7` | the console |
+| **A program** | a build server, a batch file | `FielDev run bracket.fieldevapp --Radius 7` | the console |
 
-The script is an **ordinary FielDes script**: everything in this documentation works in it. The only difference is that
+The script is an **ordinary FielDev script**: everything in this documentation works in it. The only difference is that
 the numbers and files a person should choose are not typed in the code but asked for with `app.`.
 
 ## Write the script: declare the inputs
 
 ```python
-from fieldes import *
+from fieldev import *
 
 app.title('Bracket maker', 'Makes the bracket for a pipe and saves it as a mesh', '1.0')
 
@@ -80,11 +80,11 @@ export_mesh(part, target)
 
 - **Write the inputs with plain values** -- numbers, texts, lists -- and **at the top level** of the script, not inside a
   function or a loop. The form is read from the *text* of the script, so it is there before the script has run, and
-  `app.number('Radius', compute_default())` cannot be shown (FielDes says so). `app.asset('...')` as the default of a file
+  `app.number('Radius', compute_default())` cannot be shown (FielDev says so). `app.asset('...')` as the default of a file
   is fine.
 - **The name is what the form shows.** On the command line `--Radius`, `--radius` and `--RADIUS` are the same option, and so are
   `Model path`, `ModelPath` and `Model_path`. Two inputs must not have the same name.
-- **A relative output path means the user's Documents folder** (or the folder the command was started in, for `FielDes run`):
+- **A relative output path means the user's Documents folder** (or the folder the command was started in, for `FielDev run`):
   `app.save_as('Export path', 'bracket.stl')` shows `C:\Users\me\Documents\bracket.stl`, which the user can change.
 - **Every value is checked before the script runs**: a number outside `min`..`max`, a file that is not there, a choice that is not
   one of the options. The message is written under the input, in red, and the script does not start.
@@ -136,7 +136,7 @@ typed into the form, and shows the new inputs. This is the loop of building an a
 
 ## Export it: one file
 
-**File → Export as app...** bundles, into one `.fieldesapp` file:
+**File → Export as app...** bundles, into one `.fieldevapp` file:
 
 - the **script** (as it is in the editor, saved or not);
 - the **custom blocks** it uses -- only those, and the blocks they use -- from your blocks folder;
@@ -145,16 +145,16 @@ typed into the form, and shows the new inputs. This is the loop of building an a
 
 A window says what went in (the inputs, the blocks, the files, the size) and **what is wrong**: a script that declares no inputs, an
 input that is not a plain value, a file that is not there, a path that exists only on your computer (`C:\cad\part.stl` -- make it an
-input with `app.file`, or bring it along with `app.asset`). Send the file; nothing else is needed on the other computer but FielDes.
+input with `app.file`, or bring it along with `app.asset`). Send the file; nothing else is needed on the other computer but FielDev.
 
-The first time you export an app, FielDes asks whether a double click on a `.fieldesapp` file should open FielDes. **Settings → Open
-.fieldesapp files with FielDes** does the same at any time.
+The first time you export an app, FielDev asks whether a double click on a `.fieldevapp` file should open FielDev. **Settings → Open
+.fieldevapp files with FielDev** does the same at any time.
 
-From a command line or a build script: `FielDes export script.py -o bracket_maker.fieldesapp`.
+From a command line or a build script: `FielDev export script.py -o bracket_maker.fieldevapp`.
 
 ## Open it: a double click
 
-A `.fieldesapp` file opens in the app window. **Run** starts the script with the values in the form; the button becomes **Stop**,
+A `.fieldevapp` file opens in the app window. **Run** starts the script with the values in the form; the button becomes **Stop**,
 the bar shows how far the script has got, and when it is done the **Outputs** list has the files the script made, with
 **Open** and **Show in folder**. Closing the window while the app runs asks first.
 
@@ -163,17 +163,17 @@ filter has its extension). `Ctrl+Return` runs. File → **Read the app again** (
 
 The windows are programs of their own: you can have several apps open, and the editor beside them.
 
-An app opens with these options after its file: `FielDes bracket.fieldesapp --Radius 7 --Material aluminium --run` fills in the form
+An app opens with these options after its file: `FielDev bracket.fieldevapp --Radius 7 --Material aluminium --run` fills in the form
 and presses Run (without `--run` it waits for you).
 
 ## Run it without a window
 
 ```
-FielDes run bracket_maker.fieldesapp --Mode Hollow --Wall_thickness 2.5 --Export_path C:\parts\bracket.stl
+FielDev run bracket_maker.fieldevapp --Mode Hollow --Wall_thickness 2.5 --Export_path C:\parts\bracket.stl
 ```
 
 Inputs are written `--name value` (or `--name=value`); a yes / no input is `--Hollow`, `--no-Hollow` or `--Hollow yes`; inputs left
-out have their defaults. `FielDes run app --help` lists the inputs of that app. The command prints what the script prints, and
+out have their defaults. `FielDev run app --help` lists the inputs of that app. The command prints what the script prints, and
 at the end the files that were made. The exit code says how it went: **0** done, **1** the script failed (the message says at which
 line), **2** the command line was wrong (an input that does not exist, a value that does not fit).
 
@@ -184,11 +184,11 @@ line), **2** the command line was wrong (an input that does not exist, a value t
 | `--quiet` | print only errors |
 | `--folder DIR` | a relative output path means DIR (the folder the command was started in by default) |
 
-`FielDes.exe` is a window program: a command typed at a Windows prompt does not wait for it. In a batch file or a build script use
-**`fieldes.cmd`**, in the folder FielDes is installed in (`fieldes run app.fieldesapp --Radius 7`): it waits, passes on the exit code, and its
-output goes where you redirected it (`> log.txt`, `| findstr ...`, or `--log FILE`). On Linux `fieldes` (the command the installers make) is a
-normal command. The library itself runs apps too, with nothing of the window in it: `python -m fieldes run app.fieldesapp --Radius 7`
-(`export` and `info` as well). `fieldes info app.fieldesapp` says what an app asks for.
+`FielDev.exe` is a window program: a command typed at a Windows prompt does not wait for it. In a batch file or a build script use
+**`fieldev.cmd`**, in the folder FielDev is installed in (`fieldev run app.fieldevapp --Radius 7`): it waits, passes on the exit code, and its
+output goes where you redirected it (`> log.txt`, `| findstr ...`, or `--log FILE`). On Linux `fieldev` (the command the installers make) is a
+normal command. The library itself runs apps too, with nothing of the window in it: `python -m fieldev run app.fieldevapp --Radius 7`
+(`export` and `info` as well). `fieldev info app.fieldevapp` says what an app asks for.
 
 ## Watch: run again when a file changes
 
@@ -201,18 +201,18 @@ Tick **Run again when a file changes** (or `--watch`), and the app runs by itsel
 
 A change while the app is running runs it again when it is done; several changes together make one run.
 
-## What is inside a `.fieldesapp`
+## What is inside a `.fieldevapp`
 
 A zip file. Anything that opens zip files shows:
 
 | | |
 |---|---|
-| `manifest.json` | the title, the version, the inputs (the form), which files came along, the FielDes that made it |
+| `manifest.json` | the title, the version, the inputs (the form), which files came along, the FielDev that made it |
 | `app.py` | the script |
 | `blocks/*.py` | the custom blocks it uses |
 | `files/...` | the files it reads, in the places it reads them from: the app runs with `files` as its working folder |
 
-It is unpacked into the user's cache folder (`%LOCALAPPDATA%\FielDes\FielDes\apps` on Windows, `~/.cache/FielDes/apps` on Linux),
+It is unpacked into the user's cache folder (`%LOCALAPPDATA%\FielDev\FielDev\apps` on Windows, `~/.cache/FielDev/apps` on Linux),
 once per version of the file, and run from there; older versions of the same app are removed. While it runs, only **its own** blocks
 are there (not the blocks of the computer), so an app does the same everywhere.
 
@@ -226,4 +226,4 @@ are there (not the blocks of the computer), so an app does the same everywhere.
   bring files along with `app.asset`, or ask for them with `app.file`.
 - Scripts that need an editor's hand (a dragged `var()`, a placeholder `...`, a breakpoint) are not apps: in an app `var(x)` is
   the number `x`, and the script runs from the beginning to the end.
-- An app of a newer FielDes than the one that opens it says so and does not run.
+- An app of a newer FielDev than the one that opens it says so and does not run.

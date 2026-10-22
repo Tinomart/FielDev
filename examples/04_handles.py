@@ -13,7 +13,7 @@
 #
 # The part here, a small crate, has its gizmo call.  Click the part and drag the gizmo's blue arrow: the third number moves.
 #
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-30, -30, -5], [30, 30, 45])
 view.set_resolution(2)

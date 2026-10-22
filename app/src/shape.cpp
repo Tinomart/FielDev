@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -40,12 +40,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QSaveFile>
 #include <QStandardPaths>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/shape.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/shape.hpp"
 #include "libfive/tree/expose.hpp"
 #include "libfive.h"
-#include "fieldes/shader.hpp"
-#include "fieldes/colormap.hpp"
+#include "fieldev/shader.hpp"
+#include "fieldev/colormap.hpp"
 
 #include "libfive/render/brep/free_thread_handler.hpp"
 #include "libfive/render/brep/spawn.hpp"
@@ -55,19 +55,19 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "libfive/tree/content_key.hpp"
 #include "libfive/oracle/oracle_clause.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 const int Shape::MESH_DIV_EMPTY;
 const int Shape::MESH_DIV_ABORT;
 const int Shape::MESH_DIV_NEW_VARS;
 const int Shape::MESH_DIV_NEW_VARS_SMALL;
 
-// (FIELDES_TIMING: what making a shape's tree costs, to stderr)
+// (FIELDEV_TIMING: what making a shape's tree costs, to stderr)
 static libfive::Tree optimizedTimed(const libfive::Tree& t)
 {
     const auto t0 = std::chrono::steady_clock::now();
     libfive::Tree o = t.optimized();
-    if (std::getenv("FIELDES_TIMING"))
+    if (std::getenv("FIELDEV_TIMING"))
         fprintf(stderr, "[shape] optimized the tree in %.0f ms\n", 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
     return o;
 }
@@ -110,7 +110,7 @@ void Shape::buildField()
     es.clear();
     es.reserve(8);
     for (unsigned i = 0; i < 8; ++i) es.emplace_back(libfive::Evaluator(tree, vars));
-    if (std::getenv("FIELDES_TIMING"))
+    if (std::getenv("FIELDEV_TIMING"))
         fprintf(stderr, "[shape] eight evaluators in %.0f ms\n", 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tEval).count());
     m_deps_known = false;
     m_field_ready.store(true);
@@ -415,7 +415,7 @@ void Shape::setPrism(std::vector<ControlPoint> points, bool smoothDefault, libfi
 
 bool Shape::prismNow(const std::map<libfive::Tree::Id, float>& v, std::vector<libfive::pointshapes::Control>& cs, double& a, double& b) const
 {
-    static const bool off = std::getenv("FIELDES_NO_NATIVE") != nullptr;
+    static const bool off = std::getenv("FIELDEV_NO_NATIVE") != nullptr;
     if (off || m_prism_points.empty() || !m_prism_a.is_valid() || !m_prism_b.is_valid()) return false;
     // (what colours the shape is not a prism's to draw)
     if (color_field.is_valid()) return false;
@@ -520,7 +520,7 @@ struct Shape::SweepNumbers
 
 bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& out) const
 {
-    static const bool off = std::getenv("FIELDES_NO_NATIVE") != nullptr;          // (for comparing with the field: every sweep and prism is meshed from its field)
+    static const bool off = std::getenv("FIELDEV_NO_NATIVE") != nullptr;          // (for comparing with the field: every sweep and prism is meshed from its field)
     if (off || !hasSweep() || !m_sweep_twist.is_valid()) return false;
     if (color_field.is_valid()) return false;
     for (const auto& g : m_sweep_guard)
@@ -781,7 +781,7 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
                 out->branes.push_back(facing > 0 ? Tri(base + uint32_t(E) + t[0] - capFirst, base + uint32_t(E) + t[1] - capFirst, base + uint32_t(E) + t[2] - capFirst)
                                                  : Tri(base + uint32_t(E) + t[0] - capFirst, base + uint32_t(E) + t[2] - capFirst, base + uint32_t(E) + t[1] - capFirst));
     }
-    if (std::getenv("FIELDES_SWEEP_DEBUG"))
+    if (std::getenv("FIELDEV_SWEEP_DEBUG"))
     {
         double longest = 0;
         uint32_t worst = 0, highest = 0;
@@ -1081,7 +1081,7 @@ QVector3D Shape::gizmoRotate() const
 
 QMatrix4x4 Shape::gizmoRotation(const QVector3D& degrees)
 {
-    // The matrices of fieldes.stdlib.transforms (rotate_x/y/z, as the exact
+    // The matrices of fieldev.stdlib.transforms (rotate_x/y/z, as the exact
     // regions apply them): Rx = [1 0 0; 0 c -s; 0 s c], Ry = [c 0 -s; 0 1 0; s 0 c],
     // Rz = [c -s 0; s c 0; 0 0 1]; the part turns by Rz * Ry * Rx
     auto rad = [](float d) { return double(d) * M_PI / 180.0; };
@@ -1139,7 +1139,7 @@ QMatrix4x4 Shape::gizmoOrientation() const
 
 QMatrix4x4 Shape::gizmoMatrix(const QVector3D& move, const QVector3D& rotate, const QVector3D& scale) const
 {
-    // What gizmo() does to a shape (fieldes.stdlib.handles): scaled about its centre, turned about it (x, then y, then z), moved
+    // What gizmo() does to a shape (fieldev.stdlib.handles): scaled about its centre, turned about it (x, then y, then z), moved
     QMatrix4x4 A;
     A.translate(m_gizmo.about + move);
     A *= gizmoRotation(rotate);
@@ -1828,14 +1828,14 @@ bool Shape::updateVars(const std::map<libfive::Tree::Id, float>& vs)
         cache_vars = vars;
         ++cache_vars_gen;
         m_followPending = true;
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
             fprintf(stderr, "[vars] the shape of line %d follows the mesh of the shape of line %d\n", source_line + 1, m_follows ? m_follows->source_line + 1 : 0);
         return false;
     }
 
     if (changed)
     {
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
         {
             fprintf(stderr, "[vars] the shape of line %d renders again (a variable it uses changed)\n",
                     source_line + 1);
@@ -2153,7 +2153,7 @@ void Shape::startRender(Settings s, libfive::BRepAlgorithm alg)
 {
     const auto t0 = std::chrono::steady_clock::now();
     measureExtent(s);
-    if (std::getenv("FIELDES_TIMING"))
+    if (std::getenv("FIELDEV_TIMING"))
         fprintf(stderr, "[shape] line %d: measureExtent %.0f ms (%s%s%s)\n", source_line + 1,
                 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(), m_ext_valid ? "found" : "none",
                 m_ext_valid ? "" : ": ", m_ext_valid ? "" : extentWhy(s).c_str());
@@ -2203,7 +2203,7 @@ void Shape::startRender(RenderSettings s)
             {
                 const auto tExt = std::chrono::steady_clock::now();
                 measureExtent(s.settings);          // (the numbers changed: the shape is not where it was)
-                if (std::getenv("FIELDES_TIMING"))
+                if (std::getenv("FIELDEV_TIMING"))
                     fprintf(stderr, "[shape] line %d: measureExtent (new numbers) %.0f ms (%s)\n", source_line + 1,
                             1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tExt).count(), m_ext_valid ? "found" : "none");
                 sizeFirstLevel(s.settings);
@@ -2223,7 +2223,7 @@ void Shape::startRender(RenderSettings s)
         placeHint();
         // (the resolution of this level, before m_geometry is this render's: a box that is out of date does not raise it above the last one's -- see autoResolution)
         s.res = autoResolution(s.settings);
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
         {
             const QVector3D region = s.settings.max - s.settings.min, size = m_ext_hi - m_ext_lo;
             fprintf(stderr, "[shape] line %d: level %d is meshed at %.3g per mm (the scene's %.3g; box %s, %.3g long; region %.3g long)\n", source_line + 1, s.div, s.res,
@@ -2232,7 +2232,7 @@ void Shape::startRender(RenderSettings s)
         }
         m_geometry = renderGeometry(s.settings);
         m_geometry_known = true;
-        if (const char* log = std::getenv("FIELDES_SHAPE_LOG"))
+        if (const char* log = std::getenv("FIELDEV_SHAPE_LOG"))
         {
             // (for the tests: what this render is of -- the box and the resolution it is meshed at -- and the hint the script gave it)
             if (FILE* f = std::fopen(log, "a"))
@@ -2432,7 +2432,7 @@ void Shape::onFutureFinished()
         // (a search for the region at every move, the painting): every level then took "more than 50 ms", and the level a drag starts at went one coarser at every move, until a leg
         // was a wedge at the start of every move
         const double t = m_levelMs.load();
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
             fprintf(stderr, "[shape] line %d: level %d took the mesher %.1f ms (starts at %d)\n", source_line + 1, target_div, t, default_div);
 
         if (target_div == default_div && !fromCache)
@@ -2688,7 +2688,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         double pa = 0, pb = 0;
         const bool ready = prismNow(run_flat_vars, cs, pa, pb);
         if (ready) m = prismMesh(cs, m_prism_default, pa, pb);
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
             fprintf(stderr, "[prism] line %d: %s\n", source_line + 1,
                     m ? "drawn from the numbers of its points" : ready ? "its outline cannot be cut into triangles: its field is meshed" : "its guard or its numbers do not hold: its field is meshed");
     }
@@ -2697,7 +2697,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         SweepNumbers sn;
         const bool ready = sweepNow(run_flat_vars, sn);
         if (ready) m = sweepMesh(sn);
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
             fprintf(stderr, "[sweep] line %d: %s (%.0f ms into the level)\n", source_line + 1,
                     m ? "drawn from the numbers of its points" : ready ? "its profile cannot be cut into triangles: its field is meshed" : "its numbers cannot be read: its field is meshed",
                     1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tLevel).count());
@@ -2721,7 +2721,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
                 const auto tRead = std::chrono::steady_clock::now();
                 if (readRenderCache(cacheKey, hit))
                 {
-                    if (std::getenv("FIELDES_TIMING"))
+                    if (std::getenv("FIELDEV_TIMING"))
                         fprintf(stderr, "[render cache] read the mesh of line %d: %zu vertices, %.0f ms\n",
                                 source_line + 1, hit.mesh->verts.size(),
                                 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tRead).count());
@@ -2892,12 +2892,12 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
             m->branes = std::move(cut);
         }
     }
-    if (std::getenv("FIELDES_TIMING") && s.div == 0 && m && (own_render || m->verts.empty()))
+    if (std::getenv("FIELDEV_TIMING") && s.div == 0 && m && (own_render || m->verts.empty()))
     {   // (a shape meshed on its own, or one that came out empty)
-        fprintf(stderr, "[fieldes] shape of line %d: %s, %zu vertices\n", source_line + 1,
+        fprintf(stderr, "[fieldev] shape of line %d: %s, %zu vertices\n", source_line + 1,
                 m->verts.empty() ? "EMPTY" : "own render", m->verts.size());
         if (own_render && m->verts.empty())
-            fprintf(stderr, "[fieldes]   (own resolution %g/mm over a %g mm cube)\n", res, double(run_hint_side));
+            fprintf(stderr, "[fieldev]   (own resolution %g/mm over a %g mm cube)\n", res, double(run_hint_side));
     }
     mesh_settings.progress_handler = nullptr;   // (the handler ends with this function)
     const auto tMesher = std::chrono::steady_clock::now();
@@ -3046,8 +3046,8 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         const auto tEnd = std::chrono::steady_clock::now();
         const double meshing = std::chrono::duration<double>(tMesher - tLevel).count();
         const double colouring = std::chrono::duration<double>(tEnd - tMeshed).count();
-        if (std::getenv("FIELDES_TIMING"))
-            fprintf(stderr, "[fieldes] level %d: meshing %.0f ms, colouring %zu vertices %.0f ms (%zu threads)\n",
+        if (std::getenv("FIELDEV_TIMING"))
+            fprintf(stderr, "[fieldev] level %d: meshing %.0f ms, colouring %zu vertices %.0f ms (%zu threads)\n",
                     s.div, 1000 * meshing, verts.size(), 1000 * colouring, T);
     }
 
@@ -3060,7 +3060,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         const bool ok = writeRenderCache(cacheKey, out);
         cache_state.store(ok ? CACHE_KEPT : CACHE_FAILED);
         if (ok) cache_miss_key.clear();
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
             fprintf(stderr, "[render cache] %s the mesh of line %d: %zu vertices, %.0f ms\n",
                     ok ? "kept" : "could not keep", source_line + 1, out.mesh->verts.size(),
                     1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tWrite).count());
@@ -3089,7 +3089,7 @@ QString cacheFile(const std::string& key)
 qint64 cacheLimitBytes()
 {
     bool ok = false;
-    const qint64 mb = qEnvironmentVariableIntValue("FIELDES_RENDER_CACHE_MB", &ok);
+    const qint64 mb = qEnvironmentVariableIntValue("FIELDEV_RENDER_CACHE_MB", &ok);
     return (ok && mb > 0 ? mb : 4096) * 1024 * 1024;
 }
 
@@ -3116,7 +3116,7 @@ void pruneRenderCache()
 
 QString Shape::renderCacheDir()
 {
-    const QByteArray env = qgetenv("FIELDES_RENDER_CACHE_DIR");
+    const QByteArray env = qgetenv("FIELDEV_RENDER_CACHE_DIR");
     const QString dir = !env.isEmpty() ? QString::fromLocal8Bit(env)
                                        : QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/render-cache";
     QDir().mkpath(dir);
@@ -3290,4 +3290,4 @@ bool Shape::keepCurrent()
     return true;
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

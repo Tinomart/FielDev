@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -19,7 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 #include <chrono>
 #include <cstdio>
-#include "fieldes/regionformat.hpp"
+#include "fieldev/regionformat.hpp"
 #include <QKeyEvent>
 #include <QApplication>
 #include <QCursor>
@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QJsonArray>
 #include <QLabel>
 #include <QJsonDocument>
+#include <QFileDialog>
 #include <QMenu>
 #include <QPushButton>
 #include <QSettings>
@@ -47,15 +48,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <functional>
 #include <iostream>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/carddrag.hpp"
-#include "fieldes/color.hpp"
-#include "fieldes/view.hpp"
-#include "fieldes/typeicons.hpp"
-#include "fieldes/colormap.hpp"
-#include "fieldes/scenetree.hpp"
-#include "fieldes/shader.hpp"
-#include "fieldes/typeicons.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/carddrag.hpp"
+#include "fieldev/color.hpp"
+#include "fieldev/view.hpp"
+#include "fieldev/typeicons.hpp"
+#include "fieldev/colormap.hpp"
+#include "fieldev/scenetree.hpp"
+#include "fieldev/shader.hpp"
+#include "fieldev/typeicons.hpp"
 
 #include "libfive/solve/solver.hpp"
 
@@ -63,7 +64,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define GL_CLIP_DISTANCE0 0x3000
 #endif
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 class ViewOverlay : public QWidget
@@ -103,7 +104,7 @@ View::View(QWidget* parent)
     // Clicking the viewport focuses it, so its own keys (standard views)
     // work without stealing them from the editor
     setFocusPolicy(Qt::ClickFocus);
-    setObjectName("FielDesView");               // (the automation finds the viewport by it)
+    setObjectName("FielDevView");               // (the automation finds the viewport by it)
     connect(&camera, &Camera::changed, this, &View::update);
 
     connect(&camera, &Camera::animDone, this, &View::redrawPicker);
@@ -200,10 +201,10 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
         new_shapes_key.insert({s, key});
         new_shapes_map.insert({key, s});
         const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tOne).count();
-        if (ms > 20 && std::getenv("FIELDES_TIMING"))
+        if (ms > 20 && std::getenv("FIELDEV_TIMING"))
             fprintf(stderr, "[view] setShapes: the key of the shape of line %d took %.0f ms\n", s->sourceLine() + 1, ms);
     }
-    if (std::getenv("FIELDES_TIMING"))
+    if (std::getenv("FIELDEV_TIMING"))
         fprintf(stderr, "[view] setShapes: %d new shapes keyed in %.0f ms\n", int(new_shapes.size()),
                 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tKeys).count());
 
@@ -286,7 +287,7 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
         busy.hide();
         emit(renderBusy(false));
     }
-    if (const char* log = std::getenv("FIELDES_SHAPE_LOG"))
+    if (const char* log = std::getenv("FIELDEV_SHAPE_LOG"))
     {
         // (for the tests: how many shapes of the run before went on, how many were new -- their render starts again -- and how many are gone)
         static int number = 0;
@@ -547,6 +548,14 @@ void View::cancelShapes()
 
 void View::onSettingsFromScript(Settings s, bool first)
 {
+    // (the pictures of reference_image(...): they are no reason for a shape to render again, so they are looked at on their own)
+    const bool firstPictures = referenceLayer.isEmpty() && !s.references.isEmpty();
+    if (referenceLayer.set(s.references)) update();
+    // (the first picture to model over, in a scene that has no model to look at yet: the camera goes to the region, where the picture is)
+    // (the points the picture's handle is made of are no model to look at: a script whose models are points only is looked at from where the region is as well)
+    bool bodies = false;
+    for (const Shape* shape : shapes) bodies = bodies || !shape->isPoint();
+    if (firstPictures && !bodies) camera.zoomTo(s.min, s.max);
     if (settings != s)
     {
         const bool bounds = settings.min != s.min || settings.max != s.max;
@@ -569,7 +578,8 @@ void View::onSettingsFromScript(Settings s, bool first)
         }
     }
 
-    if ((first || zoom_on_next_settings) && shapes.size())
+    // (a script of pictures to model over and nothing yet to look at is looked at from where the region is: the pictures are in it)
+    if ((first || zoom_on_next_settings) && (shapes.size() || !s.references.isEmpty()))
     {
         camera.zoomTo(s.min, s.max);
         zoom_on_next_settings = false;
@@ -593,6 +603,7 @@ void View::initializeGL()
     arrow.initializeGL();
     axes.initializeGL();
     background.initializeGL();
+    referenceLayer.initializeGL();
     bbox.initializeGL();
     busy.initializeGL();
 }
@@ -728,7 +739,7 @@ void View::paintGL()
         bool on = false;
         ~FrameClock() { if (on) std::fprintf(stderr, "[drag] frame drawn in %.1f ms\n", double(t.nsecsElapsed()) / 1e6); }
     } frameClock;
-    if (gizmo_drag && std::getenv("FIELDES_TIMING"))
+    if (gizmo_drag && std::getenv("FIELDEV_TIMING"))
     {
         frameClock.on = true;
         frameClock.t.start();
@@ -750,7 +761,7 @@ void View::paintGL()
                     .arg(def.majorVersion())
                     .arg(def.minorVersion());
 
-            QMessageBox::critical(this, "FielDes", err);
+            QMessageBox::critical(this, "FielDev", err);
             exit(1);
         }
         gl_checked = true;
@@ -764,6 +775,8 @@ void View::paintGL()
     // on Windows and under WSLg, with five ways of putting the backdrop on the screen: the shapes' shader drew it black under Mesa's software renderer, a gradient painted by the painter was lost on both,
     // a quad with a shader of its own drew the same gradient on both)
     background.draw();
+    // (the pictures to model over stand in the scene, in front of the backdrop and behind the models: the depth is cleared after them)
+    referenceLayer.draw(camera, settings.min, settings.max);
     glClearDepthf(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -999,7 +1012,7 @@ void View::drawRenderProgress(QPainter& painter)
     // it only moves forward
     if (!isRendering())
     {
-        if (m_renderActive && qEnvironmentVariableIsSet("FIELDES_TIMING"))
+        if (m_renderActive && qEnvironmentVariableIsSet("FIELDEV_TIMING"))
             std::cerr << "[bar-render] " << std::fixed << QDateTime::currentMSecsSinceEpoch() / 1000.0
                       << " done after " << m_renderClock.elapsed() / 1000.0 << " s\n";
         m_renderActive = false;
@@ -1015,7 +1028,7 @@ void View::drawRenderProgress(QPainter& painter)
     const double e = m_renderClock.elapsed() / 1000.0;
     m_renderShown = std::max(m_renderShown, std::min(0.99, renderFraction()));
     const QString text = T("Rendering");
-    if (qEnvironmentVariableIsSet("FIELDES_TIMING") && int(e) != m_renderLogged)
+    if (qEnvironmentVariableIsSet("FIELDEV_TIMING") && int(e) != m_renderLogged)
     {
         m_renderLogged = int(e);
         std::cerr << "[bar-render] " << std::fixed << QDateTime::currentMSecsSinceEpoch() / 1000.0 << " "
@@ -1479,7 +1492,7 @@ void View::mouseMoveEvent(QMouseEvent* event)
             drag_dir * QVector3D::dotProduct(cursor_pos - drag_start, n2) /
             QVector3D::dotProduct(drag_dir, n2);
 
-        static const bool timing = std::getenv("FIELDES_TIMING") != nullptr;
+        static const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
         QElapsedTimer clock;
         if (timing) clock.start();
         // (the numbers of a gizmo on the same part stay where they are)
@@ -1913,7 +1926,7 @@ void View::mousePressEvent(QMouseEvent* event)
             QVector3D flat_edge;
             if (picked && !press_ctrl && selectedShapeCount() < 2 && pullableAt(drag_target, event->pos(), &flat_edge))
             {
-                static const bool timing = std::getenv("FIELDES_TIMING") != nullptr;
+                static const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
                 QElapsedTimer clock;
                 if (timing) clock.start();
                 this->setCursor(Qt::ClosedHandCursor);
@@ -1947,7 +1960,7 @@ void View::mousePressEvent(QMouseEvent* event)
             {
                 // Nothing to pull: a drag draws the selection rectangle (with Ctrl held, the shapes inside join the
                 // selection), and a click that does not move selects what is under the cursor, as it always did
-                if (std::getenv("FIELDES_TIMING"))
+                if (std::getenv("FIELDEV_TIMING"))
                 {
                     // (why a press on a surface did not take it: a face that does not move says so, instead of nothing)
                     std::fprintf(stderr, "[drag] nothing to pull at (%d, %d): picked %d (line %d), Ctrl %s, %d selected, editable %s, numbers to pull it by %s, %s\n", event->pos().x(), event->pos().y(),
@@ -2453,7 +2466,7 @@ void View::placementAt(QPoint pos, QVector3D& point, double& scale) const
 void View::setWorkPlaneMode(int mode)
 {
     m_wpPlaced.clear();
-    m_wp.mode = std::max(0, std::min(3, mode));
+    m_wp.mode = std::max(0, std::min(4, mode));
     // (the kind of drawing that was on last: E brings it back after the drawing has been stopped)
     if (m_wp.mode != 0) m_wpLastMode = m_wp.mode;
     announceWorkPlane();
@@ -2461,9 +2474,9 @@ void View::setWorkPlaneMode(int mode)
 
 void View::cycleWorkPlaneMode()
 {
-    // Not drawing: E goes back to the kind of drawing there was before it was stopped (the line, when there was none); drawing: round the three kinds of what is put down
+    // Not drawing: E goes back to the kind of drawing there was before it was stopped (the line, when there was none); drawing: round the four kinds of what is put down
     if (m_wp.mode == 0) setWorkPlaneMode(m_wpLastMode);
-    else setWorkPlaneMode(m_wp.mode % 3 + 1);
+    else setWorkPlaneMode(m_wp.mode % 4 + 1);
 }
 
 void View::setWorkPlaneFrame(const QVector3D& origin, const QVector3D& u, const QVector3D& v)
@@ -2487,7 +2500,7 @@ void View::placeAt(QPoint pos)
     const QVector3D p = snapToWorkPlane(hit);
     // (a first point that is only being put down is not in the script yet, so it is not a point to snap to: it is where a click closes the outline.  The first point
     // was snapped, so a click on it lands on the same place -- near it on the screen, or the same spot once snapped -- as the hover target (the cursor, snapped) shows)
-    const bool nearFirst = m_wp.mode != 3 && m_wpPlaced.size() >= 3 &&
+    const bool nearFirst = m_wp.mode != 3 && m_wp.mode != 4 && m_wpPlaced.size() >= 3 &&
                            ((toScreen(m_wpPlaced.first()) - QPointF(pos)).manhattanLength() < 12 || (m_wpPlaced.first() - p).length() < 1e-4f * std::max(1.0f, m_wpPlaced.first().length()));
     if (nearFirst)
     {
@@ -2505,7 +2518,7 @@ void View::placeAt(QPoint pos)
     m_overlay->update();
     // A stroke that comes back to a line of the symmetry, from a first point that was on one, is closed through it: with its images it is a closed outline, and it is made at
     // once -- as it is when the first point is clicked again -- not when the stroke is ended by hand (half a circle from one point of the line to another)
-    if (m_wp.mode != 3 && symmetric() && m_wpPlaced.size() >= 3 && onSymmetryPlane(m_wpPlaced.first()) && onSymmetryPlane(m_wpPlaced.last()))
+    if (m_wp.mode != 3 && m_wp.mode != 4 && symmetric() && m_wpPlaced.size() >= 3 && onSymmetryPlane(m_wpPlaced.first()) && onSymmetryPlane(m_wpPlaced.last()))
     {
         QList<QList<QVector3D>> strokes = symmetryStrokes(m_wpPlaced);
         QList<QList<QVector3D>> loops;
@@ -2584,9 +2597,9 @@ void View::finishPlacement(bool close)
     const QList<QVector3D> points = m_wpPlaced;
     m_wpPlaced.clear();
     m_overlay->update();
-    const QString name = close ? QString("profile") : (m_wp.mode == 2 ? QString("spline") : QString("polyline"));
+    const QString name = close ? QString("profile") : (m_wp.mode == 2 ? QString("spline") : m_wp.mode == 4 ? QString("limb") : QString("polyline"));
     // (the stroke; with the symmetry on, its images are made with it -- through the images of its points, the halves that meet on a plane joined into one outline -- by the scene)
-    emit(placementFinished(name, points, m_wp.mode == 2));
+    emit(placementFinished(name, points, m_wp.mode == 2 || m_wp.mode == 4));
 }
 
 void View::cancelPlacement()
@@ -2702,7 +2715,8 @@ void View::updateWorkPlaneCursor(QPoint pos)
 }
 
 // A point of what is being drawn, as the points of the script are drawn: a corner of a line is a square, a spline point a circle with a ring round it, a point a
-// plain dot (`mode` is the work plane's: 1 line, 2 spline, 3 point; `alpha` less than 1 for the one that only shows where a click would land)
+// plain dot, a node of a limb a circle with a bigger ring round it (`mode` is the work plane's: 1 line, 2 spline, 3 point, 4 limb; `alpha` less than 1 for the one that only
+// shows where a click would land)
 void View::wpMarker(QPainter& painter, const QPointF& q, int mode, double alpha, bool lit) const
 {
     const double r = 5.0;
@@ -2714,6 +2728,13 @@ void View::wpMarker(QPainter& painter, const QPointF& q, int mode, double alpha,
         return;
     }
     painter.drawEllipse(q, r, r);
+    if (mode == 4)
+    {
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(235, 190, 60, int(210 * alpha)), 1.2));
+        painter.drawEllipse(q, r + 6.0, r + 6.0);
+        return;
+    }
     if (mode == 2)
     {
         painter.setBrush(Qt::NoBrush);
@@ -3120,7 +3141,7 @@ void View::drawWorkPlane(QPainter& painter)
         QList<QVector3D> way = m_wpPlaced;
         if (m_wpCursorValid) way << m_wpCursor;
         QPolygonF line;
-        if (m_wp.mode == 2 && way.size() >= 3)
+        if ((m_wp.mode == 2 || m_wp.mode == 4) && way.size() >= 3)
         {
             std::vector<libfive::pointshapes::Control> controls;
             for (const QVector3D& p : way)
@@ -3141,9 +3162,9 @@ void View::drawWorkPlane(QPainter& painter)
         painter.drawPolyline(line);
         // (a click on the first point closes it: it is shown as a target when there are enough points for a shape)
         const QPointF first = toScreen(m_wpPlaced.first());
-        const bool closing = m_wpPlaced.size() >= 3 && m_wpCursorValid && (first - toScreen(m_wpCursor)).manhattanLength() < 12;
+        const bool closing = m_wp.mode != 4 && m_wpPlaced.size() >= 3 && m_wpCursorValid && (first - toScreen(m_wpCursor)).manhattanLength() < 12;
         for (int i = 0; i < m_wpPlaced.size(); ++i) wpMarker(painter, toScreen(m_wpPlaced[i]), m_wp.mode, 1.0, closing && i == 0);
-        if (m_wpPlaced.size() >= 3)
+        if (m_wpPlaced.size() >= 3 && m_wp.mode != 4)
         {
             painter.setPen(QPen(closing ? QColor(133, 153, 0) : QColor(238, 232, 213), 1.6));
             painter.setBrush(Qt::NoBrush);
@@ -3170,7 +3191,7 @@ void View::drawWorkPlane(QPainter& painter)
             if (m_wp.mode != 3 && image.size() >= 2)
             {
                 QPolygonF line;
-                if (m_wp.mode == 2 && image.size() >= 3)
+                if ((m_wp.mode == 2 || m_wp.mode == 4) && image.size() >= 3)
                 {
                     std::vector<libfive::pointshapes::Control> controls;
                     for (const QVector3D& p : image)
@@ -3240,17 +3261,76 @@ void View::fillPythonMenu(QMenu* menu, const QVector3D& point, double scale, int
     }
 }
 
-void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double scale)
+// The Character section: limbs (nodes put down one after another over a picture, the way Dust3D builds a character), the character that holds them and its skeleton, and the
+// pictures to trace them over.  A limb is a tube along its nodes (`limb(...)` of the library); the section gives its own entries only, the rest of the menu does not repeat them
+void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, double scale, int atLine)
+{
+    auto draw = menu->addAction(TypeIcons::icon("solid"), T("Draw a limb"), this, [=]{ startLimbDrawing(); });
+    draw->setToolTip(T("Put down the nodes of a limb one after another on the work plane (it faces the picture you look at; stand a Reference image on it to trace): "
+                       "Enter ends the limb, Backspace takes the last node back.  A limb is a tube along its nodes; a node's scale is how thick the limb is there, "
+                       "and every node is a point that can be dragged."));
+    for (const auto v : m_catalog["primitives"].toArray())
+    {
+        const auto p = v.toObject();
+        if (p["group"].toString() != "Character") continue;
+        const QString name = p["name"].toString();
+        auto action = menu->addAction(TypeIcons::icon(p["type"].toString("solid")), T("New limb"), this,
+                                      [=]{ emit(createRequested("primitive", name, point, scale, atLine, -1)); });
+        action->setToolTip(p["doc"].toString().isEmpty() ? T("A first limb, three nodes, to change in the script") : p["doc"].toString());
+        checkPrimitive(action, name);
+    }
+    menu->addSeparator();
+    fillOperations(menu, line, point, scale, "Character");
+    menu->addSeparator();
+    auto refs = menu->addMenu(T("Reference image"));
+    refs->setToolTipsVisible(true);
+    refs->setToolTip(T("A picture to model over: it stands in the scene behind the models, in the plane you choose, and the camera is free -- orbit round it, look at it from any side"));
+    struct Plane { const char* name; const char* label; const char* seen; };
+    static const Plane planes[] = {
+        {"front", "Front", "from -y"}, {"back", "Back", "from +y"}, {"right", "Right", "from +x"},
+        {"left", "Left", "from -x"}, {"top", "Top", "from above (+z)"}, {"bottom", "Bottom", "from below (-z)"}};
+    for (const Plane& pl : planes)
+    {
+        const QString plane = QString::fromLatin1(pl.name);
+        auto action = refs->addAction(T(pl.label), this, [=]{ addReferenceImage(plane, point, scale, atLine); });
+        action->setToolTip(T("A picture of the character seen %1 (the same as that view of the viewport; the character faces -y, its up is +z): choose the file; it is written as a reference_image(...) line of the script")
+                               .arg(T(pl.seen)));
+    }
+}
+
+void View::startLimbDrawing()
+{
+    // (the plane is made from the view when there is none: it faces what the camera looks at, so the first click lands where it is seen)
+    setWorkPlaneOpen(true);
+    setWorkPlaneMode(4);
+    m_overlay->update();
+}
+
+void View::addReferenceImage(const QString& plane, const QVector3D& point, double scale, int atLine, const QString& file)
+{
+    QString path = file;
+    if (path.isEmpty())
+    {
+        path = QFileDialog::getOpenFileName(this, T("Reference image"), QString(), T("Pictures (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tga);;All files (*)"));
+        if (path.isEmpty()) return;
+    }
+    emit(createRequested("python", "reference_image|" + plane + "|" + path, point, scale, atLine, -1));
+}
+
+void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double scale, const QString& onlyGroup)
 {
     QJsonArray ops;
     for (const auto v : m_catalog["operations"].toArray())
     {
         if (v.toObject()["quick"].toBool()) continue;          // (in the first menu: see addQuickOperations)
+        // (the group of the Character section is in that section: the others are in the Operations menu)
+        const bool character = v.toObject()["group"].toString() == "Character";
+        if (onlyGroup.isEmpty() ? character : v.toObject()["group"].toString() != onlyGroup) continue;
         ops.append(v);
     }
     if (ops.isEmpty())
     {
-        menu->addAction(T("(not loaded yet: run the script first)"))->setEnabled(false);
+        if (onlyGroup.isEmpty()) menu->addAction(T("(not loaded yet: run the script first)"))->setEnabled(false);
         return;
     }
     const bool haveOther = m_scene && m_scene->hasOtherModel(line);
@@ -3265,7 +3345,9 @@ void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double 
         if (!sub || o["group"].toString() != group)
         {
             group = o["group"].toString();
-            sub = group == "Custom blocks" ? menu->addMenu(TypeIcons::icon("block"), T(group)) : menu->addMenu(T(group));
+            // (one group asked for: its entries are in `menu` itself)
+            if (!onlyGroup.isEmpty()) sub = menu;
+            else sub = group == "Custom blocks" ? menu->addMenu(TypeIcons::icon("block"), T(group)) : menu->addMenu(T(group));
             sub->setToolTipsVisible(true);
         }
         const QString name = o["name"].toString();
@@ -3430,6 +3512,9 @@ void View::showEmptyMenu(QPoint globalPos, QPoint pos, int atLine)
     auto ops = menu->addMenu(TypeIcons::icon("operation"), T("Operations"));
     ops->setToolTipsVisible(true);
     fillOperationsMenu(ops, -1, point, scale);
+    auto character = menu->addMenu(TypeIcons::icon("solid"), T("Character"));
+    character->setToolTipsVisible(true);
+    fillCharacterMenu(character, -1, point, scale, atLine);
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
     python->setToolTipsVisible(true);
     fillPythonMenu(python, point, scale, atLine);
@@ -3474,6 +3559,7 @@ void View::addCreateEntries(QMenu* menu, const QVector3D& point, const QVector3D
         {
             const auto p = v.toObject();
             const QString g = p["group"].toString();
+            if (g == "Character") continue;                 // (it has a section of its own: see fillCharacterMenu)
             if (p["primitive"].toBool() != basic) continue;
             if (!groups.contains(g)) order << g;
             groups[g] << p;
@@ -3547,6 +3633,9 @@ void View::showSurfaceMenu(QPoint globalPos, int line, const QVector3D& point, d
     auto ops = menu->addMenu(TypeIcons::icon("operation"), T("Operations"));
     ops->setToolTipsVisible(true);
     fillOperationsMenu(ops, line, point, scale);
+    auto character = menu->addMenu(TypeIcons::icon("solid"), T("Character"));
+    character->setToolTipsVisible(true);
+    fillCharacterMenu(character, line, point, scale, -1);
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
     python->setToolTipsVisible(true);
     fillPythonMenu(python, point, scale, -1);
@@ -4096,7 +4185,7 @@ void View::wheelEvent(QWheelEvent *event)
 
 void View::checkHoverTarget(QPoint pos)
 {
-    static const bool timing = std::getenv("FIELDES_TIMING") != nullptr;
+    static const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
     QElapsedTimer clock;
     if (timing) clock.start();
     struct Report
@@ -4671,7 +4760,7 @@ void View::startSliceAt(Plane& plane, bool fine, FieldViewer* viewer)
         if (!rangeKnown && !used.isEmpty()) autoColorRange(used[0], fieldMode ? rangeLo : lo, fieldMode ? rangeHi : hi);
         FieldSlice s = sampleField(used, sec, lo, hi, samples, fade, g, gen);
         s.fine = fine;
-        if (std::getenv("FIELDES_TIMING") && s.valid())
+        if (std::getenv("FIELDEV_TIMING") && s.valid())
         {
             std::cerr << "[slice] " << (fieldMode ? "field " : "") << (fine ? "fine" : "quick") << " plane at " << sec.offset << ": "
                       << std::fixed << 1000.0 * std::chrono::duration<double>(
@@ -4721,9 +4810,9 @@ void View::setClipUniform(bool on)
     const QVector4D p = on ? section.clipPlane() : QVector4D(0, 0, 0, 1);
     glUniform4f(Shader::basic->uniformLocation("clip_plane"), p.x(), p.y(), p.z(), p.w());
     // Inside faces exposed by the cut are drawn flat (see basic.frag);
-    // FIELDES_CUT_MODE flips the facing convention for debugging
-    static const int mode = qEnvironmentVariableIsSet("FIELDES_CUT_MODE")
-        ? qEnvironmentVariableIntValue("FIELDES_CUT_MODE") : -1;
+    // FIELDEV_CUT_MODE flips the facing convention for debugging
+    static const int mode = qEnvironmentVariableIsSet("FIELDEV_CUT_MODE")
+        ? qEnvironmentVariableIntValue("FIELDEV_CUT_MODE") : -1;
     glUniform1i(Shader::basic->uniformLocation("cut_mode"), on ? mode : 0);
     glUniform4f(Shader::basic->uniformLocation("cut_color"), 0.52f, 0.38f, 0.30f, 1.0f);
     Shader::basic->release();
@@ -5551,7 +5640,7 @@ bool View::pullableAt(const Shape* s, QPoint pos, QVector3D* edge) const
         if (!ringPoint(pos, origin, normal, p)) return false;
     }
     const bool found = s->flatEdgeFrom(p);
-    if (std::getenv("FIELDES_TIMING"))
+    if (std::getenv("FIELDEV_TIMING"))
     {
         const QPoint where = found ? screenPoint(p) : QPoint();
         fprintf(stderr, "[pull] flat edge at (%d, %d): %s, edge at (%d, %d) on the screen, %d px away\n", pos.x(), pos.y(), found ? "found" : "none", where.x(), where.y(),
@@ -6272,7 +6361,7 @@ bool View::outlineAt(QPoint pos, Shape*& shape, QVector3D& hit, int& piece) cons
             const float pickZ = 2 * pick_depth.at(at) - 1;
             const QVector3D n = M.map(hit);
             const auto picked = pick_img.pixel(pos) & 0xFFFFFF;
-            if (std::getenv("FIELDES_OUTLINE_LOG"))
+            if (std::getenv("FIELDEV_OUTLINE_LOG"))
                 std::fprintf(stderr, "[outline] at %d,%d: piece %d, depth of the line %.5f, of what is drawn there %.5f, picked %u\n", pos.x(), pos.y(), piece,
                              double(n.z()), double(pickZ), unsigned(picked));
             // (the line of a curve is pressed through the body it runs in: the path of a sweep is drawn through the middle of it, so the sweep is always nearer than the line)
@@ -6629,7 +6718,7 @@ void View::applyGizmoNumber(libfive::Tree::Id id, float value)
 
 void View::applyGizmoNumbers(const std::map<libfive::Tree::Id, float>& m)
 {
-    static const bool timing = std::getenv("FIELDES_TIMING") != nullptr;
+    static const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
     QElapsedTimer clock;
     if (timing) clock.start();
     emit(varsDragged(QMap<libfive::Tree::Id, float>(m)));
@@ -6637,7 +6726,7 @@ void View::applyGizmoNumbers(const std::map<libfive::Tree::Id, float>& m)
     bool changed = false, moved = false;
     // A drag of a gizmo's numbers moves a shape, it does not change it: its mesh is drawn where the numbers say, with nothing meshed, and made again when the drag ends
     // (Shape::previewGizmoVars).  Not with the section view cutting: the cut is made in the mesh's own places.  A shape that is made of what moves is made again as ever
-    static const bool off = std::getenv("FIELDES_NO_DRAG_PREVIEW") != nullptr;          // (for comparing: the old way, every number meshes the shape again)
+    static const bool off = std::getenv("FIELDEV_NO_DRAG_PREVIEW") != nullptr;          // (for comparing: the old way, every number meshes the shape again)
     const bool allowed = gizmo_drag && !off && !(section.enabled && section.clip);
     for (auto& s : shapes)
     {
@@ -7332,4 +7421,4 @@ QHash<int, QString> View::cacheStates() const
     return out;
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 '''
-The translations of FielDes: which texts there are, and what each language lacks.
+The translations of FielDev: which texts there are, and what each language lacks.
 
     python scripts/translations.py list              every text of the program that is translated (one JSON object, English -> English)
     python scripts/translations.py check [code ...]  what each translations/<code>.json lacks, has too much of, or has with other places
     python scripts/translations.py merge <file.json> <code>   puts the translations of a file ({"English": "text"}) into translations/<code>.json
 
-The program's own words are T("English text") in app/src/*.cpp and tr('English text') in python/fieldes (see app/include/fieldes/i18n.hpp):
+The program's own words are T("English text") in app/src/*.cpp and tr('English text') in python/fieldev (see app/include/fieldev/i18n.hpp):
 the English text is the key, a text that has no translation reads in English.  Whatever is not fixed in a text is %1, %2 (C++) or %s
 (Python), and a translation must have the same ones -- another language puts them in another order, which %1 and %2 allow.
 
@@ -130,7 +130,7 @@ def cpp_keys():
 
 def python_keys():
     keys = []
-    pkg = os.path.join(ROOT, 'python', 'fieldes')
+    pkg = os.path.join(ROOT, 'python', 'fieldev')
     for base, _, files in os.walk(pkg):
         for name in sorted(files):
             if not name.endswith('.py'):
@@ -147,12 +147,12 @@ def python_keys():
     # the labels of the tables the menus are made from (they are texts of the program too, said when the menu is made)
     sys.path.insert(0, os.path.join(ROOT, 'python'))
     try:
-        from fieldes import menu_catalog as mc
+        from fieldev import menu_catalog as mc
         for _, g, _ in mc.PRIMITIVES:
             keys.append(g)
         for _, g, _, _ in mc.OPERATIONS:
             keys.append(g)
-        from fieldes import kinds
+        from fieldev import kinds
         for k in kinds.describe().values() if isinstance(kinds.describe(), dict) else kinds.describe():
             label = k.get('label') if isinstance(k, dict) else None
             if label:

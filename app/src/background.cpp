@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -17,9 +17,9 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
-#include "fieldes/background.hpp"
+#include "fieldev/background.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 // (the viewport's backdrop: dark teal, a little lighter than the cards on it)
 #define SKY_LOW  0.1059, 0.3216, 0.3882
@@ -93,4 +93,4 @@ void Background::draw()
     program.release();
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

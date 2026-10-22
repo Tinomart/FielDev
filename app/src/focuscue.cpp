@@ -1,18 +1,18 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
 of the License, or (at your option) any later version.
 */
-#include "fieldes/focuscue.hpp"
+#include "fieldev/focuscue.hpp"
 
 #include <QApplication>
 #include <QEvent>
 #include <QPainter>
 
-namespace FielDes {
+namespace FielDev {
 
 FocusCue::FocusCue(QWidget* window)
     : QWidget(window)
@@ -85,4 +85,4 @@ void FocusCue::paintEvent(QPaintEvent*)
     painter.drawRect(r.adjusted(1, 1, -1, -1));
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

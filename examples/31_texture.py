@@ -24,7 +24,7 @@
 #
 # A texture is made of the field of the body, so the render has to be fine enough to show it: about four samples to the size.  The grains here are 2.5 mm,
 # the resolution 3 (samples per mm).  Blocks are 30 mm across and 40 mm apart.  Change a number, or the pattern, and the block follows.
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-22, -22, -6], [142, 102, 18], auto_scale=True)
 view.set_resolution(3)

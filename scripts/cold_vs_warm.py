@@ -13,7 +13,7 @@ user's is read or written:
 
 Each run is `scripts/run_example.py --digest`: what the script prints (the timing is not compared) and, for every shape it made, a hash of its field at 48 fixed points of
 its region.  The three must be the same; a difference is a cache that does not give back what is made now (or a result that is not repeatable), and is listed with the lines
-that differ.  The exit code is 1 when anything differs, fails or takes longer than the timeout.  Run it before a release.  FIELDES_DIR (the folder of fieldes.dll) is read as
+that differ.  The exit code is 1 when anything differs, fails or takes longer than the timeout.  Run it before a release.  FIELDEV_DIR (the folder of fieldev.dll) is read as
 run_example.py reads it.
 
 This Source Code Form is subject to the terms of the Mozilla Public
@@ -30,7 +30,7 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CACHES = ('*.fieldes-cache.py', '*.fieldes-cache.trees', '*.fieldes-tessellation')
+CACHES = ('*.fieldev-cache.py', '*.fieldev-cache.trees', '*.fieldev-tessellation')
 
 
 def clear_import_caches(folder):
@@ -45,8 +45,8 @@ def clear_import_caches(folder):
 def run(examples, name, caches, timeout):
     ''' The lines one example prints, as (lines, seconds, why it failed or None) '''
     env = dict(os.environ)
-    for variable, folder in (('FIELDES_FIELD_CACHE_DIR', 'field'), ('FIELDES_RENDER_CACHE_DIR', 'render'),
-                             ('FIELDES_SCENE_CACHE_DIR', 'scene')):
+    for variable, folder in (('FIELDEV_FIELD_CACHE_DIR', 'field'), ('FIELDEV_RENDER_CACHE_DIR', 'render'),
+                             ('FIELDEV_SCENE_CACHE_DIR', 'scene')):
         env[variable] = os.path.join(caches, folder)
     env['PYTHONDONTWRITEBYTECODE'] = '1'
     command = [sys.executable, '-X', 'utf8', os.path.join(ROOT, 'scripts', 'run_example.py'), os.path.join(examples, name), '--digest']
@@ -92,7 +92,7 @@ def main(argv):
     source = os.path.join(ROOT, 'examples')
     if not names:
         names = sorted(os.path.basename(p) for p in glob.glob(os.path.join(source, '*.py')))
-    work = os.path.abspath(work or tempfile.mkdtemp(prefix='fieldes-cold-vs-warm-'))
+    work = os.path.abspath(work or tempfile.mkdtemp(prefix='fieldev-cold-vs-warm-'))
     os.makedirs(work, exist_ok=True)
     for scenario in ('shipped', 'cold'):
         folder = os.path.join(work, scenario)

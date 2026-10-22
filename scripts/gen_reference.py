@@ -1,10 +1,10 @@
 '''
-Writes docs/reference.md: every function and class of the FielDes library, with its signature and its
+Writes docs/reference.md: every function and class of the FielDev library, with its signature and its
 documentation, from the library itself.  Run it after changing a docstring:
 
     python scripts/gen_reference.py
 
-(needs the built fieldes.dll: set FIELDES_DIR to the folder holding it).
+(needs the built fieldev.dll: set FIELDEV_DIR to the folder holding it).
 '''
 import importlib, inspect, os, sys, textwrap
 
@@ -12,34 +12,39 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'python'))
 
 MODULES = [
-    ('shapes', 'Primitive shapes', 'fieldes.stdlib.shapes'),
-    ('csg', 'Combining shapes (CSG)', 'fieldes.stdlib.csg'),
-    ('transforms', 'Moving, rotating, scaling, deforming', 'fieldes.stdlib.transforms'),
-    ('text', 'Text', 'fieldes.stdlib.text'),
-    ('importing', 'Importing models', 'fieldes.stdlib.importing'),
-    ('mesh_import', 'Triangle meshes', 'fieldes.stdlib.mesh_import'),
-    ('materials', 'Materials of an export', 'fieldes.stdlib.materials'),
-    ('rigging', 'Skeletons of an export', 'fieldes.stdlib.rigging'),
-    ('exporting', 'Exporting files', 'fieldes.stdlib.exporting'),
-    ('handles', 'Handles: editing shapes by dragging', 'fieldes.stdlib.handles'),
-    ('instances', 'Linked copies', 'fieldes.stdlib.instances'),
-    ('symmetries', 'Symmetry', 'fieldes.stdlib.symmetries'),
-    ('points', 'Points and surfaces', 'fieldes.stdlib.points'),
-    ('curves', 'Lines and curves: 1D shapes made of points', 'fieldes.stdlib.curves'),
-    ('profile', 'Profiles and extrusions', 'fieldes.stdlib.profile'),
-    ('characters', 'Characters: limbs made of points', 'fieldes.stdlib.characters'),
-    ('measure', 'Measuring a body', 'fieldes.stdlib.measure'),
-    ('fields', 'Fields', 'fieldes.stdlib.fields'),
-    ('regression', 'Regressions and data', 'fieldes.stdlib.regression'),
-    ('surfaces', 'Surfaces and offsets', 'fieldes.stdlib.surfaces'),
-    ('selection', 'Selecting surfaces', 'fieldes.stdlib.selection'),
-    ('fieldargs', 'Telling fields from numbers', 'fieldes.stdlib.fieldargs'),
-    ('shape', 'The shape class', 'fieldes.shape'),
-    ('run_progress', 'Progress of a long step', 'fieldes.run_progress'),
-    ('content_cache', 'Caching', 'fieldes.stdlib.content_cache'),
-    ('render_cache', 'Keeping rendered meshes (render cache)', 'fieldes.stdlib.render_cache'),
-    ('custom_resolution', 'A resolution of its own for one body', 'fieldes.stdlib.custom_resolution'),
-    ('app', 'FielDes apps: the inputs of a script', 'fieldes.app'),
+    ('shapes', 'Primitive shapes', 'fieldev.stdlib.shapes'),
+    ('csg', 'Combining shapes (CSG)', 'fieldev.stdlib.csg'),
+    ('transforms', 'Moving, rotating, scaling, deforming', 'fieldev.stdlib.transforms'),
+    ('text', 'Text', 'fieldev.stdlib.text'),
+    ('importing', 'Importing models', 'fieldev.stdlib.importing'),
+    ('mesh_import', 'Triangle meshes', 'fieldev.stdlib.mesh_import'),
+    ('materials', 'Materials of an export', 'fieldev.stdlib.materials'),
+    ('rigging', 'Skeletons of an export', 'fieldev.stdlib.rigging'),
+    ('uvmaps', 'UV maps', 'fieldev.stdlib.uvmaps'),
+    ('texturing', 'Baked textures', 'fieldev.stdlib.texturing'),
+    ('pngfile', 'PNG files', 'fieldev.stdlib.pngfile'),
+    ('exporting', 'Exporting files', 'fieldev.stdlib.exporting'),
+    ('handles', 'Handles: editing shapes by dragging', 'fieldev.stdlib.handles'),
+    ('instances', 'Linked copies', 'fieldev.stdlib.instances'),
+    ('symmetries', 'Symmetry', 'fieldev.stdlib.symmetries'),
+    ('points', 'Points and surfaces', 'fieldev.stdlib.points'),
+    ('curves', 'Lines and curves: 1D shapes made of points', 'fieldev.stdlib.curves'),
+    ('profile', 'Profiles and extrusions', 'fieldev.stdlib.profile'),
+    ('characters', 'Characters: limbs made of points', 'fieldev.stdlib.characters'),
+    ('armature', 'Armatures: limbs, a character, a skeleton', 'fieldev.stdlib.armature'),
+    ('references', 'Reference images', 'fieldev.stdlib.references'),
+    ('measure', 'Measuring a body', 'fieldev.stdlib.measure'),
+    ('fields', 'Fields', 'fieldev.stdlib.fields'),
+    ('regression', 'Regressions and data', 'fieldev.stdlib.regression'),
+    ('surfaces', 'Surfaces and offsets', 'fieldev.stdlib.surfaces'),
+    ('selection', 'Selecting surfaces', 'fieldev.stdlib.selection'),
+    ('fieldargs', 'Telling fields from numbers', 'fieldev.stdlib.fieldargs'),
+    ('shape', 'The shape class', 'fieldev.shape'),
+    ('run_progress', 'Progress of a long step', 'fieldev.run_progress'),
+    ('content_cache', 'Caching', 'fieldev.stdlib.content_cache'),
+    ('render_cache', 'Keeping rendered meshes (render cache)', 'fieldev.stdlib.render_cache'),
+    ('custom_resolution', 'A resolution of its own for one body', 'fieldev.stdlib.custom_resolution'),
+    ('app', 'FielDev apps: the inputs of a script', 'fieldev.app'),
 ]
 
 
@@ -78,8 +83,8 @@ def describe(name, obj, level='###'):
 
 def main():
     lines = ['# Library reference', '',
-             'Every public function and class of the FielDes library, generated from its docstrings',
-             '(`python scripts/gen_reference.py`).  `from fieldes import *` brings all of them in.', '']
+             'Every public function and class of the FielDev library, generated from its docstrings',
+             '(`python scripts/gen_reference.py`).  `from fieldev import *` brings all of them in.', '']
     lines.append('Contents: ' + ' | '.join('[%s](#%s)' % (title, title.lower().replace(' ', '-').replace(':', '')
                                                           .replace(',', '').replace('(', '').replace(')', ''))
                                              for _, title, _ in MODULES))
@@ -93,7 +98,7 @@ def main():
         if intro:
             lines.append(intro)
             lines.append('')
-        names = list(mod.__all__) if modname == 'fieldes.app' else [n for n in dir(mod) if not n.startswith('_')]
+        names = list(mod.__all__) if modname == 'fieldev.app' else [n for n in dir(mod) if not n.startswith('_')]
         for n in sorted(names):
             obj = getattr(mod, n)
             if not (inspect.isfunction(obj) or inspect.isclass(obj)):
@@ -101,7 +106,7 @@ def main():
             if getattr(obj, '__module__', None) != modname or (modname, n) in seen:
                 continue
             seen.add((modname, n))
-            lines.extend(describe(('app.' + n) if modname == 'fieldes.app' else n, obj))
+            lines.extend(describe(('app.' + n) if modname == 'fieldev.app' else n, obj))
     with open(os.path.join(ROOT, 'docs', 'reference.md'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines).rstrip() + '\n')
     print('wrote docs/reference.md:', len(seen), 'entries')

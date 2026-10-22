@@ -19,7 +19,7 @@
 #         return difference(body, holes)
 #
 # Every number of a block can be a field, like every number of the library: the holes below get bigger along x.
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-5, -5, -5], [95, 95, 45], auto_scale=True)
 view.set_resolution(5)

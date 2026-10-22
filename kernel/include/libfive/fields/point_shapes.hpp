@@ -2,7 +2,7 @@
 libfive: a CAD kernel for modeling with implicit functions
 
 Shapes made of points: the polyline or spline through them, the plane a face of them lies in, and the face (their fields are plain math, made in Python)
-(fieldes.stdlib.curves and fieldes.stdlib.profile are made on these).
+(fieldev.stdlib.curves and fieldev.stdlib.profile are made on these).
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,

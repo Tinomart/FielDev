@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -25,10 +25,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <Eigen/StdVector>
 #include <boost/math/constants/constants.hpp>
 
-#include "fieldes/arrow.hpp"
-#include "fieldes/shader.hpp"
+#include "fieldev/arrow.hpp"
+#include "fieldev/shader.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Arrow::Arrow()
 {
@@ -163,4 +163,4 @@ void Arrow::draw(QMatrix4x4 M, QVector3D pos, float scale,
     Shader::basic->release();
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -23,9 +23,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QGridLayout>
 #include <QLabel>
 
-#include "fieldes/settings.hpp"
+#include "fieldev/settings.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Settings::Settings(QVector3D min, QVector3D max, float res, float quality)
     : min(min), max(max), res(res), quality(quality)
@@ -63,4 +63,4 @@ bool Settings::operator!=(const Settings& other) const
     return !(*this == other);
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

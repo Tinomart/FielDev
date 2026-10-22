@@ -12,10 +12,10 @@
 #   3. Type a name (`my_bracket`) and press "Add selection".  `my_bracket (yours)` is in the list.  Right-click empty space > Primitives > 3D > my_bracket: the bracket is written into
 #      the script AGAIN, as a model of its own (`my_bracket_1`) -- with the statements it is made of (the variable `size`, the function `post`, the plate) under names the script
 #      has not got: `size` is `size_2` there, so nothing of the first bracket is overwritten.
-#   4. Close FielDes and open it again (or open another script): `my_bracket` is still in the Primitives menu.  It is kept in ONE file of yours (`primitives.json`, in %APPDATA%\FielDes
-#      or ~/.local/share/FielDes), not in this script: deleting this script does not take it away.  In the window, select it in the list and press Remove to forget it.
+#   4. Close FielDev and open it again (or open another script): `my_bracket` is still in the Primitives menu.  It is kept in ONE file of yours (`primitives.json`, in %APPDATA%\FielDev
+#      or ~/.local/share/FielDev), not in this script: deleting this script does not take it away.  In the window, select it in the list and press Remove to forget it.
 
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-12, -12, -4], [52, 32, 30], auto_scale=True)
 view.set_resolution(3)

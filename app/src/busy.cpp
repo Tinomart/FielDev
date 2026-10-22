@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -20,10 +20,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QPropertyAnimation>
 #include <QTime>
 
-#include "fieldes/busy.hpp"
-#include "fieldes/shader.hpp"
+#include "fieldev/busy.hpp"
+#include "fieldev/shader.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Busy::Busy()
 {
@@ -122,4 +122,4 @@ void Busy::draw(const QSize& size)
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

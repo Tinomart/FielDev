@@ -1,5 +1,5 @@
 # The guided tour's model
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-35, -25, -8], [35, 25, 30], auto_scale=True)
 view.set_resolution(4)

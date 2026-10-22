@@ -6,7 +6,7 @@
 # is exported with save_stl and read back.
 #
 import os
-from fieldes import *
+from fieldev import *
 
 lo, hi = (-30, -30, -5), (30, 30, 35)
 view.set_bounds(lo, hi)

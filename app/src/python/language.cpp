@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2021  Matt Keeter
 
@@ -17,17 +17,17 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
-#include "fieldes/script.hpp"
+#include "fieldev/script.hpp"
 
-#include "fieldes/python/language.hpp"
-#include "fieldes/python/interpreter.hpp"
-#include "fieldes/python/formatter.hpp"
-#include "fieldes/python/syntax.hpp"
+#include "fieldev/python/language.hpp"
+#include "fieldev/python/interpreter.hpp"
+#include "fieldev/python/formatter.hpp"
+#include "fieldev/python/syntax.hpp"
 
-namespace FielDes {
+namespace FielDev {
 namespace Python {
 
-::FielDes::Language* language(Script* script) {
+::FielDev::Language* language(Script* script) {
     auto f = new Formatter();
     script->bind(f);
     return new Language(new Interpreter(), f, new Syntax(script->document()),
@@ -35,4 +35,4 @@ namespace Python {
 }
 
 }   // namespace Python
-}   // namespace FielDes
+}   // namespace FielDev

@@ -10,7 +10,7 @@
 import json
 import os
 import struct
-from fieldes import *
+from fieldev import *
 
 view.set_bounds((-70, -40, -12), (70, 40, 185))
 view.set_resolution(1)
@@ -111,7 +111,14 @@ data = open("meshes/hero.ply", "rb").read()
 header, _, rest = data.partition(b"end_header\n")
 lines = header.decode("ascii").split("\n")
 count = int(next(l for l in lines if l.startswith("element vertex")).split()[2])
-first = [struct.unpack_from("<3f3B", rest, 15 * i) for i in range(0, count, max(1, count // 25))]
+# (the vertex is what the header says -- x, y, z, the normal, the colours -- read by the names of the properties)
+props = [l.split() for l in lines if l.startswith("property") and "list" not in l]
+fmt = "<" + "".join({"float": "f", "uchar": "B"}[p[1]] for p in props)
+names = [p[2] for p in props]
+first = []
+for i in range(0, count, max(1, count // 25)):
+    row = dict(zip(names, struct.unpack_from(fmt, rest, struct.calcsize(fmt) * i)))
+    first.append((row["x"], row["y"], row["z"], row["red"], row["green"], row["blue"]))
 ok = all(abs(r - round((0.2 + z / 250) * 255)) <= 1 and g == 128 and abs(b - round((0.9 - z / 250) * 255)) <= 1 for x, y, z, r, g, b in first if 0 <= z <= 180)
 check("ply: red, green, blue of every vertex, and they follow the height", "property uchar red" in lines and count == nverts and ok, "%d vertices" % count)
 

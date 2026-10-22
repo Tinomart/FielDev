@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -74,14 +74,14 @@ of the License, or (at your option) any later version.
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
-#include "fieldes/carddrag.hpp"
-#include "fieldes/i18n.hpp"
-#include "fieldes/scenetree.hpp"
-#include "fieldes/color.hpp"
-#include "fieldes/regionformat.hpp"
-#include "fieldes/typeicons.hpp"
+#include "fieldev/carddrag.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/scenetree.hpp"
+#include "fieldev/color.hpp"
+#include "fieldev/regionformat.hpp"
+#include "fieldev/typeicons.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 
@@ -242,10 +242,10 @@ QString noDragReason(const QJsonObject& m, bool mesh)
     if (n <= 0) return QString();
     const int cap = m["handle_cap"].toInt();
     if (cap > 0 && n > cap)
-        return T("Its surfaces cannot be dragged: %1 numbers place its faces, more than the %2 FielDes writes into a script. "
+        return T("Its surfaces cannot be dragged: %1 numbers place its faces, more than the %2 FielDev writes into a script. "
                        "Its gizmo moves it.").arg(n).arg(cap);
     if (n > kAutoHandleNumbers)
-        return T("Its surfaces cannot be dragged: %1 numbers place its faces, and FielDes makes the surfaces of a model draggable "
+        return T("Its surfaces cannot be dragged: %1 numbers place its faces, and FielDev makes the surfaces of a model draggable "
                        "up to %2 numbers. Its gizmo moves it.").arg(n).arg(kAutoHandleNumbers);
     return QString();
 }
@@ -548,7 +548,7 @@ QString sceneCacheStamp()
     static QString stamp;
     if (!stamp.isEmpty()) return stamp;
     qint64 newest = QFileInfo(QCoreApplication::applicationFilePath()).lastModified().toMSecsSinceEpoch();
-    QDirIterator it(QDir(QCoreApplication::applicationDirPath()).filePath("python/fieldes"), QStringList{"*.py"}, QDir::Files,
+    QDirIterator it(QDir(QCoreApplication::applicationDirPath()).filePath("python/fieldev"), QStringList{"*.py"}, QDir::Files,
                     QDirIterator::Subdirectories);
     int count = 0;
     while (it.hasNext())
@@ -1913,7 +1913,7 @@ void ScenePanel::setScene(const QString& json)
 
 void ScenePanel::fitRegion()
 {
-    static const bool timing = std::getenv("FIELDES_TIMING") != nullptr;
+    static const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
     if (m_predicted || !m_source || m_scene["errored"].toBool() || !m_scene["run_done"].toBool() ||
         m_scene["source_md5"].toString() != md5Hex(m_source()))
     {
@@ -2169,7 +2169,7 @@ QWidget* ScenePanel::typingWidget() const
 
 namespace {
 
-// FIELDES_TIMING: how long the model tree takes to be made (what the user sees as "the tree reloads")
+// FIELDEV_TIMING: how long the model tree takes to be made (what the user sees as "the tree reloads")
 struct TreeTimer
 {
     QElapsedTimer clock;
@@ -2178,11 +2178,11 @@ struct TreeTimer
     explicit TreeTimer(const char* w, QTreeWidget* t) : what(w), tree(t) { clock.start(); }
     ~TreeTimer()
     {
-        const char* log = std::getenv("FIELDES_TREE_LOG");       // (a file that the tests read: the stderr of a window is not caught)
-        if (!std::getenv("FIELDES_TIMING") && !log) return;
+        const char* log = std::getenv("FIELDEV_TREE_LOG");       // (a file that the tests read: the stderr of a window is not caught)
+        if (!std::getenv("FIELDEV_TIMING") && !log) return;
         int rows = 0;
         for (QTreeWidgetItemIterator i(tree); *i; ++i) ++rows;
-        if (std::getenv("FIELDES_TIMING"))
+        if (std::getenv("FIELDEV_TIMING"))
             std::cerr << "[tree] " << what << ": " << rows << " rows, " << clock.elapsed() << " ms" << std::endl;
         if (log)
         {
@@ -2201,10 +2201,10 @@ void ScenePanel::rebuild()
 {
     TreeTimer timer("rebuild", m_tree);
     m_rebuildPending = false;
-    // (for the tests: where the time of a rebuild goes, phase by phase, into FIELDES_TREE_LOG)
+    // (for the tests: where the time of a rebuild goes, phase by phase, into FIELDEV_TREE_LOG)
     QElapsedTimer phaseClock;
     phaseClock.start();
-    const char* phaseLog = std::getenv("FIELDES_TREE_LOG");
+    const char* phaseLog = std::getenv("FIELDEV_TREE_LOG");
     auto phase = [&](const char* name) {
         if (phaseLog)
         {
@@ -2528,7 +2528,7 @@ void ScenePanel::rebuild()
                 c->setData(COL_NAME, ROLE_PART, k);
                 QString ptip = T("Size: %1").arg(sizeText(p["bounds"].toArray()));
                 ptip = T("Part %1").arg(k) + (path.isEmpty() ? "" : ": " + path) + "\n" + ptip;
-                // How it was imported (import_model chooses per part: see fieldes.stdlib.importing)
+                // How it was imported (import_model chooses per part: see fieldev.stdlib.importing)
                 if (p.contains("method"))
                 {
                     const bool tess = p["method"].toString() == "tessellate";
@@ -2569,7 +2569,7 @@ void ScenePanel::rebuild()
                 }
                 // Handles work on a part that is in the script (as a variable)
                 const QJsonObject target = gizmoTarget(it, k);
-                // (a mesh has no faces to pull, and a part with more numbers than FielDes makes draggable cannot be pulled either:
+                // (a mesh has no faces to pull, and a part with more numbers than FielDev makes draggable cannot be pulled either:
                 // the dot says so from the start, which parts have handles and which have not)
                 if (ok)
                 {
@@ -3207,7 +3207,7 @@ void ScenePanel::addImportIfMissing(QList<TextEdit>& edits, const QString& name,
 {
     const QString src = m_source ? m_source() : QString();
     const QRegularExpression has(
-        "^\\s*from\\s+fieldes(\\.stdlib(\\." + module + ")?)?\\s+import\\s+(\\*|.*\\b" + name + "\\b)",
+        "^\\s*from\\s+fieldev(\\.stdlib(\\." + module + ")?)?\\s+import\\s+(\\*|.*\\b" + name + "\\b)",
         QRegularExpression::MultilineOption);
     if (has.match(src).hasMatch())
     {
@@ -3223,7 +3223,7 @@ void ScenePanel::addImportIfMissing(QList<TextEdit>& edits, const QString& name,
             after = i;
         }
     }
-    const QString stmt = "from fieldes.stdlib." + module + " import " + name;
+    const QString stmt = "from fieldev.stdlib." + module + " import " + name;
     if (after >= 0)
     {
         edits << TextEdit{after, int(lines[after].size()), after, int(lines[after].size()),
@@ -3572,7 +3572,7 @@ bool ScenePanel::editFollowed(const QList<TextEdit>& edits, const QString& what,
         for (const auto v : scene["items"].toArray()) now += v.toObject().contains("line") ? 1 : 0;
         if (!taken && was != now) return false;
     }
-    if (const char* log = std::getenv("FIELDES_TREE_LOG"))
+    if (const char* log = std::getenv("FIELDEV_TREE_LOG"))
     {
         // (for the tests: what the edit was and what the tree made of it)
         if (FILE* f = std::fopen(log, "a"))
@@ -3588,7 +3588,7 @@ bool ScenePanel::editFollowed(const QList<TextEdit>& edits, const QString& what,
         }
     }
     patch(scene, newIndex);
-    if (const char* log = std::getenv("FIELDES_TREE_LOG"))
+    if (const char* log = std::getenv("FIELDEV_TREE_LOG"))
     {
         if (FILE* f = std::fopen(log, "a"))
         {
@@ -3623,9 +3623,9 @@ bool ScenePanel::editFollowed(const QList<TextEdit>& edits, const QString& what,
             runDeferred();
         });
     }
-    if (std::getenv("FIELDES_TREE_LOG"))
+    if (std::getenv("FIELDEV_TREE_LOG"))
     {
-        if (FILE* f = std::fopen(std::getenv("FIELDES_TREE_LOG"), "a"))
+        if (FILE* f = std::fopen(std::getenv("FIELDEV_TREE_LOG"), "a"))
         {
             std::fprintf(f, "[tree] followed \"%s\": %lld ms to write and follow\n", what.toUtf8().constData(),
                          static_cast<long long>(clock.elapsed()));
@@ -3637,7 +3637,7 @@ bool ScenePanel::editFollowed(const QList<TextEdit>& edits, const QString& what,
 
 QString ScenePanel::sceneCachePath(const QString& md5) const
 {
-    const QByteArray env = qgetenv("FIELDES_SCENE_CACHE_DIR");
+    const QByteArray env = qgetenv("FIELDEV_SCENE_CACHE_DIR");
     const QString dir = !env.isEmpty() ? QString::fromLocal8Bit(env)
                                        : QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/scene-cache";
     return dir + "/" + md5 + "-" + sceneCacheStamp() + ".fdscene";
@@ -4242,7 +4242,7 @@ bool ScenePanel::modeEdits(const QJsonObject& target, const QString& next, QList
             edits << TextEdit{L, col, L, col, ", mode=" + quoted};
             return;
         }
-        // (a call laid out over lines, as FielDes writes it: the argument is a line of its own, before the ")" -- after the comma of the one
+        // (a call laid out over lines, as FielDev writes it: the argument is a line of its own, before the ")" -- after the comma of the one
         // before it, or with that comma put in when the call was written without one)
         const QString closing = lineText(L).left(col);
         int ll = L, cc = col;
@@ -4290,7 +4290,7 @@ QString ScenePanel::handlesBlock(const QJsonObject& target, QString* why, bool* 
         // (`later`: the script has not been run since the model was made -- the numbers are there once it has, and are asked for again then -- and not that the model has none)
         if (later) *later = error.isEmpty() || error.contains("is not a shape of the last run");
         const QString reason = error.isEmpty() ? T("the script has not been run") : error;
-        if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION"))
+        if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION"))
             fprintf(stderr, "[handles] %s: %s\n", target["var"].toString().toUtf8().constData(), reason.toUtf8().constData());
         if (why) *why = T("Cannot make %1 draggable: %2").arg(target["var"].toString(), reason);
         return QString();
@@ -4816,8 +4816,8 @@ void ScenePanel::duplicateLinkedSelected()
         else edits << TextEdit{int(lines.size()) - 1, int(lines.last().size()), int(lines.size()) - 1, int(lines.last().size()), "\n" + text};
         made << fresh;
     }
-    static const QRegularExpression starImport(R"(^\s*from\s+fieldes\s+import\s+\*)", QRegularExpression::MultilineOption);
-    if (!starImport.match(src).hasMatch()) edits << TextEdit{0, 0, 0, 0, "from fieldes import *\n\n"};
+    static const QRegularExpression starImport(R"(^\s*from\s+fieldev\s+import\s+\*)", QRegularExpression::MultilineOption);
+    if (!starImport.match(src).hasMatch()) edits << TextEdit{0, 0, 0, 0, "from fieldev import *\n\n"};
     m_selectNew = made.last();
     m_selectNewMore = made.mid(0, made.size() - 1);
     m_selectNewTries = 0;
@@ -4891,8 +4891,8 @@ void ScenePanel::pasteModels()
         blocks << text;
     }
     const QString text = blocks.join("\n");
-    static const QRegularExpression starImport(R"(^\s*from\s+fieldes\s+import\s+\*)", QRegularExpression::MultilineOption);
-    const QString star = starImport.match(src).hasMatch() ? QString() : QString("from fieldes import *\n\n");
+    static const QRegularExpression starImport(R"(^\s*from\s+fieldev\s+import\s+\*)", QRegularExpression::MultilineOption);
+    const QString star = starImport.match(src).hasMatch() ? QString() : QString("from fieldev import *\n\n");
     QList<TextEdit> edits;
     int cursorAfter = -1;               // (pasted at the insertion point: the text cursor goes under what was pasted)
     if (!after.isEmpty() && after.contains("end_line"))
@@ -5155,7 +5155,7 @@ void ScenePanel::deleteItems(const QList<QJsonObject>& items)
         }
     }
     const QString what = whats.size() <= 3 ? whats.join(", ") : T("%1 models").arg(whats.size());
-    if (!users.isEmpty() && !qEnvironmentVariableIsSet("FIELDES_AUTOMATION"))
+    if (!users.isEmpty() && !qEnvironmentVariableIsSet("FIELDEV_AUTOMATION"))
     {
         QMessageBox box(QMessageBox::Question, T("Delete"), T("Delete %1?").arg(what), QMessageBox::Yes | QMessageBox::Cancel, this);
         box.setInformativeText((users.size() > 1 ? T("The script still uses %1 on lines %2: those lines will fail until you edit them.")
@@ -5232,8 +5232,8 @@ void ScenePanel::resetImport(const QJsonObject& imp, bool ask)
     const QString path = imp["path"].toString();
     if (path.isEmpty()) return;
     const QString label = imp["label"].toString();
-    const QString cacheFile = path + ".fieldes-cache.py";
-    const QString treesDir = path + ".fieldes-cache.trees";
+    const QString cacheFile = path + ".fieldev-cache.py";
+    const QString treesDir = path + ".fieldev-cache.trees";
 
     // The edits of the import's parts by dragging: their gizmo() and handles() lines
     QList<QJsonObject> handled;
@@ -5283,7 +5283,7 @@ void ScenePanel::resetImport(const QJsonObject& imp, bool ask)
     // ...and the cache: the import is rebuilt (and its cache written again) by the run
     QFile::remove(cacheFile);
     QDir(treesDir).removeRecursively();
-    QDir(path + ".fieldes-tessellation").removeRecursively();          // (the tessellated import's tessellation)
+    QDir(path + ".fieldev-tessellation").removeRecursively();          // (the tessellated import's tessellation)
     if (!edits.isEmpty())
     {
         emit(editScript(edits, "Reset " + label));
@@ -5781,7 +5781,7 @@ void ScenePanel::onItemClicked(QTreeWidgetItem* row, int column)
     if (column == COL_RESET && !row->icon(COL_RESET).isNull())
     {
         if (type == "part") reimportPart(it, row->data(COL_NAME, ROLE_PART).toInt());
-        else resetImport(it, !qEnvironmentVariableIsSet("FIELDES_AUTOMATION"));
+        else resetImport(it, !qEnvironmentVariableIsSet("FIELDEV_AUTOMATION"));
         return;
     }
     if (column == COL_ACTION && !row->icon(COL_ACTION).isNull())
@@ -6290,7 +6290,7 @@ void ScenePanel::warnLockedMultiSelect()
     QSettings store;
     if (store.value("hidden-messages/locked-in-multi-select", false).toBool()) return;
     const QString text = T("When a locked object is part of a multi select, the multi selection can no longer be moved or edited.");
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION"))
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION"))
     {
         fprintf(stderr, "[warning] %s\n", text.toUtf8().constData());
         return;
@@ -7054,7 +7054,7 @@ void ScenePanel::setWorkPlane(bool active, QVector3D origin, QVector3D u, QVecto
     m_workPlaneStep = step;
 }
 
-void ScenePanel::setSymmetry(FielDes::Symmetry symmetry, int)
+void ScenePanel::setSymmetry(FielDev::Symmetry symmetry, int)
 {
     m_symmetryRequest = QJsonObject();
     if (!symmetry.on) return;
@@ -7071,7 +7071,7 @@ void ScenePanel::setSymmetry(FielDes::Symmetry symmetry, int)
     m_symmetryRequest["elements"] = elements;
 }
 
-void ScenePanel::createSymmetry(FielDes::Symmetry s)
+void ScenePanel::createSymmetry(FielDev::Symmetry s)
 {
     auto vec = [](const QVector3D& a) { return QJsonArray{double(a.x()), double(a.y()), double(a.z())}; };
     m_symdefRequest = QJsonObject();
@@ -7358,7 +7358,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
         request["body_info"] = info;
     }
     // (the variable the model will get: a function written above the call is named after it)
-    const QString var = freeName(name == "symmetry_planes" ? QString("symmetry") : name);
+    const QString var = freeName(name == "symmetry_planes" ? QString("symmetry") : name.section('|', 0, 0));
     request["var"] = var;
     // (how far the statement is indented: the library lays the call out for that column)
     request["indent"] = ((kind == "operation" || withBodies) && !bare) ? int(indentOf(lineText(target["line"].toInt() - 1)).size()) : 0;
@@ -7400,9 +7400,11 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
             statement = (cutAt >= 0 ? statement.left(cutAt + 1) : QString()) + markShadow(statement.mid(cutAt + 1), locked);
         }
 
-        // The library's functions are in scope with `from fieldes import *`
-        static const QRegularExpression starImport(R"(^\s*from\s+fieldes\s+import\s+\*)", QRegularExpression::MultilineOption);
-        const QString star = (plain || starImport.match(src).hasMatch()) ? QString() : QString("from fieldes import *\n\n");
+        // The library's functions are in scope with `from fieldev import *`
+        static const QRegularExpression starImport(R"(^\s*from\s+fieldev\s+import\s+\*)", QRegularExpression::MultilineOption);
+        // (a picture to trace calls the library, so it has the import; the blocks of the Python menu are the language only)
+        const bool usesLibrary = !plain || name.startsWith("reference_image|");
+        const QString star = (!usesLibrary || starImport.match(src).hasMatch()) ? QString() : QString("from fieldev import *\n\n");
 
         QList<TextEdit> edits;
         int cursorAfter = -1;               // (written at the insertion point: the text cursor of the editor goes under what was written, as it does in any editor, so that the next thing lands under it)
@@ -8804,8 +8806,8 @@ void ScenePanel::movePythonBlock(const QJsonObject& block, QTreeWidgetItem* over
 
 bool ScenePanel::confirmPythonMove(const QString& what, const QJsonObject& check, const QStringList& along)
 {
-    // (a scripted test does not wait for the question, unless it asks for it: FIELDES_SHOW_DIALOGS)
-    const bool shown = qEnvironmentVariableIsSet("FIELDES_SHOW_DIALOGS");
+    // (a scripted test does not wait for the question, unless it asks for it: FIELDEV_SHOW_DIALOGS)
+    const bool shown = qEnvironmentVariableIsSet("FIELDEV_SHOW_DIALOGS");
     QString list;
     for (const auto v : check["problems"].toArray())
     {
@@ -8816,7 +8818,7 @@ bool ScenePanel::confirmPythonMove(const QString& what, const QJsonObject& check
                     ? T("%1 would run before %2 (line %3), which makes %4").arg(reader, maker, line, name)
                     : T("%1 uses %2, which %3 (line %4) makes: that would come below it").arg(reader, name, maker, line)) + "\n";
     }
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION") && !shown)
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION") && !shown)
     {
         fprintf(stderr, "[automation] moving %s would break the script, so %s go along:\n%s", what.toUtf8().constData(),
                 along.join(" | ").toUtf8().constData(), list.toUtf8().constData());
@@ -9168,9 +9170,9 @@ QList<ScenePanel::Flip> ScenePanel::ownershipFlips(const QJsonObject& predicted)
 bool ScenePanel::confirmFlips(const QList<Flip>& flips)
 {
     if (flips.isEmpty()) return true;
-    // (a scripted test does not wait for the question, unless it asks for it: FIELDES_SHOW_DIALOGS)
-    const bool shown = qEnvironmentVariableIsSet("FIELDES_SHOW_DIALOGS");
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION") && !shown)
+    // (a scripted test does not wait for the question, unless it asks for it: FIELDEV_SHOW_DIALOGS)
+    const bool shown = qEnvironmentVariableIsSet("FIELDEV_SHOW_DIALOGS");
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION") && !shown)
     {
         for (const auto& f : flips)
             fprintf(stderr, "[automation] a shadow of %s above its original (%s): %s becomes the original\n",
@@ -9506,10 +9508,10 @@ void ScenePanel::finishDrop(const QString& overKey, int at, const QPoint& global
 bool ScenePanel::confirmDissolve(const QList<Dissolve>& list)
 {
     if (list.isEmpty()) return true;
-    // (a scripted test does not wait for the question, unless it asks for it: FIELDES_SHOW_DIALOGS)
-    const bool shown = qEnvironmentVariableIsSet("FIELDES_SHOW_DIALOGS");
+    // (a scripted test does not wait for the question, unless it asks for it: FIELDEV_SHOW_DIALOGS)
+    const bool shown = qEnvironmentVariableIsSet("FIELDEV_SHOW_DIALOGS");
     auto name = [](const QJsonObject& it) { return "'" + (it.contains("var") ? it["var"].toString() : it["label"].toString()) + "'"; };
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION") && !shown)
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION") && !shown)
     {
         for (const auto& d : list)
             fprintf(stderr, "[automation] %s would be above %s, which it holds a reference to: %s becomes part of it\n",
@@ -10282,7 +10284,7 @@ void ScenePanel::loadExpandState()
     m_expandState.clear();
     const QString file = m_fileKey ? m_fileKey() : QString();
     if (file.isEmpty()) return;
-    QSettings settings("FielDes", "FielDes");
+    QSettings settings("FielDev", "FielDev");
     const QJsonObject o = QJsonDocument::fromJson(settings.value(expandStorageKey(file)).toString().toUtf8()).object();
     for (const auto v : o["open"].toArray()) m_expandState[v.toString()] = true;
     for (const auto v : o["closed"].toArray()) m_expandState[v.toString()] = false;
@@ -10292,7 +10294,7 @@ void ScenePanel::saveExpandState()
 {
     const QString file = m_fileKey ? m_fileKey() : QString();
     if (file.isEmpty()) return;
-    QSettings settings("FielDes", "FielDes");
+    QSettings settings("FielDev", "FielDev");
     const QString key = expandStorageKey(file);
     if (m_expandState.isEmpty())
     {
@@ -10693,4 +10695,4 @@ void ScenePanel::endSectionRename(bool keep)
         emit(editScriptLive(QList<TextEdit>{TextEdit{r.line, r.col, r.line, r.col + r.length, r.original}}, "Rename section"));
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

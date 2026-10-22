@@ -1,6 +1,6 @@
 # Fields and regressions
 
-Every shape in FielDes is a **field**: a number at every point in space. A solid is where its field is
+Every shape in FielDev is a **field**: a number at every point in space. A solid is where its field is
 negative. But any other field — a distance, a ramp, noise, a regression of measured
 data — is a shape too, and can be used anywhere a number or a shape is used. That is the point of the
 program: *anything can drive anything*.
@@ -164,7 +164,7 @@ gripped = texture(part, 'grit', depth=0.3, size=0.8, region=top, fade=1.5)     #
 | a field | your own: a height of about -1 .. 1 (`noise_field(2, kind='ridged')`, a `wave` ...) |
 
 `depth` is the height from a pit to a bump (mm). `side='both'` puts the bumps outside and the pits inside the surface, `'in'` only cuts into it -- the part stays inside its size -- and `'out'` only adds. `region` is a
-selected surface (`select_surface`, `surface_from_bodies`), or a body or a field that holds the places to texture; the texture fades out over `fade` mm (the size, by default). In FielDes, select the body (and a surface)
+selected surface (`select_surface`, `surface_from_bodies`), or a body or a field that holds the places to texture; the texture fades out over `fade` mm (the size, by default). In FielDev, select the body (and a surface)
 and choose *Operations → Texturing → texture*. The `size` is a number; the `depth` can be a field, so a part can be rougher where another field says.
 
 ## Exact distances

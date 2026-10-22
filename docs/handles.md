@@ -94,7 +94,7 @@ ball = sphere(r)
 ```
 
 Wrap a literal number in `var(...)` and hover the shape it affects: the surface highlights, and dragging it
-rewrites the number in the script, live. FielDes works out which numbers place the surface under the cursor
+rewrites the number in the script, live. FielDev works out which numbers place the surface under the cursor
 (a radius, a plane's position, a box's size), so any shape built from `var()` numbers can be dragged
 natively. `var()` needs a constant argument (`var(3)`, not `var(r + 1)`).
 
@@ -154,7 +154,7 @@ extrusion of a rectangle that you selected (and so has its `handles(...)` and `g
 what changes: the other sides stay where they are, and the rectangle is not scaled, moved or turned. The two end faces of such an extrusion are
 numbers of the extrusion (`extrude_1 = handles(extrude_1, [0, 5])`, written when you select it): pull one and the extrusion gets longer or shorter from that end.
 
-For a shape written with **plain numbers** — a primitive — FielDes writes, under the definition,
+For a shape written with **plain numbers** — a primitive — FielDev writes, under the definition,
 
 ```python
 bracket = handles(bracket, [var(6), var(40), var(12.5), …])
@@ -173,7 +173,7 @@ Rules:
 - Only numbers that **place** a surface are in the list. Orientations and the placement of the whole part are
   not — a dragged face moves and neither turns nor takes the rest of the part along. Use the gizmo to move or
   rotate the whole part.
-- A plane through the origin has no number in the shape's expression; FielDes gives it one (a 0), so even
+- A plane through the origin has no number in the shape's expression; FielDev gives it one (a 0), so even
   it can be dragged.
 - A part with more than 120 surface numbers does not get its `handles()` call by being selected (that would be pages of
   script): its menu has **Make its surfaces draggable**. A part that is too large to have handles at all (over 6 000

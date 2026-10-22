@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -39,14 +39,14 @@ of the License, or (at your option) any later version.
 #include <QTextCursor>
 #include <QVBoxLayout>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/editor.hpp"
-#include "fieldes/scenetree.hpp"
-#include "fieldes/script.hpp"
-#include "fieldes/tutorial.hpp"
-#include "fieldes/view.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/editor.hpp"
+#include "fieldev/scenetree.hpp"
+#include "fieldev/script.hpp"
+#include "fieldev/tutorial.hpp"
+#include "fieldev/view.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 static const QColor kAmber(0xff, 0xcc, 0x33);
 static const QColor kDone(0x82, 0xcc, 0x58);          // (what a step that is done is outlined in: nothing is left to do in it)
@@ -677,7 +677,7 @@ void Tutorial::typeOver(int line0, int col0, int col1, const QString& text, std:
 // The first lines of a model that a step makes for itself (the render region, how fine it is drawn, how smooth)
 static QString tourHeader(const QString& bounds, int resolution = 4)
 {
-    return QString("# The guided tour's model\nfrom fieldes import *\n\nview.set_bounds(%1, auto_scale=True)\nview.set_resolution(%2)\nview.set_quality(8)\n\n")
+    return QString("# The guided tour's model\nfrom fieldev import *\n\nview.set_bounds(%1, auto_scale=True)\nview.set_resolution(%2)\nview.set_quality(8)\n\n")
         .arg(bounds.isEmpty() ? QString("[-35, -25, -8], [35, 25, 30]") : bounds)
         .arg(resolution);
 }
@@ -855,9 +855,9 @@ void Tutorial::buildSteps()
     // 0
     {
         Step s;
-        s.title = T("Thank you for downloading FielDes");
-        s.text = T("FielDes stands for Field driven Design, which means that it wants you to design clean, organic geometry through the power of math.")
-                 + "\n\n" + T("Happy designing, and I hope FielDes can make your workflows faster and more intuitive.")
+        s.title = T("Thank you for downloading FielDev");
+        s.text = T("FielDev stands for Field driven Design, which means that it wants you to design clean, organic geometry through the power of math.")
+                 + "\n\n" + T("Happy designing, and I hope FielDev can make your workflows faster and more intuitive.")
                  + "\n\n" + "-Tino";
         s.hint = T("The guided tour is a few minutes. It starts again from Help ▸ Guided tour.");
         s.welcome = true;
@@ -869,7 +869,7 @@ void Tutorial::buildSteps()
         Step s;
         s.title = T("The script is the model");
         s.focus = plateLine;
-        s.text = T("A FielDes model is a short script. Everything you see is made by these lines.");
+        s.text = T("A FielDev model is a short script. Everything you see is made by these lines.");
         s.holes = holesOf(scriptWidget);
         s.point = [this] { const QRect r = scriptLineRect(std::max(0, scriptLine("plate ="))); return r.isEmpty() ? QPoint() : QPoint(r.right() - 20, r.center().y()); };
         s.place = Right;
@@ -1960,7 +1960,7 @@ void Tutorial::buildSteps()
     {
         Step s;
         s.title = T("That is the tour");
-        s.text = T("Shift+F1 opens the guide with every feature and shortcut. To see how the different features of FielDes work, open the examples: File ▸ Open example file.");
+        s.text = T("Shift+F1 opens the guide with every feature and shortcut. To see how the different features of FielDev work, open the examples: File ▸ Open example file.");
         s.hint = T("Each example is a small script to read, run and change. Help ▸ Guided tour starts this tour again.");
         s.last = true;
         // (the File menu is drawn beside the card, with the entry framed, as for the blocks folder: it lists the examples)
@@ -2613,4 +2613,4 @@ bool Tutorial::eventFilter(QObject* obj, QEvent* e)
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

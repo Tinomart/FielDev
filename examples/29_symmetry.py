@@ -29,7 +29,7 @@
 #     gets its images too.  It is how the model was made, ready to be added to.
 #   * With the work plane open (Shift+W), draw a line or a profile: it is drawn at its images too, through the images of its points.
 
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-50, -50, -6], [50, 50, 46], auto_scale=True)
 view.set_resolution(2)

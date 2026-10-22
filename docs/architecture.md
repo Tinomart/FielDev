@@ -1,13 +1,13 @@
 # Architecture
 
-FielDes has three layers, in three folders. Each can be used without the ones above it.
+FielDev has three layers, in three folders. Each can be used without the ones above it.
 
 ```
-   app/        Qt application  (FielDes.exe)        GPL-2.0-or-later
+   app/        Qt application  (FielDev.exe)        GPL-2.0-or-later
      │  embeds Python, draws the viewport, edits the script
-   python/     Python library  (import fieldes)     MPL-2.0
+   python/     Python library  (import fieldev)     MPL-2.0
      │  Shape, the standard library, mesh import and export, fields, points, curves and profiles
-   kernel/     C++ kernel      (fieldes.dll)        MPL-2.0
+   kernel/     C++ kernel      (fieldev.dll)        MPL-2.0
         expression trees, evaluators, meshing, mesh import, field oracles
 ```
 
@@ -18,14 +18,14 @@ FielDes has three layers, in three folders. Each can be used without the ones ab
 - [Selecting a surface](#selecting-a-surface)
 - [The render cache](#the-render-cache)
 - [The field cache](#the-field-cache)
-- [FielDes apps](#fieldes-apps)
-- [Files FielDes writes](#files-fieldes-writes)
+- [FielDev apps](#fieldev-apps)
+- [Files FielDev writes](#files-fieldev-writes)
 - [Environment variables](#environment-variables)
 - [Origins and licences](#origins-and-licences)
 
 ## The kernel
 
-`kernel/` is C++17, built as the shared library `fieldes.dll` (and a small `fieldes-stdlib.dll` of
+`kernel/` is C++17, built as the shared library `fieldev.dll` (and a small `fieldev-stdlib.dll` of
 C++-defined shapes). It descends from **libfive**, Matt Keeter's kernel for implicit modelling.
 
 | Folder | Holds |
@@ -62,11 +62,11 @@ The C API is `kernel/include/libfive.h`; the Python library calls it through `ct
 
 ## The Python library
 
-`python/fieldes/` — `from fieldes import *`.
+`python/fieldev/` — `from fieldev import *`.
 
 | File | Holds |
 |---|---|
-| `ffi.py` | Loads `fieldes.dll` (found through `FIELDES_DIR`, next to the package, or on the path) and declares the C API |
+| `ffi.py` | Loads `fieldev.dll` (found through `FIELDEV_DIR`, next to the package, or on the path) and declares the C API |
 | `shape.py` | `Shape`: the wrapper of a tree, operators, evaluation, `save_stl`, `get_mesh` |
 | `view.py` | `view.set_bounds / set_resolution / set_quality` |
 | `stdlib/shapes.py`, `csg.py`, `transforms.py`, `text.py`, `surfaces.py` | Primitives, booleans, transforms, lettering, closed-form surfaces |
@@ -82,7 +82,7 @@ The C API is `kernel/include/libfive.h`; the Python library calls it through `ct
 | `stdlib/instances.py`, `symmetries.py` | Linked copies (`instance`); symmetry (`symmetry_planes`, `symmetry_images`) |
 | `stdlib/selection.py`, `measure.py`, `custom_resolution.py` | `select_surface()`; the box and the middle of a body; a resolution of its own for one body |
 | `stdlib/handles.py` | `gizmo()`, `handles()`, `lock()` |
-| `app.py`, `app_package.py`, `__main__.py` | FielDes apps: the `app.` inputs a script declares; reading the form out of the text of a script, bundling a `.fieldesapp`, opening one, checking the values, the command line (`run`, `export`, `info`, `--watch`); see [Apps](apps.md) |
+| `app.py`, `app_package.py`, `__main__.py` | FielDev apps: the `app.` inputs a script declares; reading the form out of the text of a script, bundling a `.fieldevapp`, opening one, checking the values, the command line (`run`, `export`, `info`, `--watch`); see [Apps](apps.md) |
 | `stdlib/content_cache.py`, `stdlib/render_cache.py`, `field_cache.py` | Content-keyed caches, the render cache and the field cache (see below) |
 | `app_support.py`, `run_progress.py`, `runner.py` | What the application needs from Python: running a script statement by statement (with the blocks injected into its namespace), evaluating displays, the model tree's description (`scene_json`: items with their `type`, `inputs`, `owner`, ...), reporting progress |
 | `menu_catalog.py` | The one list of what the right-click menus offer (primitives by kind, operations, custom blocks) and the call each entry writes |
@@ -96,11 +96,11 @@ The C API is `kernel/include/libfive.h`; the Python library calls it through `ct
 
 | File | Holds |
 |---|---|
-| `main.cpp`, `app.cpp`, `args.cpp` | Start-up, command line (`FielDes run|export|info ...` runs the apps' command line with no window: Python starts and `app_support.app_cli` does the work; a `.fieldesapp` as the first argument opens the app window) |
-| `appwindow.cpp`, `fileassoc.cpp` | The app window (a form built from the manifest's inputs, Run / Stop, progress, log, outputs, watch; its own `Python::Interpreter` thread) and the `.fieldesapp` file type (HKCU registry keys on Windows, a MIME type and a desktop entry on Linux) |
+| `main.cpp`, `app.cpp`, `args.cpp` | Start-up, command line (`FielDev run|export|info ...` runs the apps' command line with no window: Python starts and `app_support.app_cli` does the work; a `.fieldevapp` as the first argument opens the app window) |
+| `appwindow.cpp`, `fileassoc.cpp` | The app window (a form built from the manifest's inputs, Run / Stop, progress, log, outputs, watch; its own `Python::Interpreter` thread) and the `.fieldevapp` file type (HKCU registry keys on Windows, a MIME type and a desktop entry on Linux) |
 | `window.cpp` | The main window: the top dock and its menus, import code generation, guide and dialogs, autosave, file watching |
 | `editor.cpp`, `script.cpp`, `syntax.cpp`, `findbar.cpp`, `documentation.cpp` | The code editor and its helpers |
-| `python/interpreter.cpp` | The embedded Python interpreter (host module `_fieldes_host`: `var()`, `view.set_*`, display callbacks) |
+| `python/interpreter.cpp` | The embedded Python interpreter (host module `_fieldev_host`: `var()`, `view.set_*`, display callbacks) |
 | `view.cpp`, `shape.cpp`, `camera.cpp`, `shader.cpp`, `gl/` | The viewport: meshes, picking, dragging, drawing |
 | `scenetree.cpp` | The model tree: rows, nesting by the scene's `owner`, selection, every action as a script edit, drag and drop (`SceneTree`, `moveGroups`, `dropOnModel`) |
 | `typeicons.cpp` | The icon and colour of each kind of model, shared by the tree and the menus |
@@ -112,7 +112,7 @@ The C API is `kernel/include/libfive.h`; the Python library calls it through `ct
 | `automation.cpp` | A scripted-GUI facility for testing (see below) |
 
 The application finds its Python runtime in `runtime/python3` (the portable folder) or in a vcpkg
-checkout, and the `fieldes` package by walking up from its own folder for `python/fieldes`.
+checkout, and the `fieldev` package by walking up from its own folder for `python/fieldev`.
 
 ## How a script becomes a picture
 
@@ -161,7 +161,7 @@ as the script built it (`Shape::built_tree`), not of the optimized one: the opti
 run in the order of operands. A mesh an oracle holds is keyed by the surface, not by the order the mesher wrote it
 in (`meshContentKey`: each triangle from its smallest corner, the triangles sorted). `render_cache_key()` shows the key. When anything about the math
 changes the key is another one: a miss, the usual progressive render, and the new mesh is kept. The folder is
-limited to 4 GB (`FIELDES_RENDER_CACHE_MB`), oldest files first; `Settings → Clear the caches` empties it (and the field cache).
+limited to 4 GB (`FIELDEV_RENDER_CACHE_MB`), oldest files first; `Settings → Clear the caches` empties it (and the field cache).
 The model tree's cache button writes and deletes the opt-out line `x = render_cache(x, False)` under the shape's definition
 (under its `handles()` and `gizmo()` calls) like every other button of the tree (`ScenePanel::toggleCache`; the script
 parser records the line as `cache_off`, an explicit `render_cache(x)` as `cache`).
@@ -209,14 +209,14 @@ A `SurfaceSelection` displays itself through `_display()`: the part it was picke
 (zero or less where the vertex's nearest surface point is in the patch), with `_color_cutoff = 0`; the viewport gives `Shape` a
 per-vertex `patch_value` and its fragment shader discards what is above zero, so only the patch is drawn, a hair towards the eye. The
 other entries emit `createRequested`: `ScenePanel::createFromMenu` asks the interpreter for the call (`menu_call` in
-`app_support.py`, from `fieldes/menu_catalog.py`, the one list of what the menus offer: the primitives with their placement
+`app_support.py`, from `fieldev/menu_catalog.py`, the one list of what the menus offer: the primitives with their placement
 templates, the operations with the model passed in), writes `name = call` and a line showing it, and selects the new model once
 the script has run. A primitive's place is the point of the ray under the cursor closest to the origin (`View::placeOnRay`),
 its size about a hundred pixels (`View::scaleAt`). The `I` key (`ScenePanel::toggleIsolation`) hides all other models and shows
 the selected one with the same edits as the tree's eyes, and remembers what was shown.
 ## The field cache
 
-`python/fieldes/field_cache.py`, called by the runner (`_continue`) for every statement `name = <expression>` that is not a
+`python/fieldev/field_cache.py`, called by the runner (`_continue`) for every statement `name = <expression>` that is not a
 call of a file reader (`import_*`, `load*`, `read*`, `open`, `save*`, `write*`, `export*`, `input`, `var`, `gizmo`, `handles`,
 `render_cache`, `progress`). `lookup` makes the key — sha1 of the statement text, the content key of every name it reads
 (`content_cache.value_key` / `shape_key`; a function or module without content makes the statement uncacheable), the
@@ -227,11 +227,11 @@ Python attributes of the Shape and the text it printed) and is written only when
 in the tree installs a serializer (`OracleClause::install<T>(name)`; `libfive_tree_save` refuses an unsavable tree instead of
 writing a file that cannot be read). No oracle installs a serializer today (the lattice's beams did, and went with the lattices), so a tree with an oracle in it -- a mesh's distance, a data field -- is not written to disk.
 A new oracle type gets persistence by installing its serializer (`REGISTER_ORACLE_CLAUSE`) — nothing else changes. The folder is `field-cache/` beside
-the render cache (`FIELDES_FIELD_CACHE_DIR`), 3 GB, oldest first.
+the render cache (`FIELDEV_FIELD_CACHE_DIR`), 3 GB, oldest first.
 
-## FielDes apps
+## FielDev apps
 
-An app is a script whose inputs are declared with `app.number(...)`, `app.file(...)`, ... (`python/fieldes/app.py`). The form is read from the
+An app is a script whose inputs are declared with `app.number(...)`, `app.file(...)`, ... (`python/fieldev/app.py`). The form is read from the
 **text** of the script (`app_package.inputs_of`: every call `app.<kind>(...)` found in the syntax tree, its arguments plain values), so it exists before
 the script has run; at run time the same functions return the value the person chose (`app.begin(values)` is what the host calls first) or, in the editor,
 their defaults.
@@ -239,25 +239,25 @@ their defaults.
 - **Bundling** (`app_package.build`): a zip with `manifest.json` (title, inputs, assets, blocks, files), `app.py`, `blocks/` (the custom blocks the script *calls*, and the ones those call:
   `blocks.info()` and the names of the calls in the syntax tree), and `files/` (the files named in `app.asset(...)`, the relative string literals that name a file next to the script,
   and the modules next to the script that it imports). It is unpacked once per version of the file (the folder name is a hash of its content) into the user's cache,
-  `FIELDES_APPS_DIR` overrides it; the app runs with `files/` as its working folder and `blocks/` as its blocks folder.
-- **The window** (`AppWindow`) is a process of its own: `Interpreter` is a singleton of the process (`g_interpreter`), so a preview from the editor is `FielDes <temp>.fieldesapp`, which watches
+  `FIELDEV_APPS_DIR` overrides it; the app runs with `files/` as its working folder and `blocks/` as its blocks folder.
+- **The window** (`AppWindow`) is a process of its own: `Interpreter` is a singleton of the process (`g_interpreter`), so a preview from the editor is `FielDev <temp>.fieldevapp`, which watches
   its file and is read again when it is replaced. It asks Python through `Interpreter::callSupport` (`app_support.app_open / app_check / app_outputs / app_end`) and runs the script with
   `Interpreter::eval` like the editor does (`noteRequest()` first); Stop is `Interpreter::terminate()`. The progress bar reads `libfive::run_progress::current()`.
   `field_cache.py` never caches a statement that calls `app.` (its value is what a person chose).
 - **The command line** (`app_package.main`): `execute()` runs the statements one after another with `var(x)` = `x`, as `scripts/run_example.py` does. `--watch` polls the modification times of the files.
-- **File type**: `FileAssociation::registerForUser` (Windows: `HKCU\Software\Classes\.fieldesapp`, `FielDes.App`, the open command; Linux: `~/.local/share/mime/packages/application-x-fieldesapp.xml` and a desktop
+- **File type**: `FileAssociation::registerForUser` (Windows: `HKCU\Software\Classes\.fieldevapp`, `FielDev.App`, the open command; Linux: `~/.local/share/mime/packages/application-x-fieldevapp.xml` and a desktop
   entry, `xdg-mime default`); the Windows installer (`installer/Setup.cs`), the Linux installer and the `.deb` do the same for their copy.
-- **Testing**: `FIELDES_AUTOMATION` works in the app window too, with `appset <key> <value>`, `apprun`, `appstop`, `appwatch on|off`, `appwait <seconds>` and `appdump <file>`; the editor has
+- **Testing**: `FIELDEV_AUTOMATION` works in the app window too, with `appset <key> <value>`, `apprun`, `appstop`, `appwatch on|off`, `appwait <seconds>` and `appdump <file>`; the editor has
   `exportappto <file>` and `previewapp`.
 
-## Files FielDes writes
+## Files FielDev writes
 
 | File | Where | Holds |
 |---|---|---|
-| `field-cache/<key>.fdtree`, `.fdfield` | FielDes's cache folder (beside the render cache) | the field cache; safe to delete (Settings → Clear the caches) |
+| `field-cache/<key>.fdtree`, `.fdfield` | FielDev's cache folder (beside the render cache) | the field cache; safe to delete (Settings → Clear the caches) |
 | autosave | the script's own file, every 5 s once it has a name | your script |
-| settings | the usual per-user location (`QSettings`: `FielDes`) | window, splitter, recent files, shortcuts, and per app (`apps/<id>/...`) the values last chosen |
-| `apps/<name>-<hash>/` | the user's cache folder (`%LOCALAPPDATA%\FielDes\FielDes\apps`, `~/.cache/FielDes/apps`) | an unpacked `.fieldesapp`; safe to delete |
+| settings | the usual per-user location (`QSettings`: `FielDev`) | window, splitter, recent files, shortcuts, and per app (`apps/<id>/...`) the values last chosen |
+| `apps/<name>-<hash>/` | the user's cache folder (`%LOCALAPPDATA%\FielDev\FielDev\apps`, `~/.cache/FielDev/apps`) | an unpacked `.fieldevapp`; safe to delete |
 
 Nothing else is written outside the folders you choose (meshes exported by the script, STLs).
 
@@ -265,20 +265,20 @@ Nothing else is written outside the folders you choose (meshes exported by the s
 
 | | |
 |---|---|
-| `FIELDES_DIR` | folder holding `fieldes.dll` (for the Python library without the application) |
-| `FIELDES_AUTOMATION` | path of a command file: run a scripted GUI session (developer facility, `automation.hpp`) |
-| `FIELDES_TIMING` | print timing lines to stderr |
-| `FIELDES_APPS_DIR` | folder the apps are unpacked into (default: the user's cache) |
-| `FIELDES_FIELD_CACHE_DIR` | folder of the field cache (default: `field-cache` beside the render cache) |
-| `FIELDES_SCENE_CACHE_DIR` | folder of the kept model trees (default: `scene-cache` beside the render cache) |
-| `FIELDES_SHAPE_LOG`, `FIELDES_TREE_LOG` | files the tests read: per run, how many viewport shapes were kept / new (`View::setShapes`); and the model tree's rebuild phases, the edits it followed and their times (developer) |
-| `FIELDES_NO_EXACT_OFFSETS` | thicken, shell and offset an imported part with its own field instead of its exact distance |
+| `FIELDEV_DIR` | folder holding `fieldev.dll` (for the Python library without the application) |
+| `FIELDEV_AUTOMATION` | path of a command file: run a scripted GUI session (developer facility, `automation.hpp`) |
+| `FIELDEV_TIMING` | print timing lines to stderr |
+| `FIELDEV_APPS_DIR` | folder the apps are unpacked into (default: the user's cache) |
+| `FIELDEV_FIELD_CACHE_DIR` | folder of the field cache (default: `field-cache` beside the render cache) |
+| `FIELDEV_SCENE_CACHE_DIR` | folder of the kept model trees (default: `scene-cache` beside the render cache) |
+| `FIELDEV_SHAPE_LOG`, `FIELDEV_TREE_LOG` | files the tests read: per run, how many viewport shapes were kept / new (`View::setShapes`); and the model tree's rebuild phases, the edits it followed and their times (developer) |
+| `FIELDEV_NO_EXACT_OFFSETS` | thicken, shell and offset an imported part with its own field instead of its exact distance |
 
 ## Origins and licences
 
-FielDes stands on **libfive** (Matt Keeter, [github.com/libfive/libfive](https://github.com/libfive/libfive)).
+FielDev stands on **libfive** (Matt Keeter, [github.com/libfive/libfive](https://github.com/libfive/libfive)).
 From libfive come: the expression tree and evaluators, the dual-contouring/simplex mesher, the Python
-bindings' shape and the GUI ("Studio") from which `app/` derives. Everything FielDes adds — mesh
+bindings' shape and the GUI ("Studio") from which `app/` derives. Everything FielDev adds — mesh
 import, fields, curves and profiles, symmetries, the model tree, the section card, handles, the new theme —
 is in the same files and folders under
 the same licences: `kernel/` and `python/` are MPL-2.0; `app/` is GPL-2.0-or-later. See

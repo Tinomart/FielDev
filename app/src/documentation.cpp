@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -29,10 +29,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/documentation.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/documentation.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 DocumentationPane::DocumentationPane(Documentation docs)
     : m_search(new QLineEdit)
@@ -195,4 +195,4 @@ bool DocumentationPane::eventFilter(QObject* object, QEvent* event)
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

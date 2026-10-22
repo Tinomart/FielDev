@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -20,11 +20,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <cmath>
 #include <boost/math/constants/constants.hpp>
 
-#include "fieldes/bbox.hpp"
-#include "fieldes/camera.hpp"
-#include "fieldes/shader.hpp"
+#include "fieldev/bbox.hpp"
+#include "fieldev/camera.hpp"
+#include "fieldev/shader.hpp"
 
-namespace FielDes {
+namespace FielDev {
 void BBox::initializeGL()
 {
     initializeOpenGLFunctions();
@@ -144,4 +144,4 @@ void BBox::draw(const QVector3D& min, const QVector3D& max,
     glDisable(GL_STENCIL_TEST);
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

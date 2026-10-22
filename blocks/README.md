@@ -1,7 +1,7 @@
 # Custom blocks
 
 Put a `.py` file in this folder and every function in it becomes a **block**: a function that is there in every
-script you open in FielDes, like `sphere()` or `offset()`, with its call tip, completion and menu entry.
+script you open in FielDev, like `sphere()` or `offset()`, with its call tip, completion and menu entry.
 
 ```python
 # blocks/my_blocks.py
@@ -27,7 +27,7 @@ drilled
 - **Menus.** A block whose first argument is a model, with defaults for the others, is in the right-click menu under
   *Add operation > Custom blocks*; a block that needs no argument is under *New custom block*.
 - **Fields work.** Every number in a block can be a field: `perforate(plate, hole_radius=ramp(x_field(), (0, 60), (1, 3)))`.
-- **The folder** is this one by default (next to FielDes); *Settings > Blocks folder...* chooses another, for instance one
+- **The folder** is this one by default (next to FielDev); *Settings > Blocks folder...* chooses another, for instance one
   you keep in a shared place. A file that cannot be read is named in the script's output with the reason.
 
 `sample_blocks.py` has four to start from: `perforate`, `rounded`, `hollow`, `bracket`.

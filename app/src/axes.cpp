@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -17,11 +17,11 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
-#include "fieldes/axes.hpp"
-#include "fieldes/color.hpp"
-#include "fieldes/shader.hpp"
+#include "fieldev/axes.hpp"
+#include "fieldev/color.hpp"
+#include "fieldev/shader.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Axes::Axes()
 {
@@ -206,4 +206,4 @@ void Axes::drawWire(QMatrix4x4 M)
     Shader::basic->release();
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

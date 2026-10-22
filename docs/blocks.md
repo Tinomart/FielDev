@@ -1,7 +1,7 @@
 # Custom blocks
 
 A **block** is a function of your own that is there in every script, like `sphere()` or `offset()`. You write it once, in
-a few lines, in a Python file of the **blocks folder**; from then on any script you open in FielDes can call it — with its
+a few lines, in a Python file of the **blocks folder**; from then on any script you open in FielDev can call it — with its
 call tip, completion, a place in the right-click menus and a mark in the model tree.
 
 ```python
@@ -31,10 +31,10 @@ That is all there is to it: no import, no registration, no manifest. (`examples/
 
 ## The folder
 
-The blocks folder is `blocks` next to FielDes (the repository's `blocks/` in a checkout). It
+The blocks folder is `blocks` next to FielDev (the repository's `blocks/` in a checkout). It
 comes with `sample_blocks.py` (four blocks to start from) and a `README.md`. **Settings → Blocks folder…** chooses another
 folder — one you keep in a shared place, say — and **Settings → Show the blocks folder** opens it in the file manager. The
-choice is remembered; the environment variable `FIELDES_BLOCKS` sets it for runs outside the application
+choice is remembered; the environment variable `FIELDEV_BLOCKS` sets it for runs outside the application
 (`scripts/run_example.py` reads the folder too).
 
 The folder is **watched**: save a block file and every script that uses one of its blocks runs again, with the new version —
@@ -89,7 +89,7 @@ opens the app does not need your blocks folder; while the app runs, only its own
 
 ## Blocks and the library
 
-Blocks are functions of the same kind as the library's: `blocks.py` in `python/fieldes` loads them (`fieldes.blocks`), the
+Blocks are functions of the same kind as the library's: `blocks.py` in `python/fieldev` loads them (`fieldev.blocks`), the
 script runner puts them into the namespace every script runs in, the editor's completion tables list them, and
 `menu_catalog.py` offers them to the menus. Nothing is installed anywhere, and a block file is ordinary Python you can also
 run, test and keep in version control like any other.

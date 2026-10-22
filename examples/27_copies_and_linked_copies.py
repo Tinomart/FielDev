@@ -14,7 +14,7 @@
 #   * Select bolt_3, press Shift and look at the gizmo: the arrows become flat squares that move it along a plane, and the three scale squares
 #     are replaced by ONE gold ring that scales everything evenly -- which a linked copy does not have: it is not scaled.
 #   * Select the bolt and press Ctrl+D for a fourth one; Operation > Repeating > instance does the same.
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-15, -15, -5], [95, 55, 40], auto_scale=True)
 view.set_resolution(2)

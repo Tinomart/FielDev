@@ -1,9 +1,9 @@
 # Scripting
 
-FielDes scripts are ordinary Python. A script begins with
+FielDev scripts are ordinary Python. A script begins with
 
 ```python
-from fieldes import *
+from fieldev import *
 ```
 
 which brings in the whole library (shapes, CSG, transforms, mesh import and export, fields, regressions,
@@ -87,7 +87,7 @@ view.set_quality(8)                               # mesh accuracy, 1 (coarse) to
 
 They are statements like any other and appear under *Render settings* in the tree. **The region follows your models**: with
 `auto_scale=True` (the default, and written in the call so that it is in plain sight; `auto_scale=False` turns it off, as does the
-*Auto scale* row of the tree) FielDes rewrites the numbers of the call, live, when a model reaches out of the region or the models have
+*Auto scale* row of the tree) FielDev rewrites the numbers of the call, live, when a model reaches out of the region or the models have
 become much smaller than it -- type `sphere(30)` where there was `sphere(3)`, or drag a model out of the region, and watch the region
 grow. **A model that is moved, stretched or typed out of the region is taken in: the region grows to hold it.**
 `auto_scale` also sets how finely each model is meshed: with it on, every model gets the resolution of the scene scaled by its size next to
@@ -198,7 +198,7 @@ part = low_level_body(ball)                              # a body: drawn, a part
 rind = body_from_field(waves, 0.5)                       # a body from a field: where the field is below 0.5
 ```
 
-In FielDes, **right-click → Parametric shapes → New field → low_level_field** (or **Parametric shapes → New 3D shape → low_level_body**) writes the function with a working
+In FielDev, **right-click → Parametric shapes → New field → low_level_field** (or **Parametric shapes → New 3D shape → low_level_body**) writes the function with a working
 first logic -- the distance from the place you clicked -- and the call under it, and selects the model: change the logic in the
 text and it runs again. A function of `x` and `y` alone (`lambda x, y: ...`) is a field that does not depend on `z`. `a.max(b)`,
 `a.min(b)`, and the library's `maximum(a, b, c ...)` and `minimum(a, b, c ...)` stand for Python's `max` and `min`, which cannot
@@ -207,7 +207,7 @@ compare fields. **`body_from_field(field, level=0)`** and **`field_from_body(bod
 **The long way**, as libfive's Scheme documents it (`define-shape`, `remap-shape`):
 
 ```python
-from fieldes import *
+from fieldev import *
 
 cube = low_level_body(lambda x, y, z: maximum(x - 6, -6 - x, y - 6, -6 - y, z - 6, -6 - z))      # (define-shape (cube x y z) ...)
 
@@ -268,8 +268,8 @@ converted on import (`units='mm'` by default); STL/OBJ/PLY/OFF files carry none 
 
 ```python
 import os
-os.add_dll_directory(r"C:\path\to\FielDes")       # the folder holding fieldes.dll
-from fieldes import *
+os.add_dll_directory(r"C:\path\to\FielDev")       # the folder holding fieldev.dll
+from fieldev import *
 
 part, (lo, hi) = import_model("bracket.stl")[0]
 print(mass_properties(part, density=2.7, lower=lo, upper=hi)["mass"], "g")

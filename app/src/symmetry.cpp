@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -18,11 +18,11 @@ of the License, or (at your option) any later version.
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "fieldes/carddrag.hpp"
-#include "fieldes/i18n.hpp"
-#include "fieldes/symmetry.hpp"
+#include "fieldev/carddrag.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/symmetry.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 
@@ -529,4 +529,4 @@ void SymmetryPanel::place()
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

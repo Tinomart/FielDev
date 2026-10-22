@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -18,10 +18,10 @@ of the License, or (at your option) any later version.
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/shortcuts.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/shortcuts.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 QList<Shortcuts::Entry>& Shortcuts::entries()
 {
@@ -39,7 +39,7 @@ QAction* Shortcuts::add(QAction* a, const QString& id,
     e.defaults = defaults;
     entries().append(e);
 
-    QSettings s("FielDes", "FielDes");
+    QSettings s("FielDev", "FielDev");
     const QString key = "shortcuts/" + id;
     if (s.contains(key))
     {
@@ -63,7 +63,7 @@ QAction* Shortcuts::add(QAction* a, const QString& id,
 
 void Shortcuts::set(const QString& id, const QList<QKeySequence>& keys)
 {
-    QSettings s("FielDes", "FielDes");
+    QSettings s("FielDev", "FielDev");
     for (auto& e : entries())
     {
         if (e.id == id && e.action)
@@ -86,7 +86,7 @@ void Shortcuts::set(const QString& id, const QList<QKeySequence>& keys)
 
 void Shortcuts::resetAll()
 {
-    QSettings s("FielDes", "FielDes");
+    QSettings s("FielDev", "FielDev");
     s.remove("shortcuts");
     for (auto& e : entries())
     {
@@ -274,4 +274,4 @@ void ShortcutDialog::editRow(int row)
     rebuild();
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -11,9 +11,9 @@ of the License, or (at your option) any later version.
 #include <QPixmap>
 #include <functional>
 
-#include "fieldes/icons.hpp"
+#include "fieldev/icons.hpp"
 
-namespace FielDes {
+namespace FielDev {
 namespace Icons {
 
 namespace {
@@ -130,4 +130,4 @@ QIcon logo(int size)
 }
 
 }   // namespace Icons
-}   // namespace FielDes
+}   // namespace FielDev

@@ -1,6 +1,6 @@
-# The kernel: field evaluation and meshing (shared library "fieldes"),
-# and its C++ standard library of shapes ("fieldes-stdlib")
-if (NOT DEFINED FIELDES_BUILD_FROM_ROOT)
+# The kernel: field evaluation and meshing (shared library "fieldev"),
+# and its C++ standard library of shapes ("fieldev-stdlib")
+if (NOT DEFINED FIELDEV_BUILD_FROM_ROOT)
     message(FATAL_ERROR "CMake must be called against the top-level directory")
 endif()
 

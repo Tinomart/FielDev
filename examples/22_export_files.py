@@ -10,7 +10,7 @@
 # FBX is Autodesk's format, read and written here without Autodesk's SDK and for meshes only (docs/meshes.md says what that means).
 import os
 import tempfile
-from fieldes import *
+from fieldev import *
 
 view.set_bounds((-5, -10, -10), (65, 30, 20), auto_scale=True)
 view.set_resolution(2)
@@ -21,7 +21,7 @@ beam = difference(box((0, 0, 0), (60, 20, 10)), cylinder(3, 20, (30, 10, -5)))
 beam
 
 # SECTION The files
-out = os.path.join(tempfile.gettempdir(), "fieldes-exports")
+out = os.path.join(tempfile.gettempdir(), "fieldev-exports")
 region = ((-1, -1, -1), (61, 21, 11))
 for ext in (".stl", ".obj", ".ply", ".3mf", ".glb", ".fbx", ".off", ".dxf"):
     if not os.path.exists(os.path.join(out, "beam" + ext)):

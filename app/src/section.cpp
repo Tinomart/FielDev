@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -34,12 +34,12 @@ of the License, or (at your option) any later version.
 
 #include "libfive/eval/eval_array.hpp"
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/carddrag.hpp"
-#include "fieldes/section.hpp"
-#include "fieldes/colormap.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/carddrag.hpp"
+#include "fieldev/section.hpp"
+#include "fieldev/colormap.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -246,7 +246,7 @@ FieldSlice sampleField(const QVector<FieldSource>& sources,
 
     // Every pixel is the shape's own field evaluated at that point (on all the cores: the same numbers)
     const size_t N = libfive::ArrayEvaluator::N;
-    const bool timing = std::getenv("FIELDES_TIMING") != nullptr;
+    const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
     const auto t_start = std::chrono::steady_clock::now();
     std::atomic<int> built_ms{0};
     for (const auto& src : sources)
@@ -1384,4 +1384,4 @@ void FieldPanel::updateInfo()
     else m_info->setText(m_name.isEmpty() ? T("Drag the arrows to move the disc") : T("%1: drag the arrows to move the disc").arg(m_name));
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

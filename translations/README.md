@@ -1,6 +1,6 @@
 # Translations
 
-FielDes shows its own words (menus, dialogs, tooltips, the guided tour, the guide, the creation popups, the result legends) in the language
+FielDev shows its own words (menus, dialogs, tooltips, the guided tour, the guide, the creation popups, the result legends) in the language
 of the computer, or in the one chosen under **Settings → Language**. The language is read when the program starts, so a change comes
 with a restart (the menu offers it).
 
@@ -42,8 +42,8 @@ the order of the English text, so a translation keeps that order (`check` compar
 `python scripts/translations.py list` prints every text of the program that can be translated; `merge <file.json> <code>` puts the entries of
 a file into `translations/<code>.json`, refusing the ones whose placeholders do not match.
 
-To see which texts of a running program are still missing a translation, start it with the environment variable `FIELDES_I18N_LOG=1`
-and the language set (`FIELDES_LANGUAGE=de`, which forces that language whatever the setting says; the program itself never sets it): each
+To see which texts of a running program are still missing a translation, start it with the environment variable `FIELDEV_I18N_LOG=1`
+and the language set (`FIELDEV_LANGUAGE=de`, which forces that language whatever the setting says; the program itself never sets it): each
 missing text is written to the console once.
 
 Qt's own words (the **Yes** / **Cancel** of a question, the **Copy** / **Paste** of a text field) are in the same files under keys that start with

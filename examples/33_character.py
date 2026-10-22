@@ -10,7 +10,7 @@
 #   * export_mesh(character, "character.glb", symmetric="x") would write it as a mesh that is exactly symmetric (see example 32).
 #
 # The script also checks the fields it makes and prints a line that starts with ok or FAIL for each (in the output pane).
-from fieldes import *
+from fieldev import *
 
 view.set_bounds((-70, -40, -12), (70, 40, 185))
 view.set_resolution(1)

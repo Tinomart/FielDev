@@ -1,17 +1,17 @@
 <#
 .SYNOPSIS
-    Builds the Windows installer of FielDes: one .exe that asks for the language and the folder, installs for the
+    Builds the Windows installer of FielDev: one .exe that asks for the language and the folder, installs for the
     current user (no administrator rights), makes the shortcuts and the entry in Settings > Apps, and uninstalls.
 
 .DESCRIPTION
-    The portable folder (dist\FielDes, made by  scripts\build-windows.ps1 -Package ) goes into the installer as a zip.
+    The portable folder (dist\FielDev, made by  scripts\build-windows.ps1 -Package ) goes into the installer as a zip.
     Setup.cs is compiled twice: once as the uninstaller (no payload), once as Setup with the payload, the uninstaller
-    and the version inside.  The compiler is the one of the Visual Studio Build Tools that builds FielDes
+    and the version inside.  The compiler is the one of the Visual Studio Build Tools that builds FielDev
     (or the .NET Framework's csc.exe, which every Windows has).
 
 .EXAMPLE
-    .\installer\build-installer.ps1                 # dist\FielDes-<version>-windows-x64-setup.exe
-    .\installer\build-installer.ps1 -Folder D:\FielDes -Out D:\setup.exe
+    .\installer\build-installer.ps1                 # dist\FielDev-<version>-windows-x64-setup.exe
+    .\installer\build-installer.ps1 -Folder D:\FielDev -Out D:\setup.exe
 
 .NOTES
     The installer is not signed: Windows SmartScreen says "unknown publisher" the first time it is run
@@ -20,15 +20,15 @@
 #>
 param(
     [string]$Source = (Split-Path -Parent $PSScriptRoot),
-    [string]$Folder = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist\FielDes'),
+    [string]$Folder = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist\FielDev'),
     [string]$Out    = ''
 )
 $ErrorActionPreference = 'Stop'
 
-$version = [regex]::Match((Get-Content (Join-Path $Source 'CMakeLists.txt') -Raw), 'project\(FielDes VERSION ([0-9.]+)').Groups[1].Value
-if (-not $version) { throw 'The version is not in CMakeLists.txt (project(FielDes VERSION x.y.z ...)).' }
-if (-not $Out) { $Out = Join-Path $Source "dist\FielDes-$version-windows-x64-setup.exe" }
-if (-not (Test-Path (Join-Path $Folder 'FielDes.exe'))) { throw "$Folder is not the portable folder (no FielDes.exe): run scripts\build-windows.ps1 -Package first." }
+$version = [regex]::Match((Get-Content (Join-Path $Source 'CMakeLists.txt') -Raw), 'project\(FielDev VERSION ([0-9.]+)').Groups[1].Value
+if (-not $version) { throw 'The version is not in CMakeLists.txt (project(FielDev VERSION x.y.z ...)).' }
+if (-not $Out) { $Out = Join-Path $Source "dist\FielDev-$version-windows-x64-setup.exe" }
+if (-not (Test-Path (Join-Path $Folder 'FielDev.exe'))) { throw "$Folder is not the portable folder (no FielDev.exe): run scripts\build-windows.ps1 -Package first." }
 
 # --- the compiler ------------------------------------------------------------------------
 $csc = $null
@@ -41,11 +41,11 @@ if (Test-Path $vswhere) {
 if (-not $csc) { $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe' }
 if (-not (Test-Path $csc)) { throw 'No C# compiler found (neither the Visual Studio Build Tools nor the .NET Framework).' }
 
-$work = Join-Path ([IO.Path]::GetTempPath()) ('fieldes-installer-' + [guid]::NewGuid().ToString('N'))
+$work = Join-Path ([IO.Path]::GetTempPath()) ('fieldev-installer-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $work | Out-Null
 try {
     $src  = Join-Path $PSScriptRoot 'Setup.cs'
-    $icon = Join-Path $Source 'app\deploy\windows\fieldes.ico'
+    $icon = Join-Path $Source 'app\deploy\windows\fieldev.ico'
     Set-Content (Join-Path $work 'version.txt') $version -Encoding ascii
     $refs = @('/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll',
               '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll')
@@ -65,7 +65,7 @@ try {
     try {
         $count = 0
         Get-ChildItem $root -Recurse -File -Force | Where-Object {
-            $_.FullName -notmatch '\\__pycache__\\' -and $_.Extension -ne '.pyc' -and $_.Name -notlike 'FielDes-*-setup.exe'
+            $_.FullName -notmatch '\\__pycache__\\' -and $_.Extension -ne '.pyc' -and $_.Name -notlike 'FielDev-*-setup.exe'
         } | ForEach-Object {
             $rel = $_.FullName.Substring($root.Length + 1).Replace('\', '/')
             [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $rel, [IO.Compression.CompressionLevel]::Optimal)

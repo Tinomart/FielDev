@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2018  Matt Keeter
 
@@ -20,10 +20,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <QCommandLineParser>
 
-#include "fieldes/args.hpp"
-#include "fieldes/editor.hpp"
+#include "fieldev/args.hpp"
+#include "fieldev/editor.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Arguments::Arguments(QCoreApplication* application)
 {
@@ -32,7 +32,7 @@ Arguments::Arguments(QCoreApplication* application)
         const QStringList all = application->arguments();
         int at = 1;
         if (all.size() > at && all[at] == "app") ++at;
-        if (all.size() > at && (at > 1 || all[at].endsWith(".fieldesapp", Qt::CaseInsensitive)))
+        if (all.size() > at && (at > 1 || all[at].endsWith(".fieldevapp", Qt::CaseInsensitive)))
         {
             app = true;
             appPath = all[at];
@@ -47,7 +47,7 @@ Arguments::Arguments(QCoreApplication* application)
     }
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("FielDes: field-driven design");
+    parser.setApplicationDescription("FielDev: field-driven design");
     parser.addHelpOption();
     parser.addPositionalArgument("filename", "Script to load");
 
@@ -63,4 +63,4 @@ Arguments::Arguments(QCoreApplication* application)
     language = Language::LANGUAGE_PYTHON;
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

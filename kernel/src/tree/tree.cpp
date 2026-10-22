@@ -861,7 +861,7 @@ Tree Tree::optimized() const {
     if (flags & TREE_FLAG_IS_OPTIMIZED) {
         return *this;
     }
-    const bool timing = std::getenv("FIELDES_TREE_TIMING") != nullptr;
+    const bool timing = std::getenv("FIELDEV_TREE_TIMING") != nullptr;
     const auto t0 = std::chrono::steady_clock::now();
     const auto lap = [&](const char* what, double extra) {
         if (timing) {

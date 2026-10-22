@@ -1,5 +1,5 @@
-# The FielDes application (Qt): editor, viewport, model tree, section viewer
-if (NOT DEFINED FIELDES_BUILD_FROM_ROOT)
+# The FielDev application (Qt): editor, viewport, model tree, section viewer
+if (NOT DEFINED FIELDEV_BUILD_FROM_ROOT)
     message(FATAL_ERROR "CMake must be called against the top-level directory")
 endif()
 
@@ -37,6 +37,7 @@ set(SRCS
     src/icons.cpp
     src/language.cpp
     src/primitives_dialog.cpp
+    src/referencelayer.cpp
     src/scenetree.cpp
     src/script.cpp
     src/section.cpp
@@ -62,53 +63,53 @@ set(SRCS
 )
 
 set(QOBJECTS
-    include/fieldes/app.hpp
-    include/fieldes/appwindow.hpp
-    include/fieldes/automation.hpp
-    include/fieldes/busy.hpp
-    include/fieldes/camera.hpp
-    include/fieldes/documentation.hpp
-    include/fieldes/editor.hpp
-    include/fieldes/findbar.hpp
-    include/fieldes/interpreter.hpp
-    include/fieldes/language.hpp
-    include/fieldes/primitives_dialog.hpp
-    include/fieldes/scenetree.hpp
-    include/fieldes/script.hpp
-    include/fieldes/section.hpp
-    include/fieldes/carddrag.hpp
-    include/fieldes/focuscue.hpp
-    include/fieldes/shape.hpp
-    include/fieldes/shortcuts.hpp
-    include/fieldes/symmetry.hpp
-    include/fieldes/syntax.hpp
-    include/fieldes/tutorial.hpp
-    include/fieldes/view.hpp
-    include/fieldes/window.hpp
-    include/fieldes/workplane.hpp
+    include/fieldev/app.hpp
+    include/fieldev/appwindow.hpp
+    include/fieldev/automation.hpp
+    include/fieldev/busy.hpp
+    include/fieldev/camera.hpp
+    include/fieldev/documentation.hpp
+    include/fieldev/editor.hpp
+    include/fieldev/findbar.hpp
+    include/fieldev/interpreter.hpp
+    include/fieldev/language.hpp
+    include/fieldev/primitives_dialog.hpp
+    include/fieldev/scenetree.hpp
+    include/fieldev/script.hpp
+    include/fieldev/section.hpp
+    include/fieldev/carddrag.hpp
+    include/fieldev/focuscue.hpp
+    include/fieldev/shape.hpp
+    include/fieldev/shortcuts.hpp
+    include/fieldev/symmetry.hpp
+    include/fieldev/syntax.hpp
+    include/fieldev/tutorial.hpp
+    include/fieldev/view.hpp
+    include/fieldev/window.hpp
+    include/fieldev/workplane.hpp
 )
 
 if(WIN32)
-    add_executable(FielDes WIN32 ${SRCS} ${QOBJECTS} deploy/windows/icon.rc)
+    add_executable(FielDev WIN32 ${SRCS} ${QOBJECTS} deploy/windows/icon.rc)
 else()
-    add_executable(FielDes ${SRCS} ${QOBJECTS})
+    add_executable(FielDev ${SRCS} ${QOBJECTS})
 endif()
 
-# Where FielDes.exe is built: set FIELDES_OUTPUT_DIR to the folder the program is run from (dist/FielDes) and it is built straight into it -- the libraries are put beside it by the
-# steps below -- so that there is no copy of the build to make.  Empty: in the build tree, as ever.  (A running FielDes.exe cannot be replaced: close it before the link step.)
-set(FIELDES_OUTPUT_DIR "" CACHE PATH "Where FielDes.exe is built (empty: in the build tree)")
-if(FIELDES_OUTPUT_DIR)
-    set_target_properties(FielDes PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE "${FIELDES_OUTPUT_DIR}")
+# Where FielDev.exe is built: set FIELDEV_OUTPUT_DIR to the folder the program is run from (dist/FielDev) and it is built straight into it -- the libraries are put beside it by the
+# steps below -- so that there is no copy of the build to make.  Empty: in the build tree, as ever.  (A running FielDev.exe cannot be replaced: close it before the link step.)
+set(FIELDEV_OUTPUT_DIR "" CACHE PATH "Where FielDev.exe is built (empty: in the build tree)")
+if(FIELDEV_OUTPUT_DIR)
+    set_target_properties(FielDev PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE "${FIELDEV_OUTPUT_DIR}")
 endif()
 
-target_include_directories(FielDes PUBLIC include)
+target_include_directories(FielDev PUBLIC include)
 if(MSVC)
-    # a map of where the functions are: a crash report names places as module + offset, read with it (kept in the build folder: with FIELDES_OUTPUT_DIR the
+    # a map of where the functions are: a crash report names places as module + offset, read with it (kept in the build folder: with FIELDEV_OUTPUT_DIR the
     # program is built into the folder it is run from, and the map is not a part of it)
-    target_link_options(FielDes PRIVATE "/MAP:${CMAKE_CURRENT_BINARY_DIR}/FielDes.map")
+    target_link_options(FielDev PRIVATE "/MAP:${CMAKE_CURRENT_BINARY_DIR}/FielDev.map")
 endif()
-target_include_directories(FielDes PRIVATE ${Python3_INCLUDE_DIRS})
-target_link_libraries(FielDes
+target_include_directories(FielDev PRIVATE ${Python3_INCLUDE_DIRS})
+target_link_libraries(FielDev
     libfive libfive-stdlib
     ${Python3_LIBRARIES}
     Qt5::Widgets
@@ -116,23 +117,23 @@ target_link_libraries(FielDes
     Qt5::OpenGL
     Qt5::Concurrent
 )
-target_compile_definitions(FielDes PRIVATE FIELDES_WITH_PYTHON FIELDES_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(FielDev PRIVATE FIELDEV_WITH_PYTHON FIELDEV_VERSION="${PROJECT_VERSION}")
 
 if (MSVC)
-    # Copy the DLLs into the build directory, so that FielDes.exe can find them
-    add_custom_command(TARGET FielDes POST_BUILD
+    # Copy the DLLs into the build directory, so that FielDev.exe can find them
+    add_custom_command(TARGET FielDev POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:libfive>
-            $<TARGET_FILE_DIR:FielDes>)
-    add_custom_command(TARGET FielDes POST_BUILD
+            $<TARGET_FILE_DIR:FielDev>)
+    add_custom_command(TARGET FielDev POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:libfive-stdlib>
-            $<TARGET_FILE_DIR:FielDes>)
-    # The kernel's own dependency (manifold.dll): FielDes.exe doesn't link
+            $<TARGET_FILE_DIR:FielDev>)
+    # The kernel's own dependency (manifold.dll): FielDev.exe doesn't link
     # it directly, so vcpkg's app-local copy step doesn't bring it
     find_package(manifold CONFIG REQUIRED)
-    add_custom_command(TARGET FielDes POST_BUILD
+    add_custom_command(TARGET FielDev POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:manifold::manifold>
-            $<TARGET_FILE_DIR:FielDes>)
+            $<TARGET_FILE_DIR:FielDev>)
 endif(MSVC)

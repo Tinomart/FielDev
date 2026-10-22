@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017-2021  Matt Keeter
 
@@ -25,7 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QStandardPaths>
 #include <QTextStream>
 
-#include "fieldes/fileassoc.hpp"
+#include "fieldev/fileassoc.hpp"
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -34,7 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <shlobj.h>
 #endif
 
-namespace FielDes {
+namespace FielDev {
 namespace FileAssociation {
 
 #ifdef _WIN32
@@ -76,19 +76,19 @@ bool writeDefault(const QString& subKey, const QString& value)
 bool isRegistered()
 {
     // (the merged view of the machine's and the user's registrations is what a double click goes by)
-    if (readDefault(HKEY_CLASSES_ROOT, ".fieldesapp") != "FielDes.App") return false;
-    const QString command = readDefault(HKEY_CLASSES_ROOT, "FielDes.App\\shell\\open\\command");
+    if (readDefault(HKEY_CLASSES_ROOT, ".fieldevapp") != "FielDev.App") return false;
+    const QString command = readDefault(HKEY_CLASSES_ROOT, "FielDev.App\\shell\\open\\command");
     return command.compare("\"" + exePath() + "\" \"%1\"", Qt::CaseInsensitive) == 0;
 }
 
 bool registerForUser(QString* why)
 {
     const QString exe = exePath();
-    bool ok = writeDefault(".fieldesapp", "FielDes.App");
-    ok = ok && writeDefault("FielDes.App", "FielDes app");
-    ok = ok && writeDefault("FielDes.App\\DefaultIcon", "\"" + exe + "\",0");
-    ok = ok && writeDefault("FielDes.App\\shell\\open", "Open");
-    ok = ok && writeDefault("FielDes.App\\shell\\open\\command", "\"" + exe + "\" \"%1\"");
+    bool ok = writeDefault(".fieldevapp", "FielDev.App");
+    ok = ok && writeDefault("FielDev.App", "FielDev app");
+    ok = ok && writeDefault("FielDev.App\\DefaultIcon", "\"" + exe + "\",0");
+    ok = ok && writeDefault("FielDev.App\\shell\\open", "Open");
+    ok = ok && writeDefault("FielDev.App\\shell\\open\\command", "\"" + exe + "\" \"%1\"");
     if (!ok)
     {
         if (why) *why = "The registry of this user could not be written.";
@@ -103,8 +103,8 @@ bool registerForUser(QString* why)
 
 namespace {
 
-QString mimeFile() { return QDir::homePath() + "/.local/share/mime/packages/application-x-fieldesapp.xml"; }
-QString desktopFile() { return QDir::homePath() + "/.local/share/applications/fieldes-app.desktop"; }
+QString mimeFile() { return QDir::homePath() + "/.local/share/mime/packages/application-x-fieldevapp.xml"; }
+QString desktopFile() { return QDir::homePath() + "/.local/share/applications/fieldev-app.desktop"; }
 
 bool writeText(const QString& path, const QString& text)
 {
@@ -133,18 +133,18 @@ bool registerForUser(QString* why)
         writeText(mimeFile(),
                   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                   "<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n"
-                  "  <mime-type type=\"application/x-fieldesapp\">\n"
-                  "    <comment>FielDes app</comment>\n"
-                  "    <glob pattern=\"*.fieldesapp\"/>\n"
-                  "    <icon name=\"fieldes\"/>\n"
+                  "  <mime-type type=\"application/x-fieldevapp\">\n"
+                  "    <comment>FielDev app</comment>\n"
+                  "    <glob pattern=\"*.fieldevapp\"/>\n"
+                  "    <icon name=\"fieldev\"/>\n"
                   "  </mime-type>\n"
                   "</mime-info>\n") &&
         writeText(desktopFile(),
                   "[Desktop Entry]\n"
                   "Type=Application\n"
-                  "Name=FielDes app\n"
+                  "Name=FielDev app\n"
                   "Exec=\"" + exe + "\" %f\n"
-                  "MimeType=application/x-fieldesapp;\n"
+                  "MimeType=application/x-fieldevapp;\n"
                   "NoDisplay=true\n"
                   "Terminal=false\n");
     if (!ok)
@@ -155,11 +155,11 @@ bool registerForUser(QString* why)
     // (best effort: a system without these tools reads the files at its next start)
     QProcess::execute("update-mime-database", {QDir::homePath() + "/.local/share/mime"});
     QProcess::execute("update-desktop-database", {QDir::homePath() + "/.local/share/applications"});
-    QProcess::execute("xdg-mime", {"default", "fieldes-app.desktop", "application/x-fieldesapp"});
+    QProcess::execute("xdg-mime", {"default", "fieldev-app.desktop", "application/x-fieldevapp"});
     return true;
 }
 
 #endif
 
 }   // namespace FileAssociation
-}   // namespace FielDes
+}   // namespace FielDev

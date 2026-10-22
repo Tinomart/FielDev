@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -49,18 +49,18 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "libfive/run_progress.hpp"
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/editor.hpp"
-#include "fieldes/script.hpp"
-#include "fieldes/findbar.hpp"
-#include "fieldes/color.hpp"
-#include "fieldes/theme.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/editor.hpp"
+#include "fieldev/script.hpp"
+#include "fieldev/findbar.hpp"
+#include "fieldev/color.hpp"
+#include "fieldev/theme.hpp"
 
-#include "fieldes/python/formatter.hpp"
-#include "fieldes/python/language.hpp"
-#include "fieldes/python/syntax.hpp"
+#include "fieldev/python/formatter.hpp"
+#include "fieldev/python/language.hpp"
+#include "fieldev/python/syntax.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 
@@ -138,7 +138,7 @@ Editor::Editor(Language::Type language)
 
     {   // Inconsolata, the size remembered across runs; the output below the script a few points smaller
         QFont font("Inconsolata",
-                   QSettings("FielDes", "FielDes").value("editor-font-size", 11).toInt());
+                   QSettings("FielDev", "FielDev").value("editor-font-size", 11).toInt());
         QFontMetrics fm(font);
         script->setTabStopDistance(fm.horizontalAdvance("  "));
         script_doc->setDefaultFont(font);
@@ -526,7 +526,7 @@ void Editor::onSpinner()
         m_runLabel->setToolTip(text);
     }
     m_runLabel->setText(shown);
-    if (qEnvironmentVariableIsSet("FIELDES_TIMING"))
+    if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
     {
         std::cerr << "[bar-script] " << std::fixed << QDateTime::currentMSecsSinceEpoch() / 1000.0 << " "
                   << e << " s: step " << r.step << "/" << r.steps << " op " << r.operation << " "
@@ -553,7 +553,7 @@ void Editor::refreshOutline(bool runDone)
 void Editor::onInterpreterDone(Result r)
 {
     m_scriptRunning = false;
-    if (qEnvironmentVariableIsSet("FIELDES_TIMING"))
+    if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
         std::cerr << "[run] done: okay=" << r.okay << " replaced=" << r.replaced << " discard=" << m_discardResults
                   << " terminating=" << m_terminating << " shapes=" << r.shapes.size() << std::endl;
     // (the model tree is read from the text again once what is below has been set: what the run found out is laid over its rows)
@@ -569,7 +569,7 @@ void Editor::onInterpreterDone(Result r)
     m_runText.clear();
     updateControls();
     if (again) QTimer::singleShot(0, this, [this] { m_textChangedDebounce.start(); });
-    if (m_runRow->isVisible() && qEnvironmentVariableIsSet("FIELDES_TIMING"))
+    if (m_runRow->isVisible() && qEnvironmentVariableIsSet("FIELDEV_TIMING"))
         std::cerr << "[bar-script] " << std::fixed << QDateTime::currentMSecsSinceEpoch() / 1000.0
                   << " done after " << m_runClock.elapsed() / 1000.0 << " s" << std::endl;
     m_runRow->hide();
@@ -735,7 +735,7 @@ void Editor::onInterpreterDone(Result r)
                 // The import of the library goes to the top of the script; every other fix (the render settings) goes under
                 // that line -- above it `view` is not there yet, and a settings line written before the model it is about
                 // (`view.set_bounds(*roi(part))`) is an error -- and in the order they are listed
-                static const QRegularExpression libraryImport(R"(^\s*(from\s+fieldes[\w.]*\s+import\b|import\s+fieldes\b))");
+                static const QRegularExpression libraryImport(R"(^\s*(from\s+fieldev[\w.]*\s+import\b|import\s+fieldev\b))");
                 QTextCursor c(script_doc);
                 c.beginEditBlock();
                 int at = -1;
@@ -796,7 +796,7 @@ void Editor::undo()
     QTextDocument* doc = scriptWidget()->document();
     const bool bookkeeping = m_readyDoc == doc && m_readyRevision >= 0 && doc->toPlainText() == m_readyText;
     const int steps = bookkeeping ? m_readyCount + 1 : 1;
-    if (qEnvironmentVariableIsSet("FIELDES_TIMING"))
+    if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
         std::cerr << "[undo] revision " << doc->revision() << " (the program's own edit was left at " << m_readyRevision << "), same text " << bookkeeping
                   << ", steps " << steps << std::endl;
     for (int i = 0; i < steps && doc->isUndoAvailable(); ++i) doc->undo();
@@ -910,7 +910,7 @@ void Editor::setScript(const QString& s, bool reload, const QString& path)
 void Editor::saveBreakpoints()
 {
     if (m_breakpointsFrozen || m_breakpointPath.isEmpty() || !script) return;
-    QSettings settings("FielDes", "FielDes");
+    QSettings settings("FielDev", "FielDev");
     const QString key = breakpointKey(m_breakpointPath);
     const QList<int> lines = script->breakpoints();
     if (lines.isEmpty())
@@ -938,7 +938,7 @@ void Editor::restoreBreakpoints()
 {
     m_breakpointsSaved.clear();
     if (m_breakpointPath.isEmpty()) return;
-    QSettings settings("FielDes", "FielDes");
+    QSettings settings("FielDev", "FielDev");
     const QString text = settings.value(breakpointKey(m_breakpointPath)).toString();
     if (text.isEmpty()) return;
     const QJsonArray points = QJsonDocument::fromJson(text.toUtf8()).object().value("points").toArray();
@@ -1316,7 +1316,7 @@ void Editor::applyEditsNoted(QList<TextEdit> edits, const QString& description, 
         m_readyText.clear();
         m_readyCount = 0;
     }
-    if (qEnvironmentVariableIsSet("FIELDES_TIMING"))
+    if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
         std::cerr << "[edit] " << description.toStdString() << " (revision " << script_doc->revision() << ", " << m_readyCount << " of the program's own)" << std::endl;
 }
 
@@ -1445,7 +1445,7 @@ void Editor::setLanguage(Language::Type t) {
     switch (t) {
         case Language::LANGUAGE_PYTHON:
             if (prev_type != Language::LANGUAGE_PYTHON) {
-                m_language.reset(FielDes::Python::language(script));
+                m_language.reset(FielDev::Python::language(script));
                 changed = true;
             }
             break;
@@ -1542,7 +1542,7 @@ FindBar* Editor::findBar() const
 
 static bool isLibraryFile(const QString& path)
 {
-    return QDir::fromNativeSeparators(path).contains("/python/fieldes/", Qt::CaseInsensitive);
+    return QDir::fromNativeSeparators(path).contains("/python/fieldev/", Qt::CaseInsensitive);
 }
 
 void Editor::setFilePath(const QString& path)
@@ -1581,7 +1581,7 @@ void Editor::updateAuxTitle(const Aux& a)
         m_tabs->setTabText(int(i) + 1, name);
         m_tabs->setTabToolTip(int(i) + 1, QDir::toNativeSeparators(a.path) + "\n" +
             T("Editing only: this file is not rendered.") +
-            (isLibraryFile(a.path) ? "\n" + T("Part of FielDes's library: changes apply after FielDes is restarted.")
+            (isLibraryFile(a.path) ? "\n" + T("Part of FielDev's library: changes apply after FielDev is restarted.")
                                    : "\n" + T("Saving it runs the script again.")));
     }
 }
@@ -1596,7 +1596,7 @@ void Editor::onTabChanged(int index)
         const Aux& a = *m_aux[index - 1];
         const QString where = QDir::toNativeSeparators(a.path);
         m_auxLabel->setText(T("Editing only: this file is not rendered.") + " " +
-            (isLibraryFile(a.path) ? T("Changes to the library apply after FielDes is restarted.")
+            (isLibraryFile(a.path) ? T("Changes to the library apply after FielDev is restarted.")
                                    : T("Saving it runs the script again.")));
         m_auxLabel->setToolTip(where);
     }
@@ -1669,9 +1669,9 @@ void Editor::openFile(const QString& file, int line0, const QString& name)
     aux->script->document()->setDefaultFont(script_doc->defaultFont());
     aux->script->setTabStopDistance(script->tabStopDistance());
     aux->script->copyVocabularyFrom(*script);
-    aux->formatter = std::make_unique<FielDes::Python::Formatter>();
+    aux->formatter = std::make_unique<FielDev::Python::Formatter>();
     aux->script->bind(aux->formatter.get());
-    auto syntax = new FielDes::Python::Syntax(aux->script->document());
+    auto syntax = new FielDev::Python::Syntax(aux->script->document());
     syntax->setKeywords(m_keywords);
     aux->find = new FindBar(aux->script, aux->page);
     pageLayout->addWidget(aux->script);
@@ -1787,7 +1787,7 @@ bool Editor::saveAux(Aux& a)
     QFile f(a.path);
     if (!f.open(QIODevice::WriteOnly))
     {
-        QMessageBox::warning(this, "FielDes", T("Could not save\n%1").arg(QDir::toNativeSeparators(a.path)) +
+        QMessageBox::warning(this, "FielDev", T("Could not save\n%1").arg(QDir::toNativeSeparators(a.path)) +
                                               "\n\n" + f.errorString());
         return false;
     }
@@ -1798,7 +1798,7 @@ bool Editor::saveAux(Aux& a)
     a.script->document()->setModified(false);
     if (isLibraryFile(a.path))
     {
-        emit notice(T("Saved %1. The library is read when FielDes starts.").arg(QFileInfo(a.path).fileName()));
+        emit notice(T("Saved %1. The library is read when FielDev starts.").arg(QFileInfo(a.path).fileName()));
     }
     else
     {
@@ -1835,4 +1835,4 @@ bool Editor::saveAllAuxiliary()
     return true;
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

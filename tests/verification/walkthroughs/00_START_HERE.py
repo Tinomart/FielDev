@@ -1,4 +1,4 @@
-from fieldes import *
+from fieldev import *
 view.set_bounds([-5, -7, -4], [3, 2, 5], auto_scale=True)
 
 # START HERE: WALKTHROUGHS OF WHAT YOU DO WITH THE MOUSE.

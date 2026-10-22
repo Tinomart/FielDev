@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -17,10 +17,10 @@ of the License, or (at your option) any later version.
 #include <QPolygonF>
 #include <QRadialGradient>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/typeicons.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/typeicons.hpp"
 
-namespace FielDes {
+namespace FielDev {
 namespace TypeIcons {
 
 namespace {
@@ -29,7 +29,7 @@ const double kPi = 3.14159265358979323846;
 
 struct Kind { QString label; QColor color; };
 
-// (the same as fieldes/kinds.py says; the interpreter's own list replaces them when it has been asked)
+// (the same as fieldev/kinds.py says; the interpreter's own list replaces them when it has been asked)
 QHash<QString, Kind>& kinds()
 {
     static QHash<QString, Kind> k = {
@@ -300,4 +300,4 @@ void setKinds(const QJsonObject& given)
 }
 
 }   // namespace TypeIcons
-}   // namespace FielDes
+}   // namespace FielDev

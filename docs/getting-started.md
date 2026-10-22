@@ -1,11 +1,11 @@
 # Getting started
 
-## Running FielDes
+## Running FielDev
 
-FielDev has **no release and no installer yet**: build it from source (see [Building from source](building.md)) and run `FielDes` from the build
-folder -- the program keeps the name FielDes until the rename.
+FielDev has **no release and no installer yet**: build it from source (see [Building from source](building.md)) and run `FielDev` from the build
+folder -- the program keeps the name FielDev until the rename.
 
-FielDes always opens maximised, so the model has the room. The first time, a card offers the **guided tour** (about two
+FielDev always opens maximised, so the model has the room. The first time, a card offers the **guided tour** (about two
 minutes, on the program itself; every step and the whole tour can be skipped, and a skipped tour says where it is found again: **Help → Guided tour**; the
 written version is the [tutorial](tutorial.md)); afterwards the split between editor and viewport and the recent files are
 remembered.
@@ -39,7 +39,7 @@ See [The interface](interface.md) for every part of it.
 Replace the script with:
 
 ```python
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-12, -12, -12], [12, 12, 12], auto_scale=True)
 view.set_resolution(8)
@@ -82,7 +82,7 @@ every script.
 
 ## Importing a model
 
-**File → Import model…** (`Ctrl+I`), or drag a mesh file onto the window. FielDes writes
+**File → Import model…** (`Ctrl+I`), or drag a mesh file onto the window. FielDev writes
 
 ```python
 # Imported model: part.stl
@@ -101,7 +101,7 @@ and, one named line each, in the script and the viewport; every part has an eye 
 python scripts/run_example.py examples/04_handles.py
 ```
 
-runs it with the Python library and the kernel only (set `FIELDES_DIR` to the folder with `fieldes.dll`
+runs it with the Python library and the kernel only (set `FIELDEV_DIR` to the folder with `fieldev.dll`
 if it is not found): prints appear in the console, nothing is drawn.
 
 ## Where to go next

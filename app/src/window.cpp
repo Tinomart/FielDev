@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -77,25 +77,25 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <memory>
 
 
-#include "fieldes/fileassoc.hpp"
-#include "fieldes/i18n.hpp"
-#include "fieldes/window.hpp"
+#include "fieldev/fileassoc.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/window.hpp"
 #include <QPointer>
-#include "fieldes/automation.hpp"
-#include "fieldes/documentation.hpp"
-#include "fieldes/editor.hpp"
-#include "fieldes/findbar.hpp"
-#include "fieldes/icons.hpp"
-#include "fieldes/regionformat.hpp"
-#include "fieldes/theme.hpp"
-#include "fieldes/tutorial.hpp"
-#include "fieldes/focuscue.hpp"
-#include "fieldes/scenetree.hpp"
-#include "fieldes/script.hpp"
-#include "fieldes/section.hpp"
-#include "fieldes/shape.hpp"
-#include "fieldes/shortcuts.hpp"
-#include "fieldes/view.hpp"
+#include "fieldev/automation.hpp"
+#include "fieldev/documentation.hpp"
+#include "fieldev/editor.hpp"
+#include "fieldev/findbar.hpp"
+#include "fieldev/icons.hpp"
+#include "fieldev/regionformat.hpp"
+#include "fieldev/theme.hpp"
+#include "fieldev/tutorial.hpp"
+#include "fieldev/focuscue.hpp"
+#include "fieldev/scenetree.hpp"
+#include "fieldev/script.hpp"
+#include "fieldev/section.hpp"
+#include "fieldev/shape.hpp"
+#include "fieldev/shortcuts.hpp"
+#include "fieldev/view.hpp"
 
 #include "libfive.h"
 
@@ -109,7 +109,7 @@ switch (checkUnsaved())                                                     \
     default:    assert(false);                                              \
 }
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 
@@ -161,7 +161,7 @@ static QString guideHtml()
     QString h;
     h += "<style>h2{margin-top:16px; margin-bottom:2px} li{margin-bottom:3px} td{padding:2px 14px 2px 0} "
          "code{background:#eee}</style>";
-    h += "<h1>" + T("FielDes guide") + "</h1>";
+    h += "<h1>" + T("FielDev guide") + "</h1>";
     h += "<p>" + T("The script is the model. Whatever you do in the viewport is written into the script, so %1 undoes it. "
                    "The <b>docs</b> folder has the full documentation. <b>Help &gt; Guided tour</b> walks through the basics on the "
                    "program itself.").arg(keys("edit.undo")) + "</p>";
@@ -309,9 +309,9 @@ static QString guideHtml()
 Window::Window(Arguments args)
     : QMainWindow()
     , view(new View)
-    , settings("FielDes", "FielDes")
+    , settings("FielDev", "FielDev")
 {
-    automated = !qEnvironmentVariable("FIELDES_AUTOMATION").isEmpty();
+    automated = !qEnvironmentVariable("FIELDEV_AUTOMATION").isEmpty();
     qApp->installEventFilter(new SelectAllOnFocus(this));
 
     editor = new Editor(Language::LANGUAGE_PYTHON);
@@ -484,7 +484,7 @@ Window::Window(Arguments args)
     connect(export_action, &QAction::triggered, this, &Window::onExport);
 
     auto export_app_action = file_menu->addAction(T("Export as app..."));
-    export_app_action->setToolTip(T("Bundle this script, its custom blocks and the files it needs into one .fieldesapp file: whoever opens it sees a form of the inputs the script declares (app.number, app.file, ...), a Run button and the files that were made"));
+    export_app_action->setToolTip(T("Bundle this script, its custom blocks and the files it needs into one .fieldevapp file: whoever opens it sees a form of the inputs the script declares (app.number, app.file, ...), a Run button and the files that were made"));
     connect(export_app_action, &QAction::triggered, this, &Window::onExportApp);
     auto preview_app_action = file_menu->addAction(T("Preview as app"));
     preview_app_action->setToolTip(T("Open this script in the window a person who runs it as an app sees: the form of its inputs"));
@@ -504,7 +504,7 @@ Window::Window(Arguments args)
         }
         else
         {
-            QMessageBox::warning(this, "FielDes", T("Could not save the screenshot to\n%1").arg(f));
+            QMessageBox::warning(this, "FielDev", T("Could not save the screenshot to\n%1").arg(f));
         }
     });
     auto copy_shot = file_menu->addAction(T("Copy screenshot to clipboard"));
@@ -542,17 +542,17 @@ Window::Window(Arguments args)
             QDesktopServices::openUrl(QUrl::fromLocalFile(m_blocksFolder));
         });
         settings_menu->addSeparator();
-        // A double click on a .fieldesapp file opens FielDes's app window (the installers do this too; a downloaded folder does not)
-        auto assoc_action = settings_menu->addAction(T("Open .fieldesapp files with FielDes"));
-        assoc_action->setToolTip(T("Make a double click on an app file (.fieldesapp) open it in FielDes"));
+        // A double click on a .fieldevapp file opens FielDev's app window (the installers do this too; a downloaded folder does not)
+        auto assoc_action = settings_menu->addAction(T("Open .fieldevapp files with FielDev"));
+        assoc_action->setToolTip(T("Make a double click on an app file (.fieldevapp) open it in FielDev"));
         assoc_action->setCheckable(true);
         assoc_action->setChecked(FileAssociation::isRegistered());
         connect(assoc_action, &QAction::triggered, this, [this, assoc_action]{
             QString why;
             if (FileAssociation::registerForUser(&why))
-                statusBar()->showMessage(T("A double click on a .fieldesapp file opens it in FielDes now."), 6000);
+                statusBar()->showMessage(T("A double click on a .fieldevapp file opens it in FielDev now."), 6000);
             else
-                QMessageBox::warning(this, "FielDes", T("The file type could not be registered: %1").arg(why));
+                QMessageBox::warning(this, "FielDev", T("The file type could not be registered: %1").arg(why));
             assoc_action->setChecked(FileAssociation::isRegistered());
         });
         settings_menu->addSeparator();
@@ -753,14 +753,14 @@ Window::Window(Arguments args)
     rot_mode->addAction(turn_z_up);
     // (the Z axis points up -- the library's own axis -- unless the user chose Y up: the choice is stored under its own key, only
     // when it is made -- the old "rotation" key was written at every start, so it says nothing about a choice)
-    // (a scripted test -- FIELDES_AUTOMATION -- turns the view without writing the choice: it runs on the user's own settings)
+    // (a scripted test -- FIELDEV_AUTOMATION -- turns the view without writing the choice: it runs on the user's own settings)
     connect(turn_z_up, &QAction::triggered, [this](bool) {
         view->toTurnZ();
-        if (!qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) settings.setValue("up-axis", "z");
+        if (!qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) settings.setValue("up-axis", "z");
     });
     connect(turn_y_up, &QAction::triggered, [this](bool) {
         view->toTurnY();
-        if (!qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) settings.setValue("up-axis", "y");
+        if (!qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) settings.setValue("up-axis", "y");
     });
     settings_menu->addMenu(rotation_menu);
     const bool y_is_up = settings.value("up-axis", "z").toString() == "y";
@@ -844,11 +844,11 @@ Window::Window(Arguments args)
             connect(a, &QAction::toggled, this, [this, key, preset](bool on) {
                 if (!on) return;
                 view->setNavigationPreset(preset);
-                if (!qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) settings.setValue("navigation", key);
+                if (!qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) settings.setValue("navigation", key);
             });
             return a;
         };
-        QAction* nav_default = nav(T("FielDes (default)"), T("Shift + left drag or the middle button turns the view, right drag pans, the wheel zooms"), "default", View::NAV_DEFAULT);
+        QAction* nav_default = nav(T("FielDev (default)"), T("Shift + left drag or the middle button turns the view, right drag pans, the wheel zooms"), "default", View::NAV_DEFAULT);
         QAction* nav_blender = nav(T("Blender style"), T("The default, and Shift + the middle button pans"), "blender", View::NAV_BLENDER);
         QAction* nav_touchpad = nav(T("Touchpad"), T("The default, and Alt + left drag pans (no right or middle button needed)"), "touchpad", View::NAV_TOUCHPAD);
         settings_menu->addMenu(nav_menu);
@@ -973,7 +973,7 @@ Window::Window(Arguments args)
         selectAction->setToolTip(T("Leave the drawing: clicks select, move, turn and scale things as usual (a right click in the viewport does it too)"));
         selectAction->setEnabled(false);
         Shortcuts::add(selectAction, "view.workplane-select", {});
-        // (Ctrl+Shift+W is the window's: it types nothing, so it needs no focus in the viewport -- when FielDes opens the keyboard is in the script editor, and a shortcut that
+        // (Ctrl+Shift+W is the window's: it types nothing, so it needs no focus in the viewport -- when FielDev opens the keyboard is in the script editor, and a shortcut that
         // only acted in the viewport did nothing until the viewport had been clicked.  The single keys stay the viewport's: in the editor they are letters)
         newAction->setShortcutContext(Qt::WindowShortcut);
         for (QAction* a : {openAction, faceAction, selectAction})
@@ -1261,10 +1261,10 @@ Window::Window(Arguments args)
             connect(a, &QAction::triggered, this, [this, code] {
                 if (code == i18n::chosen()) return;
                 i18n::setChosen(code);
-                if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION")) return;
+                if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION")) return;
                 QMessageBox m(this);
                 m.setIcon(QMessageBox::Information);
-                m.setText(T("The language changes when FielDes is started again."));
+                m.setText(T("The language changes when FielDev is started again."));
                 auto now = m.addButton(T("Restart now"), QMessageBox::AcceptRole);
                 m.addButton(T("Later"), QMessageBox::RejectRole);
                 m.exec();
@@ -1289,13 +1289,13 @@ Window::Window(Arguments args)
 
     // Help menu
     auto help_menu = menuBar()->addMenu(T("Help"));
-    auto guide_action = help_menu->addAction(T("FielDes guide (features and shortcuts)"));
+    auto guide_action = help_menu->addAction(T("FielDev guide (features and shortcuts)"));
     Shortcuts::add(guide_action, "help.guide", {QKeySequence(Qt::SHIFT | Qt::Key_F1)});
     connect(guide_action, &QAction::triggered, this, [this]{
         auto d = new QDialog(this);
-        d->setObjectName("FielDesGuide");
+        d->setObjectName("FielDevGuide");
         d->setAttribute(Qt::WA_DeleteOnClose);
-        d->setWindowTitle(T("FielDes guide"));
+        d->setWindowTitle(T("FielDev guide"));
         auto text = new QTextBrowser;
         text->setOpenExternalLinks(true);
         text->setHtml(guideHtml());
@@ -1578,9 +1578,9 @@ Window::Window(Arguments args)
             {
                 statusBar()->showMessage(T("Rendered in %1 s")
                     .arg(timer->elapsed() / 1000.0, 0, 'f', 2), 8000);
-                // (FIELDES_TIMING: also to stderr, for timing scripts)
-                if (qEnvironmentVariableIsSet("FIELDES_TIMING"))
-                    std::cerr << "[fieldes] rendered in " << timer->elapsed() / 1000.0 << " s\n";
+                // (FIELDEV_TIMING: also to stderr, for timing scripts)
+                if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
+                    std::cerr << "[fieldev] rendered in " << timer->elapsed() / 1000.0 << " s\n";
             }
             *running = busy;
         });
@@ -1600,10 +1600,10 @@ Window::Window(Arguments args)
     }
     setWindowState(windowState() | Qt::WindowMaximized);
 
-    setWindowTitle("FielDes[*]");
+    setWindowTitle("FielDev[*]");
     show();
 
-    // The guided tour: offered the first time FielDes runs (and from Help after that)
+    // The guided tour: offered the first time FielDev runs (and from Help after that)
     tour = new Tutorial(this, view, editor, [this]{ return loadTourModel(); }, this);
     connect(tour, &Tutorial::finished, this, [this]{ if (!automated) settings.setValue("tour/done", true); });
     const bool offerTour = !automated && args.filename.isEmpty() && !settings.value("tour/done", false).toBool();
@@ -1616,14 +1616,14 @@ Window::Window(Arguments args)
     if (offerTour) QTimer::singleShot(900, tour, &Tutorial::offer);
 
     // Scripted GUI checks (developer facility; see automation.hpp)
-    const QString automation_file = qEnvironmentVariable("FIELDES_AUTOMATION");
+    const QString automation_file = qEnvironmentVariable("FIELDEV_AUTOMATION");
     if (!automation_file.isEmpty())
     {
         auto a = new Automation(this, this);
         auto script = editor->scriptWidget();
         // exportappto <file>: File > Export as app with the file chosen; previewapp: File > Preview as app
         a->add("exportappto", [=](const QString& path){ exportAppTo(path.trimmed()); });
-        // assoc <register|status>: the .fieldesapp file type (this changes the registry of the user: a test undoes it)
+        // assoc <register|status>: the .fieldevapp file type (this changes the registry of the user: a test undoes it)
         a->add("assoc", [=](const QString& what){
             if (what.trimmed() == "register")
             {
@@ -1657,7 +1657,7 @@ Window::Window(Arguments args)
         // about: Help > About (the dialog opens once this command is over, so that the commands after it -- a picture of it with grabpopups -- run while it is open)
         a->add("about", [=](const QString&){ QTimer::singleShot(200, this, [this]{ onAbout(); }); });
         // dialog <text|grab <file>|accept|cancel>: the question that is open (a message box of the program, asked while the drop of a drag or any other action waits for the answer: run with
-        // FIELDES_SHOW_DIALOGS=1 so that it is asked), read, photographed, or answered as a hand does -- `accept` presses its default button, `cancel` its Cancel
+        // FIELDEV_SHOW_DIALOGS=1 so that it is asked), read, photographed, or answered as a hand does -- `accept` presses its default button, `cancel` its Cancel
         a->add("dialog", [=](const QString& args){
             auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
             const QString verb = args.section(' ', 0, 0).trimmed(), rest = args.section(' ', 1).trimmed();
@@ -2404,7 +2404,7 @@ Window::Window(Arguments args)
             }
         });
         // viewdrag <x> <y> <dx> <dy>: press the viewport at (x, y), drag by (dx, dy) pixels in
-        // steps, release (FielDes's own handles: dragging a surface)
+        // steps, release (FielDev's own handles: dragging a surface)
         a->add("viewdrag", [=](const QString& args){
             const auto p = args.split(' ');
             if (p.size() < 4) return;
@@ -2614,6 +2614,10 @@ Window::Window(Arguments args)
         // createprimitive <name>: the menu's "New <name>", made at the origin (the way the right-click menu of the viewport makes it)
         a->add("createprimitive", [=](const QString& name){
             view->scenePanel()->createFromMenu("primitive", name.trimmed(), QVector3D(0, 0, 0), 5.0, -1, -1);
+        });
+        // referenceimage <plane> <file>: the Reference image entry of the Character menu for that plane, with the file already chosen (the menu asks for it in a dialog)
+        a->add("referenceimage", [=](const QString& args){
+            emit view->createRequested("python", "reference_image|" + args.section(' ', 0, 0) + "|" + args.section(' ', 1).trimmed(), QVector3D(0, 0, 0), 20.0, -1, -1);
         });
         // workplane <open|close|new|face|fromview|state|offset N|options grid snap points [step]>: the work plane, as its keys and its card drive it
         a->add("workplane", [=](const QString& args){
@@ -2888,7 +2892,7 @@ Window::Window(Arguments args)
                 *heldDrag = qMakePair(to, mods);
                 return;
             }
-            if (qEnvironmentVariableIsSet("FIELDES_SHOW_DIALOGS"))
+            if (qEnvironmentVariableIsSet("FIELDEV_SHOW_DIALOGS"))
             {
                 // (a question may be asked by the drop: the mouse is let go from the event loop, so that the test goes on)
                 QTimer::singleShot(50, vp, [=] {
@@ -3157,7 +3161,7 @@ Window::Window(Arguments args)
 bool Window::openFile(const QString& name)
 {
     // An app is not opened for editing: its form opens in a window of its own (a program of its own, so that it sits beside this one)
-    if (name.endsWith(".fieldesapp", Qt::CaseInsensitive))
+    if (name.endsWith(".fieldevapp", Qt::CaseInsensitive))
     {
         QProcess::startDetached(QCoreApplication::applicationFilePath(), {name});
         return true;
@@ -3178,7 +3182,7 @@ bool Window::onOpen(bool)
     CHECK_UNSAVED();
 
     QString f = QFileDialog::getOpenFileName(this, T("Open"),
-            workingDirectory(), T("FielDes scripts (*.py);;Any files (*)"));
+            workingDirectory(), T("FielDev scripts (*.py);;Any files (*)"));
     if (!f.isEmpty())
     {
         return openFile(f);
@@ -3202,7 +3206,7 @@ bool Window::onOpenExample(bool)
         m.exec();
         return false;
     }
-    const QString f = QFileDialog::getOpenFileName(this, T("Open an example"), dir, T("FielDes examples (*.py);;Any files (*)"));
+    const QString f = QFileDialog::getOpenFileName(this, T("Open an example"), dir, T("FielDev examples (*.py);;Any files (*)"));
     return f.isEmpty() ? false : openFile(f);
 }
 
@@ -3376,7 +3380,7 @@ bool Window::onSaveAs(bool)
 {
     QString f = QFileDialog::getSaveFileName(this, T("Save as"),
             workingDirectory(),
-            T("FielDes scripts (*%1);;Any files (*)").arg(editor->getExtension()));
+            T("FielDev scripts (*%1);;Any files (*)").arg(editor->getExtension()));
     if (!f.isEmpty())
     {
         if (saveFile(f))
@@ -3455,7 +3459,7 @@ bool Window::dropEvent_(QDropEvent* event)
         importModel(local);   // models are added to the current script
         return true;
     }
-    if (ext == "fieldesapp")
+    if (ext == "fieldevapp")
     {
         // An app is not a script to edit: it opens in its own window
         return openFile(local);
@@ -3679,12 +3683,12 @@ void Window::offerFileAssociation()
     s.setValue("apps/association-asked", true);
     const auto answer = QMessageBox::question(
         this, T("Open apps with a double click?"),
-        T("Open .fieldesapp files with FielDes?\n\nThen a double click on an app opens it in its form. You can change this at any time in Settings."),
+        T("Open .fieldevapp files with FielDev?\n\nThen a double click on an app opens it in its form. You can change this at any time in Settings."),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
     if (answer != QMessageBox::Yes) return;
     QString why;
     if (!FileAssociation::registerForUser(&why))
-        QMessageBox::warning(this, "FielDes", T("The file type could not be registered: %1").arg(why));
+        QMessageBox::warning(this, "FielDev", T("The file type could not be registered: %1").arg(why));
 }
 
 void Window::onExportApp(bool)
@@ -3692,14 +3696,14 @@ void Window::onExportApp(bool)
     const bool untitled = filename.isEmpty() || filename.startsWith(":/");
     const QString base = untitled ? QString("app") : QFileInfo(filename).completeBaseName();
     const QString dir = untitled ? QDir::homePath() : QFileInfo(filename).dir().absolutePath();
-    QString out = QFileDialog::getSaveFileName(this, T("Export as app"), QDir(dir).filePath(base + ".fieldesapp"), T("FielDes apps (*.fieldesapp)"));
+    QString out = QFileDialog::getSaveFileName(this, T("Export as app"), QDir(dir).filePath(base + ".fieldevapp"), T("FielDev apps (*.fieldevapp)"));
     if (out.isEmpty()) return;
     exportAppTo(out);
 }
 
 void Window::exportAppTo(QString out)
 {
-    if (!out.endsWith(".fieldesapp", Qt::CaseInsensitive)) out += ".fieldesapp";
+    if (!out.endsWith(".fieldevapp", Qt::CaseInsensitive)) out += ".fieldevapp";
     QString error;
     const auto report = packApp(out, &error);
     if (report.isEmpty())
@@ -3740,7 +3744,7 @@ void Window::exportAppTo(QString out)
     if (automated)
     {
         // (a test run: the window is photographed where a person would read it, and closed)
-        const QString shot = qEnvironmentVariable("FIELDES_APP_DIALOG_SHOT");
+        const QString shot = qEnvironmentVariable("FIELDEV_APP_DIALOG_SHOT");
         QTimer::singleShot(1500, &box, [&box, shot] { if (!shot.isEmpty()) box.grab().save(shot); box.reject(); });
     }
     box.exec();
@@ -3759,12 +3763,12 @@ void Window::exportAppTo(QString out)
 
 void Window::onPreviewApp(bool)
 {
-    const QString folder = QDir(QDir::tempPath()).filePath("FielDes-preview");
+    const QString folder = QDir(QDir::tempPath()).filePath("FielDev-preview");
     QDir().mkpath(folder);
     const bool untitled = filename.isEmpty() || filename.startsWith(":/");
     QString base = untitled ? QString("untitled") : QFileInfo(filename).completeBaseName();
     base.replace(QRegularExpression("[^\\w.-]+"), "_");
-    m_previewPath = QDir(folder).filePath(base + ".fieldesapp");
+    m_previewPath = QDir(folder).filePath(base + ".fieldevapp");
     QString error;
     const auto report = packApp(m_previewPath, &error);
     if (report.isEmpty())
@@ -3793,7 +3797,7 @@ void Window::onExportReady(QList<const libfive::Mesh*> shapes)
     // (the meshes are written as STL; another format is made from that file by the library, which knows them all)
     const QString target = export_filename;
     const bool stl = target.endsWith(".stl", Qt::CaseInsensitive);
-    const QString written = stl ? target : QDir::temp().filePath(QString("fieldes_export_%1.stl").arg(QCoreApplication::applicationPid()));
+    const QString written = stl ? target : QDir::temp().filePath(QString("fieldev_export_%1.stl").arg(QCoreApplication::applicationPid()));
     bool saved = libfive::Mesh::saveSTL(written.toStdString(), std::list<const libfive::Mesh*>(shapes.begin(), shapes.end()));
     QString why;
     if (saved && !stl)
@@ -3871,7 +3875,7 @@ void Window::exportModel(const QString& var, const QString& kind, const QString&
         {".stl", "STL"}, {".obj", "OBJ"}, {".ply", "PLY"}, {".3mf", "3MF"}, {".glb", "glTF binary"}, {".gltf", "glTF"}, {".fbx", "FBX"},
         {".off", "OFF"}, {".dxf", "DXF"}, {".vti", "VTK image data"}, {".csv", "CSV"}, {".inp", "Abaqus / CalculiX"}, {".bdf", "Nastran"},
         {".msh", "Gmsh"}, {".vtu", "VTK"}, {".txt", "text"}};
-    QSettings settings("FielDes", "FielDes");
+    QSettings settings("FielDev", "FielDev");
     const QString folder = settings.value("export-folder", workingDirectory()).toString();
     const QString filter = T("%1 files (*%2)").arg(names.value(ext, ext.mid(1).toUpper()), ext);
     QString path = QFileDialog::getSaveFileName(this, T("Export %1").arg(var), QDir(folder).filePath(var + ext), filter);
@@ -3941,14 +3945,15 @@ PrimitivesDialog* Window::openPrimitivesDialog()
 
 void Window::onAbout(bool)
 {
-    QString info = T("<b>FielDes</b> &mdash; field-driven design<br><br>"
+    QString info = T("<b>FielDev</b> &mdash; field-driven design<br><br>"
                    "Version %1<br>"
                    "Built on the kernel of <a href=\"https://github.com/libfive/libfive\">libfive</a> "
                    "by Matt Keeter<br><br>").arg(QCoreApplication::applicationVersion());
     const QString revision = libfive_git_revision();
     if (revision != "N/A") info += T("Kernel revision: <code>%1</code><br>").arg(revision);
     info += T("Licence: GPL 2 or later (application), MPL 2.0 (kernel and Python library)");
-    QMessageBox::about(this, T("About FielDes"), info);
+    info += "<br><br>" + T("A fork of FielDes, trimmed for modelling for game development");
+    QMessageBox::about(this, T("About FielDev"), info);
 }
 
 void Window::onReportBug(bool)
@@ -3957,7 +3962,7 @@ void Window::onReportBug(bool)
     box.setIcon(QMessageBox::Question);
     box.setWindowTitle(T("Report a bug"));
     box.setText(T("This opens a new issue on GitHub in your browser."));
-    box.setInformativeText(T("The form is filled in with the version of FielDes, your system and your graphics driver. Nothing is sent from here: you read the issue and press the button on "
+    box.setInformativeText(T("The form is filled in with the version of FielDev, your system and your graphics driver. Nothing is sent from here: you read the issue and press the button on "
                              "GitHub yourself. Your script is not in it unless you choose the second button, which copies it to the clipboard for you to paste into the issue "
                              "(a script is too long for a link)."));
     QAbstractButton* plain = box.addButton(T("Open the issue form"), QMessageBox::AcceptRole);
@@ -3972,11 +3977,11 @@ void Window::onReportBug(bool)
     const QString revision = libfive_git_revision();
     QString body = "**What happened**\n\n\n**What I expected**\n\n\n**How to make it happen**\n";
     body += script ? "(my script is copied: paste it here)\n" : "(a script that shows it is the best help)\n";
-    body += QString("\n---\nFielDes %1").arg(QCoreApplication::applicationVersion());
+    body += QString("\n---\nFielDev %1").arg(QCoreApplication::applicationVersion());
     if (revision != "N/A") body += QString(" (kernel %1)").arg(revision.left(10));
     body += QString("\n%1 (%2)\nQt %3\nGraphics: %4\n").arg(QSysInfo::prettyProductName(), QSysInfo::currentCpuArchitecture(), QString::fromLatin1(qVersion()), view->graphicsInfo());
-    const QUrl url = QUrl::fromEncoded("https://github.com/Tinomart/FielDes/issues/new?body=" + QUrl::toPercentEncoding(body));
-    if (qEnvironmentVariableIsSet("FIELDES_AUTOMATION"))
+    const QUrl url = QUrl::fromEncoded("https://github.com/Tinomart/FielDev/issues/new?body=" + QUrl::toPercentEncoding(body));
+    if (qEnvironmentVariableIsSet("FIELDEV_AUTOMATION"))
     {
         // (a scripted test never opens the user's browser: it says what it would have opened, and what the clipboard got)
         std::cerr << "automation: issue url " << url.toString(QUrl::FullyDecoded).toStdString() << "\nautomation: clipboard has script " << (script ? 1 : 0) << std::endl;
@@ -3984,7 +3989,7 @@ void Window::onReportBug(bool)
     }
     if (!QDesktopServices::openUrl(url))
     {
-        QMessageBox::warning(this, T("Report a bug"), T("The browser could not be opened. The issues are at %1").arg("https://github.com/Tinomart/FielDes/issues"));
+        QMessageBox::warning(this, T("Report a bug"), T("The browser could not be opened. The issues are at %1").arg("https://github.com/Tinomart/FielDev/issues"));
         return;
     }
     statusBar()->showMessage(script ? T("Your script is on the clipboard: paste it into the issue.") : T("The issue form is open in your browser."), 10000);
@@ -4112,10 +4117,10 @@ void Window::importModel(const QString& path)
 
     // The one import a script needs
     QStringList header;
-    if (!QRegularExpression(R"(^\s*(from\s+fieldes\s+import|import\s+fieldes)\b)", QRegularExpression::MultilineOption)
+    if (!QRegularExpression(R"(^\s*(from\s+fieldev\s+import|import\s+fieldev)\b)", QRegularExpression::MultilineOption)
             .match(script).hasMatch())
     {
-        header << "from fieldes import *";
+        header << "from fieldev import *";
     }
 
     // Assemble the new script: header after the last top-level import,
@@ -4174,10 +4179,10 @@ void Window::watchBlocks()
 
 void Window::setBlocksFolder(const QString& path)
 {
-    // (empty: the folder next to FielDes again)
+    // (empty: the folder next to FielDev again)
     settings.setValue("blocks-folder", path);
-    if (path.isEmpty()) qunsetenv("FIELDES_BLOCKS");
-    else qputenv("FIELDES_BLOCKS", path.toLocal8Bit());
+    if (path.isEmpty()) qunsetenv("FIELDEV_BLOCKS");
+    else qputenv("FIELDEV_BLOCKS", path.toLocal8Bit());
     editor->callSupport("set_blocks_folder", path, nullptr);
     watchBlocks();
     editor->onTextChangedDebounce();
@@ -4253,7 +4258,7 @@ bool Window::loadTourModel()
         if (a->isCheckable() && a->text() == T("Model tree")) a->setChecked(true);
     }
     setFilename("");
-    setWindowTitle("FielDes[*]");
+    setWindowTitle("FielDev[*]");
     editor->setScript(file.readAll(), false);
     editor->setModified(false);
     editor->guessLanguage("py");
@@ -4277,7 +4282,7 @@ bool Window::reset(Language::Type t) {
     CHECK_UNSAVED();
 
     setFilename("");
-    setWindowTitle("FielDes[*]");
+    setWindowTitle("FielDev[*]");
 
     if (t != Language::LANGUAGE_NONE) {
         editor->setLanguage(t);
@@ -4294,4 +4299,4 @@ bool Window::setLanguage(Language::Type t) {
 void Window::onLanguageChanged() {
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

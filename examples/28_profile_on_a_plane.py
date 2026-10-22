@@ -13,7 +13,7 @@
 #   * Select the slab's profile, press Ctrl+Shift+W, and draw a second shape on the same plane: it is made of points in that plane, written as
 #     ordinary numbers.
 # The work plane is a tool of the viewport: it is not saved in the script, the points and the profiles are.
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-15, -15, -10], [70, 70, 60], auto_scale=True)
 view.set_resolution(2)

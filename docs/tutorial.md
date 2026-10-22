@@ -1,8 +1,8 @@
-# Tutorial: your first hour with FielDes
+# Tutorial: your first hour with FielDev
 
-This is a short walk through what FielDes is for, how you work in it, and the few controls that matter most.
+This is a short walk through what FielDev is for, how you work in it, and the few controls that matter most.
 
-> **The program has its own tour.** The first time FielDes starts a welcome card offers a **guided tour**: a few minutes of short
+> **The program has its own tour.** The first time FielDev starts a welcome card offers a **guided tour**: a few minutes of short
 > cards over the program itself, each dimming everything but what it is about, pointing at it, and letting you do the one
 > thing it asks (or doing it for you once: **Show me**, which puts everything back as it was so that you can do it yourself; **Back**
 > does the same: each step has a state of its own). Every step can be skipped, and so can the whole tour; **Help → Guided
@@ -26,12 +26,12 @@ be tried on it.
 - [Where next](#where-next)
 
 <p align="center">
-  <img src="images/overview.png" width="900" alt="FielDes: the script on the left; the viewport, with the model tree, on the right">
+  <img src="images/overview.png" width="900" alt="FielDev: the script on the left; the viewport, with the model tree, on the right">
 </p>
 
 ## The idea
 
-FielDes is built on three ideas.
+FielDev is built on three ideas.
 
 **The script is the model.** What you see in the viewport is what a Python script says, and nothing else. Every button and
 every drag in the viewport is an *edit of that script* — you can read it, undo it with `Ctrl+Z`, keep it, share it, and
@@ -60,7 +60,7 @@ repeatability of code.
 The tour's model (**Help → Guided tour**) starts with
 
 ```python
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-35, -25, -8], [35, 25, 30], auto_scale=True)    # the region the viewport meshes
 view.set_resolution(6)                           # samples per mm
@@ -80,7 +80,7 @@ a look at the detail. `Esc` cancels a render that is taking too long.
 `var(6)` in the welcome script is a **draggable number**. Hover the top of the plate — it lights up — and drag it: the 6 in the
 script changes as you move. Any number you wrap in `var(...)` can be pulled this way.
 
-You do not have to write `var` yourself. Click a model in the viewport (or its row in the tree): FielDes gives it a
+You do not have to write `var` yourself. Click a model in the viewport (or its row in the tree): FielDev gives it a
 **gizmo** — three arrows to move, three rings to rotate, three squares to scale, and a dot in the middle that moves it freely
 — and numbers on its surfaces to pull. What it adds is plain script (`plate = gizmo(plate, move=(var(0), ...))`).
 
@@ -97,7 +97,7 @@ Three keys (with the viewport focused) turn this on and off on the selected mode
 Right-click empty space in the viewport:
 
 <p align="center">
-  <img src="images/menu.png" width="520" alt="The right-click menu: Primitives, Parametric shapes, Operations">
+  <img src="images/menu.png" width="520" alt="The right-click menu: Primitives, Parametric shapes, Operations, Character (with its Reference image submenu) and Python">
 </p>
 
 - **Primitives** -- **New 3D shape / 2D shape / 1D shape / point / surface / field**, the most basic of each -- write a call into the script where you
@@ -147,7 +147,7 @@ directly above it that it reads are inside its row.
 
 ## 5. Every number can be a field
 
-This is the part of FielDes that is not like other modellers. Anywhere the script has a number — a size, a radius, a wall
+This is the part of FielDev that is not like other modellers. Anywhere the script has a number — a size, a radius, a wall
 thickness, a spacing — you can write a **field** instead. In the welcome script:
 
 ```python
@@ -206,9 +206,9 @@ the one you get with **Shift**, **`Shift+D` and `Ctrl+D`** (a copy and a linked 
 
 ## Words worth knowing
 
-A few words mean something particular in FielDes, and some mean something else in other programs:
+A few words mean something particular in FielDev, and some mean something else in other programs:
 
-| Word | In FielDes |
+| Word | In FielDev |
 |---|---|
 | **Gizmo** | the tool that is drawn on a selected model: arrows move it, rings turn it, a ring (or knob) scales it -- it changes the model's place, turn and size, and is written into the script as `gizmo(...)`. In a drawing program the little squares of a selection are called *handles*; here they are the gizmo's. |
 | **Handles** | pulling a **surface** of a shape directly, with no tool drawn: hover the surface and drag, and the numbers behind it (`handles(...)`) change. Every shape has them. See [Handles](handles.md). |
@@ -247,7 +247,7 @@ A few words mean something particular in FielDes, and some mean something else i
 - **Put what you reuse in a block.** A block is the shortest way from "I did this twice" to a function.
 - **Let a field do the work.** Before writing a dozen exceptions ("thicker here, thinner there"), ask what single field
   describes the rule: a distance, a ramp, a noise.
-- **Read what FielDes wrote.** It writes ordinary script — the quickest way to learn the library is to make something from
+- **Read what FielDev wrote.** It writes ordinary script — the quickest way to learn the library is to make something from
   the menu, look at the line, and edit it.
 
 ## Where next
@@ -258,7 +258,7 @@ A few words mean something particular in FielDes, and some mean something else i
 | [Scripting](scripting.md) | shapes, arithmetic on fields, view settings, what gets displayed |
 | [Fields](fields.md) | the fields of the library, regressions, data as fields |
 | [Custom blocks](blocks.md) | your own functions in every script |
-| [Apps](apps.md) | a script as a program for other people: a form, a Run button, one `.fieldesapp` file |
+| [Apps](apps.md) | a script as a program for other people: a form, a Run button, one `.fieldevapp` file |
 | [Handles](handles.md) | the gizmo, the handles on the surfaces, `gizmo()` and `handles()` |
 | [Profiles](profiles.md) | 2D, 1D and 3D shapes made of points: `profile`, `curve`, `extrude`, `path_extrude` |
 | [Meshes](meshes.md) | importing and exporting triangle meshes |

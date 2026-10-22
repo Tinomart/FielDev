@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -19,10 +19,10 @@ of the License, or (at your option) any later version.
 #include <QTextStream>
 #include <QWidget>
 
-#include "fieldes/automation.hpp"
-#include "fieldes/shortcuts.hpp"
+#include "fieldev/automation.hpp"
+#include "fieldev/shortcuts.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 Automation::Automation(QWidget* window, QObject* parent)
     : QObject(parent), m_window(window)
@@ -129,7 +129,7 @@ void Automation::step()
         const QString line = m_lines[m_next++];
         const QString cmd = line.section(' ', 0, 0);
         const QString args = line.section(' ', 1);
-        if (std::getenv("FIELDES_TIMING")) std::cerr << "[at " << QDateTime::currentMSecsSinceEpoch() % 100000000 << " ms] ";
+        if (std::getenv("FIELDEV_TIMING")) std::cerr << "[at " << QDateTime::currentMSecsSinceEpoch() % 100000000 << " ms] ";
         std::cerr << "automation> " << line.toStdString() << "\n";
         auto h = m_handlers.find(cmd);
         if (h == m_handlers.end())
@@ -137,8 +137,8 @@ void Automation::step()
             std::cerr << "automation: unknown command " << cmd.toStdString() << "\n";
             continue;
         }
-        // (FIELDES_TIMING: how long a command held the window -- a press or a move of the mouse that is slow to be answered is slow here)
-        static const bool timing = std::getenv("FIELDES_TIMING") != nullptr;
+        // (FIELDEV_TIMING: how long a command held the window -- a press or a move of the mouse that is slow to be answered is slow here)
+        static const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
         QElapsedTimer clock;
         if (timing) clock.start();
         h.value()(args);
@@ -153,4 +153,4 @@ void Automation::step()
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

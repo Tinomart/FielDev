@@ -10,7 +10,7 @@
 import json
 import os
 import struct
-from fieldes import *
+from fieldev import *
 
 view.set_bounds((-70, -40, -12), (70, 40, 185))
 view.set_resolution(1)
@@ -35,7 +35,7 @@ def check(label, ok, detail=""):
 
 
 def read_obj(path):
-    ''' vertices, texture coordinates, triangles (as indices of the vertices; the texture coordinate of a corner is the same number: "f a/a b/b c/c") '''
+    ''' vertices, texture coordinates, triangles (as indices of the vertices; the texture coordinate and the normal of a corner are the same number: "f a/a/a b/b/b c/c/c") '''
     verts, uvs, tris, same = [], [], [], True
     for line in open(path):
         w = line.split()
@@ -47,7 +47,7 @@ def read_obj(path):
             uvs.append((float(w[1]), float(w[2])))
         elif w[0] == "f":
             parts = [t.split("/") for t in w[1:4]]
-            same = same and all(len(p) == 2 and p[0] == p[1] for p in parts)
+            same = same and all(len(p) in (2, 3) and p[0] == p[1] and (len(p) == 2 or p[1] == p[2]) for p in parts)
             tris.append(tuple(int(p[0]) - 1 for p in parts))
     return verts, uvs, tris, same
 
@@ -109,8 +109,8 @@ flat = struct.unpack_from("<%df" % (2 * accessor["count"]), binary, view_["byteO
 close = lambda a, b: len(a) == len(b) and all(abs(x - y) < 1e-6 for x, y in zip(sorted(a), sorted(b)))
 ok = accessor["type"] == "VEC2" and accessor["count"] == len(verts) and close(flat[0::2], [u for u, v in uvs]) and close([1.0 - t for t in flat[1::2]], [v for u, v in uvs])
 check("glb: TEXCOORD_0 holds the same u, and 1 - v", ok, "%d texture coordinates" % accessor["count"])
-check("glb: an image, a texture and the base colour texture of the material", doc["images"] == [{"uri": "skin.png"}] and doc["textures"] == [{"source": 0}]
-      and doc["materials"][0]["pbrMetallicRoughness"]["baseColorTexture"] == {"index": 0})
+check("glb: an image, a texture and the base colour texture of the material", doc["images"] == [{"uri": "skin.png"}] and [t["source"] for t in doc["textures"]] == [0]
+      and doc["materials"][0]["pbrMetallicRoughness"]["baseColorTexture"]["index"] == 0)
 
 # 5. a PLY with the coordinates (s, t) and colours
 export_mesh(figure, "meshes/figure.ply", uvs="box", colors=(0.8, 0.8, 0.8))
@@ -118,13 +118,16 @@ data = open("meshes/figure.ply", "rb").read()
 header, _, rest = data.partition(b"end_header\n")
 lines = header.decode("ascii").split("\n")
 count = int(next(l for l in lines if l.startswith("element vertex")).split()[2])
-rows = [struct.unpack_from("<5f3B", rest, 23 * i) for i in range(count)]
+# (the vertex is what the header says: x, y, z, the normal, s and t, the colours -- read by the names of the properties)
+props = [l.split() for l in lines if l.startswith("property") and "list" not in l]
+fmt = "<" + "".join({"float": "f", "uchar": "B"}[p[1]] for p in props)
+rows = [dict(zip((p[2] for p in props), struct.unpack_from(fmt, rest, struct.calcsize(fmt) * i))) for i in range(count)]
 check("ply: s and t beside x, y, z and the colours, with the values of the obj", "property float s" in lines and "property float t" in lines and count == len(verts)
-      and close([r[3] for r in rows], [u for u, v in uvs]) and close([r[4] for r in rows], [v for u, v in uvs]))
+      and close([r["s"] for r in rows], [u for u, v in uvs]) and close([r["t"] for r in rows], [v for u, v in uvs]))
 
 # 6. what is refused, and what is read back
 for label, call in (("an STL has no texture coordinates", lambda: export_mesh(figure, "meshes/figure.stl", uvs="box")),
-                    ("a cylinder projection is not there yet", lambda: export_mesh(figure, "meshes/figure2.obj", uvs="cylinder")),
+                    ("a projection that is not there", lambda: export_mesh(figure, "meshes/figure2.obj", uvs="spherical")),
                     ("a repeat of 0 mm", lambda: export_mesh(figure, "meshes/figure2.obj", uvs=("box", 0))),
                     ("a texture name with a space", lambda: material("x", texture="my skin.png"))):
     try:

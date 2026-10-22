@@ -16,7 +16,7 @@
 # The picture shows the one face moving.  (Before this release the pyramid only slid as a whole, a pulled polygon side moved the centre as well, and a pulled face of the rounded
 # box moved the opposite face and made the rounding bigger; they are made of their faces now.)
 
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-80, -50, -5], [130, 20, 30])
 view.set_resolution(3)

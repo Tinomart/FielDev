@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 
 This program is free software; you can redistribute it and/or
@@ -23,10 +23,10 @@ of the License, or (at your option) any later version.
 #include <QTimer>
 #include <QVBoxLayout>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/primitives_dialog.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/primitives_dialog.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 
@@ -289,4 +289,4 @@ QStringList PrimitivesDialog::rows() const
     return out;
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

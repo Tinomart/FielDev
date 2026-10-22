@@ -44,7 +44,7 @@ namespace libfive {
 ////////////////////////////////////////////////////////////////////////////////
 
 // (where the time of a draw goes: the cells that the interval pass visits, the leaves that are placed, the cells that are collected, with the time each took, summed over the
-// threads, and what a leaf costs -- the clauses and the calls on its tape, the edges it searched.  Printed when the process ends, when FIELDES_TIMING is set)
+// threads, and what a leaf costs -- the clauses and the calls on its tape, the edges it searched.  Printed when the process ends, when FIELDEV_TIMING is set)
 struct DcStats
 {
     std::atomic<uint64_t> interval_cells{0}, interval_ns{0}, leaf_cells{0}, leaf_ns{0}, collect_cells{0}, collect_ns{0};
@@ -55,7 +55,7 @@ struct DcStats
     std::atomic<uint64_t> derivs_only_ns{0}, ambig_check_ns{0}, features_ns{0}, intersection_points{0}, ambiguous_points{0}, corner_ambig_checks{0};
     ~DcStats()
     {
-        if (!std::getenv("FIELDES_TIMING") || !(interval_cells || leaf_cells)) return;
+        if (!std::getenv("FIELDEV_TIMING") || !(interval_cells || leaf_cells)) return;
         std::fprintf(stderr, "[dc] intersection points %.0f, of them ambiguous %.0f; derivatives %.1f s, ambiguity check %.1f s, features at the ambiguous ones %.1f s; corner ambiguity checks %.0f\n",
                      double(intersection_points.load()), double(ambiguous_points.load()), derivs_only_ns.load() * 1e-9, ambig_check_ns.load() * 1e-9, features_ns.load() * 1e-9,
                      double(corner_ambig_checks.load()));
@@ -81,11 +81,11 @@ inline DcStats& dcStats()
 
 inline bool dcOn()
 {
-    static const bool on = std::getenv("FIELDES_TIMING") != nullptr;
+    static const bool on = std::getenv("FIELDEV_TIMING") != nullptr;
     return on;
 }
 
-// (nothing is counted, and no clock is read, unless FIELDES_TIMING is set)
+// (nothing is counted, and no clock is read, unless FIELDEV_TIMING is set)
 inline uint64_t dcNowNs()
 {
     if (!dcOn()) return 0;
@@ -470,7 +470,7 @@ void DCTree<N>::evalLeaf(Evaluator* eval,
             // at the coordinates of a part).
             const uint64_t tSearch0 = dcNowNs();
             bool bisected = false;
-            static const bool noBisect = std::getenv("FIELDES_NO_BISECT") != nullptr;   // (a test: the search of 4 x 16 points)
+            static const bool noBisect = std::getenv("FIELDEV_NO_BISECT") != nullptr;   // (a test: the search of 4 x 16 points)
             if (dcOn() && eval_count)
             {
                 uint64_t calls = 0;
@@ -628,7 +628,7 @@ void DCTree<N>::evalLeaf(Evaluator* eval,
                 // of the surface -- and ran every field that is called again at the points to do it.  A tape with an oracle in it is checked the same way: the derivative pass
                 // asks the oracle where it is ambiguous by its own rules as well (see the ORACLE clause of DerivArrayEvaluator): on the topology-optimized bracket every one of the
                 // points of the surface was ambiguous by the check of the values, and the derivatives, the check and the search for features of them were 37 % of the drawing.
-                static const bool noTieAware = std::getenv("FIELDES_NO_TIE_AWARE") != nullptr;      // (a test: the check of the values)
+                static const bool noTieAware = std::getenv("FIELDEV_NO_TIE_AWARE") != nullptr;      // (a test: the check of the values)
                 const bool tieAware = !noTieAware;
                 eval->trackTies = tieAware;
                 ds.leftCols(2 * eval_count) = eval->derivs(

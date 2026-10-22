@@ -1,12 +1,12 @@
 # Low-level fields: a body is a function of x, y and z.
 #
-# Underneath every body and field of FielDes is the functional representation of the libfive kernel: a tree of
+# Underneath every body and field of FielDev is the functional representation of the libfive kernel: a tree of
 # arithmetic over three coordinates, negative inside, zero on the surface, positive outside.  libfive documents it in Scheme
 # (define-shape, remap-shape); here it is the same in Python.  `Shape.X()`, `Shape.Y()` and `Shape.Z()` are the coordinates, the
 # operators + - * / ** and the methods .min .max .abs .sqrt .square .sin .cos .tan .atan2 .exp .log build the tree, and
 # `.remap(x', y', z')` asks a shape about other coordinates (every transform is one).  `low_level_body(logic)` and
 # `low_level_field(logic)` call your function ONCE with the three coordinates and give back the body or the field it describes
-# (in FielDes: right-click, Parametric shapes, New 3D shape / New field, low_level_body / low_level_field writes the function and the call for you);
+# (in FielDev: right-click, Parametric shapes, New 3D shape / New field, low_level_body / low_level_field writes the function and the call for you);
 # `body_from_field(field, level)` turns a field into a body, `field_from_body(body)` the other way.  Five things made that way:
 #
 #   1. a cube, as the largest of six plane distances            (the Scheme define-shape example)
@@ -17,7 +17,7 @@
 #
 # What comes out is an ordinary body: the library's own operations (union, offset, move, smooth ...)
 # take it as they take a box or a sphere.  Change a number and look.
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-12, -12, -14], [124, 12, 14], auto_scale=True)
 view.set_resolution(6)

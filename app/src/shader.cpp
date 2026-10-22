@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -17,9 +17,9 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
-#include "fieldes/shader.hpp"
+#include "fieldev/shader.hpp"
 
-namespace FielDes {
+namespace FielDev {
 namespace Shader {
 
 QOpenGLShaderProgram* basic;
@@ -47,4 +47,4 @@ void initializeGL()
 }
 
 }   // namespace Shader
-}   // namespace FielDes
+}   // namespace FielDev

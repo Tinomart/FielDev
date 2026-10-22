@@ -26,7 +26,7 @@
 #
 # Balls are 30 mm across and 40 mm apart.  Change a number, or the kind, and the ball follows.  The finest features here are about 2 mm, so the resolution
 # is 2 (samples per mm) and the picture is there in about ten seconds; at 3 the finest grain is sharper, and it takes a minute and a half.
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-22, -22, -22], [182, 62, 22], auto_scale=True)
 view.set_resolution(2)

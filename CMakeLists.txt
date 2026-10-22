@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
-project(FielDes VERSION 1.0.0 LANGUAGES C CXX)
+project(FielDev VERSION 1.0.0 LANGUAGES C CXX)
 
-option(BUILD_APP "Build the FielDes application" ON)
+option(BUILD_APP "Build the FielDev application" ON)
 option(ENABLE_DEBUG "Add debugging symbols to the binaries" OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -55,13 +55,13 @@ if(UNIX)
     set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} -latomic")
 endif()
 
-message("FielDes ${PROJECT_VERSION}")
+message("FielDev ${PROJECT_VERSION}")
 message("  kernel:       yes")
 message("  application:  ${BUILD_APP}")
 
 ################################################################################
 
-set(FIELDES_BUILD_FROM_ROOT true)
+set(FIELDEV_BUILD_FROM_ROOT true)
 
 add_subdirectory(kernel)
 

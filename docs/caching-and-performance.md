@@ -1,6 +1,6 @@
 # Caching and performance
 
-A FielDes script runs again after every edit, and a few of its operations are expensive: reading a big mesh
+A FielDev script runs again after every edit, and a few of its operations are expensive: reading a big mesh
 file, meshing a shape, building a field. The caches make the second run cheap **without changing any
 result**: every cache is keyed by *exactly what the result was built from*, never by a name or a printed
 approximation, and a hit returns the very thing a miss built. Nothing is ever sampled onto a grid to save time.
@@ -22,8 +22,8 @@ approximation, and a hit returns the very thing a miss built. Nothing is ever sa
 |---|---|---|
 | **Any field a script builds** (`name = <expression>`: an offset, a thickness field — [the field cache](#the-field-cache)) | in memory, and on disk when every part of the field can be saved | the statement's text, the exact content of every name it reads, the `var()` numbers, the code that builds it |
 | **Shapes already meshed in the viewport** | in memory, for the session | the shape's expression (structural identity) and its colouring |
-| **The finished mesh of a shape you asked for** ([render cache](#the-render-cache)) | on disk, in FielDes's cache folder | the shape's expression with the numbers it is drawn with, its colours, the render region, resolution and quality |
-| **The model tree of a script** ([the model tree](#the-model-tree)) | on disk, in FielDes's cache folder (`scene-cache`) | the md5 of the script's text, and the program and library that made the tree |
+| **The finished mesh of a shape you asked for** ([render cache](#the-render-cache)) | on disk, in FielDev's cache folder | the shape's expression with the numbers it is drawn with, its colours, the render region, resolution and quality |
+| **The model tree of a script** ([the model tree](#the-model-tree)) | on disk, in FielDev's cache folder (`scene-cache`) | the md5 of the script's text, and the program and library that made the tree |
 | **Mesh imports** | in memory | path, size, modification time, units |
 | **`mass_properties` / `volume_of`** | in memory | the shape, bounds and resolution |
 | **Field queries** (`curvature_field`, data fields) | in memory | they remember their answer at every point they were asked about — the same values, exactly |
@@ -52,7 +52,7 @@ clear_caches()      # forget everything held in memory (to measure, or to free i
 Memory caches are bounded (least recently used goes first).
 
 Developers writing their own expensive construction can use the same machinery from
-`fieldes.stdlib.content_cache`: `@content_cached('name', limit=8)` on a function of shapes and numbers,
+`fieldev.stdlib.content_cache`: `@content_cached('name', limit=8)` on a function of shapes and numbers,
 `shape_key(shape)`, `value_key(v)`, `problem_key(kind, **parts)`.
 
 ## The field cache
@@ -63,7 +63,7 @@ lists, text, the library's own functions), the numbers of the script's `var()`s 
 and its Python files). There is nothing to switch on and no function to wrap: an exact offset or a
 thickness field is cached because it is a field, not because somebody wrote a cache for it. Run the same
 statement with the same inputs and the field is not built again: in the same session the very same field is handed back,
-and in a later session (after closing and opening FielDes) it is read from a file. What the statement printed is printed
+and in a later session (after closing and opening FielDev) it is read from a file. What the statement printed is printed
 again. A hit returns exactly what a run builds; nothing is sampled onto a grid.
 
 What is not kept this way:
@@ -76,13 +76,13 @@ What is not kept this way:
 A field is written to disk when **every part of it can be saved** (`libfive_tree_can_save`): operations, bodies, any
 expression of them. A field with a part that cannot be saved (a mesh's distance field, a data field) is kept in memory for the session and is computed again in
 the next one — the cache never writes a file it could not read back. The files are in `field-cache` beside the render
-cache (`FIELDES_FIELD_CACHE_DIR` moves them); the folder holds at most 3 GB, oldest first out.
+cache (`FIELDEV_FIELD_CACHE_DIR` moves them); the folder holds at most 3 GB, oldest first out.
 **Settings → Clear the caches** deletes them together with the kept meshes of the render cache.
 
 ## The render cache
 
 Meshing is the slow part of showing a big shape, and the viewport's memory of it ends with the session. So **every
-shape keeps its finished mesh on disk** (in FielDes's cache folder, never in your project) once it has taken a while to
+shape keeps its finished mesh on disk** (in FielDev's cache folder, never in your project) once it has taken a while to
 mesh (a sphere is not worth a file), and is shown from there at once the next time it is rendered — when you open the
 script again, or after you changed it and changed it back. It is **on** unless you turn it off: the model tree's
 **cache button** on every shape (a stack of disks; a menu entry in the right-click menu too) writes the line
@@ -101,7 +101,7 @@ anything about the math changes, `None` when the shape cannot be kept).
 A shape can be kept when everything it is made of can be recognised from one run to the next: operations, numbers,
 `var()`s, imported meshes, field-driven sizes. A shape that holds an oracle with no key of its own cannot (the amber
 button says so). The folder holds at
-most 4 GB (`FIELDES_RENDER_CACHE_MB` changes that), oldest files first out; **Settings → Clear the caches**
+most 4 GB (`FIELDEV_RENDER_CACHE_MB` changes that), oldest files first out; **Settings → Clear the caches**
 deletes all of it (and the field cache's files). The mesher's output changes now and then; the cache then starts anew by a version number
 (`kRenderCacheVersion`), not on every build.
 
@@ -135,10 +135,10 @@ Two more things hold while a long render is going on:
 
 The model tree is **read from the script's text**, so it is there at once, whatever the script is doing (see *The model tree* in
 the interface chapter). What only a run can tell it -- the exact kind of what a statement made, how far it reaches -- is **kept**:
-after every run that worked, it is written to `scene-cache` in the cache folder (`FIELDES_SCENE_CACHE_DIR` moves it; the sixty
+after every run that worked, it is written to `scene-cache` in the cache folder (`FIELDEV_SCENE_CACHE_DIR` moves it; the sixty
 newest are kept), by the md5 of the script's text and of the program and library that made it. Opening the same text again lays
 that on the rows **at once**, and they can be clicked while the script runs for the first time. A script that was changed since, or
-another version of FielDes, has no kept facts: the rows show a guess from the function names until the statements have run.
+another version of FielDev, has no kept facts: the rows show a guess from the function names until the statements have run.
 
 **The buttons of a row act at once.** The eye, the lock and the render cache write their lines into the script, and the tree
 changes in the same moment -- every row is on the line the edit gave it, the clicked model shows its new state -- without

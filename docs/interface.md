@@ -35,7 +35,7 @@ Everything else is in the viewport: the model tree, the section card and the leg
 *Primitives ▸ Manage primitives...* is where the list of primitives is yours. Select a model in the model tree and the dialog lists, for its kind (3D shapes, 2D shapes, lines, surfaces, fields: the kinds whose menu is a list; *New point* and a symmetry are single buttons with nothing nested under them, so they have no section and cannot be made primitives), every shape the menus have, built in or your own:
 a tick makes it a primitive (it is shown under *Primitives*), no tick puts it with the *Parametric shapes* -- a built-in primitive can be taken out of *Primitives* this way too. **Add selection** makes the selected model a primitive of your own, under the name you give it:
 everything of the script that the model is made of -- the models it uses, the functions and the variables it needs -- is kept with it, and picking it from any *Primitives* menu writes it into the script as a model of its own, with names the script does not have yet (a `size` that is
-already there becomes `size_2`: nothing in your script is overwritten). What you chose is kept in **one file of yours**, `primitives.json` in your data folder (`%APPDATA%\FielDes` on Windows, `~/.local/share/FielDes` on Linux), so your primitives are there in every script you open,
+already there becomes `size_2`: nothing in your script is overwritten). What you chose is kept in **one file of yours**, `primitives.json` in your data folder (`%APPDATA%\FielDev` on Windows, `~/.local/share/FielDev` on Linux), so your primitives are there in every script you open,
 whether or not the script you made them in still exists. A profile (a shape made of points) is a *Parametric shape*, not a primitive.
 
 ## The editor
@@ -89,7 +89,7 @@ simply moves there. When the name is defined **in another file** — a library f
 `box`, a method such as `.max`, or a function from a module that sits next to your script
 (`from bracket import make_bracket`) — the file opens in a **new tab** above the editor, at the
 definition, and the name is selected. From there `F12` goes on: a name defined in that file moves the cursor,
-one it imports opens the next tab. FielDes reads the files and follows the imports, nothing is run.
+one it imports opens the next tab. FielDev reads the files and follows the imports, nothing is run.
 
 Only the **first tab**, the one with the play mark (▶) and the bold name, is the script that is run and
 rendered. The other tabs are there for editing: they have a slightly darker page, a note under the text
@@ -97,8 +97,8 @@ says *Editing only: this file is not rendered*, and what you change in them does
 
 - **Save** (`Ctrl+S`) saves the tab you are in. Saving a file of your own (a module next to the script) runs the
   script again, with the new file: the script's folder is searched for modules, and they are loaded afresh at every
-  run. The files of FielDes's own library (the `python/fieldes` folder) can be edited too, but Python reads
-  them when FielDes starts, so what you change there applies after the next start.
+  run. The files of FielDev's own library (the `python/fieldev` folder) can be edited too, but Python reads
+  them when FielDev starts, so what you change there applies after the next start.
 - A `•` after a tab's name means unsaved changes. Closing the tab (its **×**, or `Ctrl+W`) and quitting
   ask about them.
 - `Alt+←` goes back to the script; `Ctrl+Page Down` and `Ctrl+Page Up` move between the tabs.
@@ -125,7 +125,7 @@ offending line underlined in the editor. The error's text is red, everything els
 | | |
 |---|---|
 | **Shift+left-drag** or **middle-drag** | Rotate (turntable; **Z points up** (the axis of the library's own shapes) unless you choose Y up in **Settings → Rotation mode**) |
-| **Right-drag** | Pan. For hands that have no right or middle button to spare, **Settings → Navigation** adds a second set of gestures -- *Blender style*: also **Shift+middle-drag** pans; *Touchpad*: also **Alt+left-drag** pans. The default (*FielDes*) is the one above and stays the default; the others only add to it |
+| **Right-drag** | Pan. For hands that have no right or middle button to spare, **Settings → Navigation** adds a second set of gestures -- *Blender style*: also **Shift+middle-drag** pans; *Touchpad*: also **Alt+left-drag** pans. The default (*FielDev*) is the one above and stays the default; the others only add to it |
 | **Left-drag** | Draw a selection rectangle: when you let go, every model that lies **wholly inside** it is selected (a model that is only partly inside is not; a rectangle that holds none leaves the selection alone). With **Ctrl+left-drag** the models inside are added to the selection instead of replacing it. A drag that starts on a surface you can pull (a model in *handles* mode, not locked, alone in the selection) pulls the surface instead, and one that starts on a handle or a gizmo moves that |
 | **Right-click** empty space | Make things where the cursor is: **Primitives** (the most basic of each kind: *New 3D shape*, *New 2D shape*, *New 1D shape*, *New point*, *New symmetry*, *New surface*, *New field*), **Parametric shapes** (the rest of what the library makes with no argument, by kind: a rounded box, a ring, a profile, a *chain* -- a limb through points, see [Characters](characters.md) -- and your [blocks](blocks.md) that need no argument), **Operations** (*thicken*, *shell*, *smooth*, moving, repeating and combining, and the custom blocks that work on a model), **Python** (blocks of plain code) and **Import model…** (a mesh, written as one `import_model` line: see [Meshes](meshes.md)). Choosing one writes the call into the script, with a line showing it, and selects the new model, ready to drag. A new thing is placed where the cursor is (the point of the ray under the cursor that is closest to the origin, as large as about a hundred pixels, and in the plane through the origin that faces you, so y = 0 in a front view -- except a 2D shape, which lies in the plane z = 0 and is made where the ray under the cursor meets it, in any view; a place outside the render region is moved just inside it, or it would not be drawn) and goes at the end of the script; an operation works on the selected model (or the last one) |
 | **Right-click** a model (or a line of the script that defines it, or its row in the model tree: see below) | **center** and **bounding_box** (the middle of the model's box, as a point, and the smallest axis-aligned box that holds it, as a body: library functions of their own, used all the time, so at the top of the menu), **Operation** (the same list, written with that model as its argument, under its definition; with **several models selected** and the one you right-click among them, the operations that combine models work on all of them, in the order you selected them: *union* unites all, *difference* takes every one after the first from the first, *intersection* keeps what they share; **Surfaces → surface_from_bodies** makes the first one's surface where the others meet it, and of one model alone, all of its surface (see [Selecting surfaces](selecting-surfaces.md#by-other-bodies)); the others work on the model you right-clicked), **Delete** (the model, or all the selected ones) and **Select Surface**, which opens the menu of the **surface selection**: the mode, the angle and the radius of a flood fill over the surface from the point you clicked; **Select** writes a `select_surface(...)` line into the script, under the model's definition. See [Selecting surfaces](selecting-surfaces.md) |
@@ -161,7 +161,7 @@ The viewport's right-click menus are not only the viewport's: **the same menu op
 on a **line of the script** that defines a model, and on its **row in the model tree** -- and means the same there, as if that
 model had been right-clicked in the viewport:
 
-- **Three parts: Primitives, Parametric shapes and Operations.** **Primitives** hold the most basic, low-level representation of each kind of thing, each under its kind (*New 3D shape*, *New 2D shape*, *New 1D shape*,
+- **Primitives, Parametric shapes and Operations.** **Primitives** hold the most basic, low-level representation of each kind of thing, each under its kind (*New 3D shape*, *New 2D shape*, *New 1D shape*,
   *New point*, *New surface*, *New field*): a sphere, a box, a cylinder, a cone, a torus, a pyramid, a prism; a circle, a rectangle, a triangle, a polygon; a polyline, a spline; a point; a plane, a sphere surface, a cylinder
   surface; a distance, a radial, a z and a noise field. **Parametric shapes** hold the more complicated ones -- shapes made with parameters that are not the most basic of their kind, though they need no model to be made: a rounded box,
   a ring, a wave, noise, your own low-level logic (*low_level_body*, *low_level_field*), a custom block -- by kind in the same way. **Operations** are what is done to a model: the operation groups (*Offsets and walls*,
@@ -171,12 +171,17 @@ model had been right-clicked in the viewport:
   *while loop*, *function (def)*, *class*, *list*, *list from a loop*, *dictionary*, *try / except*, *with (a file)*, *import*, *print* -- written **as code, at the insertion point of the tree**
   (see [The insertion point](#the-insertion-point)): no `name =` in front, no line that shows it, because it is no model. The code is edited in the code editor; the model tree shows the block and what is in it
   ([Python in the tree](#python-in-the-tree)).
+- **Character** is a section of its own, between Operations and Python, for building a character the way Dust3D does: **limbs** put down node after node over a picture, joined into a body, with a skeleton made
+  from them. **Draw a limb** opens the [work plane](#the-work-plane) facing the picture the camera looks at, in its *Limb* mode: every click puts down a node, `Enter` ends the limb, `Backspace` takes the last node
+  back. **New limb** makes a first limb through three nodes (or through the points that are selected), to change in the script. **character** joins the limbs into one body, with a blend where they meet (and the
+  other side as the mirror image, with `symmetric`), and **skeleton_of** makes their skeleton -- a joint for each node, each hanging from the one before it. **Reference image** stands a picture you choose behind the
+  models, in the front, back, right, left, top or bottom plane ([Reference images](#reference-images)). See [Characters](characters.md#armatures-limbs-a-character-a-skeleton).
 - **The menu is made of what is valid, and the same wherever it is opened.** A **category** (a submenu, at any depth: *Operations*, *Extruding* inside it, *Primitives → New 2D shape* ...) is in the menu
   **when there is at least one valid entry in it, and is not in it when there is none** -- it is not greyed out, it is left out -- and that is worked out from the entries themselves, by asking whether
   what is selected is something the entry takes, not from a list of categories. So a **surface** selected shows *New 2D shape* with *profile* (the outline of that surface) whether you right-click it in the
   viewport, on its row in the tree or on its line in the script, and *Extruding* is not in the menu of a solid and is in the menu of a 2D shape (it holds something valid there). An entry that takes a second model
   is valid when the pair it would be written with -- the selected model and the last other model of the script -- is what it takes (with no other model in the script the second is a placeholder, `...`, and the entry is valid all the same). **What an entry takes is declared by the library function itself**
-  (`fn._takes = takes(...)`, with the kinds of `fieldes.kinds`: `SHAPES`, `BODIES`), the menu reads it from there, and a function that declares nothing takes any shape: so `smooth`, `round_edges`, `fillet`, `shell_inside`,
+  (`fn._takes = takes(...)`, with the kinds of `fieldev.kinds`: `SHAPES`, `BODIES`), the menu reads it from there, and a function that declares nothing takes any shape: so `smooth`, `round_edges`, `fillet`, `shell_inside`,
   `shell_outside`, `shell_exact` take a body (not a surface, a curve, a point or a field) and `extrude` a 2D shape -- and a new function is covered by one line on it, with
   no list of names in the menus.
 - On a line (or row) that defines a model: **Primitives**, **Parametric shapes**, **Operations**, the quick operations (*center*, *bounding_box*), **Import model...**, **Select Surface** (greyed outside the viewport: the
@@ -354,7 +359,7 @@ once and empties the viewport, so what the old script made is never left standin
 | **⟳ Reimport** (on an import) | Read the file again (bumps `rev=` in the call). Imported files are also watched: one saved by another program is read again by itself |
 | **⟳ Reimport** (on a part) | Back to what the file says: the part's handle edits are deleted and the file read again |
 | **↺ Reset** (on an import) | Delete the import's cache and the handle edits of all its parts, and import afresh |
-| **Bin** (every row) | **Delete** the row's object: its statement, the line that shows it, the line that hides it and its `gizmo()`, `handles()`, `lock()` and `render_cache()` calls are removed from the script (one undo restores them). On an import it deletes the parts' variables too; on a part row, the part's variable; on a render setting, its `view.set_…` line (back to the default). If the rest of the script still uses the name, FielDes asks first |
+| **Bin** (every row) | **Delete** the row's object: its statement, the line that shows it, the line that hides it and its `gizmo()`, `handles()`, `lock()` and `render_cache()` calls are removed from the script (one undo restores them). On an import it deletes the parts' variables too; on a part row, the part's variable; on a render setting, its `view.set_…` line (back to the default). If the rest of the script still uses the name, FielDev asks first |
 | **Right-click** | The menu of the viewport for that model, as if you had right-clicked it there (see [Right-click anywhere](#right-click-anywhere)); in the empty space under the rows, the menu of empty space. *Select Surface* is greyed there (the selection spreads from the place you click on the surface, so it is started in the viewport). The things the old tree menu did are the row's own buttons and keys: the eye, the gizmo, lock and cache buttons, reimport, reset, the bin, V, E, R, C, D, and a click on the row (goes to the code, frames it) |
 
 Grey rows are hidden, or shown but outside the render region. An amber row is imported but worth a look
@@ -379,7 +384,7 @@ letters (*if*, *fo*, *wh*, *wi*, *tr*, *df*, *cl*, *ma*), between the model rows
 | a tile and a header | a block inside the block (`elif`, a loop in a loop, a method in a class), down to eight levels |
 | a statement | any other statement, shortened (`return cylinder(r, h, ...)`, `print(error)`, `self.size = 4`) |
 
-**Everything under a block is locked here**: it cannot be dragged, renamed or dropped on, and editing Python is done in the **code editor**, never in the tree (the tree is the interaction suite of FielDes blocks). A **click**
+**Everything under a block is locked here**: it cannot be dragged, renamed or dropped on, and editing Python is done in the **code editor**, never in the tree (the tree is the interaction suite of FielDev blocks). A **click**
 on a name selects it in the code, ready to be replaced by typing; a click on a statement or a branch selects it; a click on the block goes to it. A block **at the top level** can be dragged above or below any other row
 of the top level -- a model, a section's row, another block -- and its lines move in the script (with the comment lines right above it and the blank lines under it), as one undoable step, to structure the code; it is
 refused with the reason where it would end inside another block or inside a model. Models made inside a block are variables of the block, not model rows ([Known issues](../KNOWN_ISSUES.md)).
@@ -428,7 +433,7 @@ models with ordinary numbers. Three keys, all of which act while the viewport (o
 | `Ctrl+Shift+W` (or **View → New work plane**; **works wherever the keyboard is**, in the code editor too, and gives it to the viewport) | makes a **new** plane and opens its view: the plane of the **selected 2D shape** (a profile, a circle, a shape from a surface ...) -- or of three or more selected points -- where it is; with nothing selected, **parallel to the camera view, through the origin** |
 | `W` (or **View → Set view to work plane**) | turns the camera to **look straight at** the plane. It only moves the camera: it never changes the script |
 
-The card (top right, below the section card when that is open) has three buttons that say what a click draws -- **Line**, **Spline**, **Point**, each with a picture of what it makes -- a line that says whether you are drawing, and the plane's settings: **Grid** on and off, **Snap to grid** and **Snap to points**, the **grid step** (automatic, from how large the picture is, or a number), the plane's
+The card (top right, below the section card when that is open) has four buttons that say what a click draws -- **Line**, **Spline**, **Point** and **Limb**, each with a picture of what it makes above its word -- a line that says whether you are drawing, and the plane's settings: **Grid** on and off, **Snap to grid** and **Snap to points**, the **grid step** (automatic, from how large the picture is, or a number), the plane's
 **offset** along its normal, and the buttons **Set view to work plane** (as `W`), **Set work plane to view** (the plane made parallel to the view through the origin) and **New work plane**. The cursor's place on the plane is
 read out under them. **Turning the camera (the middle mouse button, or Shift + left drag) leaves the work plane view**, and so does closing the card; the status bar says so when the camera did it, and how to open the view again; the plane is kept for the next time you open it.
 
@@ -442,7 +447,7 @@ one end is one line). It is made the moment the stroke comes back to a plane of 
 by their dot -- move in the plane and land on the grid (or on a point that is there). When **not drawing**, a **2D shape that lies in the plane** is moved about in it by pressing it, in steps of the grid: a profile moves all its points together, any other
 2D shape moves through its own move numbers.
 
-**What a click does.** The three buttons -- **Line**, **Spline** and **Point** -- pick what a click draws; `E` goes round them. **None of them on is not drawing**, and there is no button for it: the view **opens in Line**, so a click draws at once, and with none on clicks work as they do
+**What a click does.** The four buttons -- **Line**, **Spline**, **Point** and **Limb** -- pick what a click draws; `E` goes round them. **None of them on is not drawing**, and there is no button for it: the view **opens in Line**, so a click draws at once, and with none on clicks work as they do
 everywhere -- things are selected, moved, turned and scaled. Click the button that is on to turn it off, or **right-click in the viewport** (a right click that does not move; dragging with the right button still pans). `E` then brings back the kind of drawing that was on before it was stopped. You can tell which you are in: while drawing the pointer is a crosshair and a **marker shows the point a click will put down**
 -- a **square** for a line (a corner), a **round point with a ring** for a spline, a plain **dot** for a point, as the points of the script look -- the points already put down have the same marks, and the line under the buttons says what a click does. Not
 drawing there is no marker, no readout of the cursor's place, and the pointer is the usual arrow. In a drawing mode **every click puts a point down**, also on a point that is already there -- the line attaches to it, it does not select it -- and
@@ -452,9 +457,34 @@ that is what not drawing is for. A **double click on a point** of a profile goes
   ends it open, as a `polyline`. `Backspace` takes the last point back, `Esc` drops the whole line.
 - **Spline**: the same with a smooth curve through the points; closed, a profile with spline points (`smooth=True`); open, a `spline`.
 - **Point**: every click puts a point on the plane.
+- **Limb**: every click puts down a node of a limb of a character -- the nodes are the joints of its skeleton -- and the smooth tube through them follows the cursor. `Enter` or a double click ends it, `Backspace`
+  takes the last node back, `Esc` drops it. Put the nodes down over a [reference image](#reference-images), one after the other, as you would in Dust3D, from any side: the work plane is made from the view when you
+  start, so the first click lands on the picture you are looking at; to draw on another picture, look at it (the view buttons) and make a new plane from that view with `Ctrl+Shift+W`.
 
-Nothing of a line or a spline is written until it ends, and then it is one step (one undo): the points, each a model of its own with its gizmo, and the `profile(...)`, `polyline(...)` or `spline(...)` through them. (Shift and Ctrl keep their
+Nothing of a line, a spline or a limb is written until it ends, and then it is one step (one undo): the points, each a model of its own with its gizmo (the scale of a node is how thick the limb is there), and the `profile(...)`, `polyline(...)`, `spline(...)` or `limb(...)` through them. (Shift and Ctrl keep their
 meaning in every mode: Shift turns the view, Ctrl adds to the selection.) See [Profiles](profiles.md).
+
+## Reference images
+
+A **reference image** is a picture to model over -- a character sheet, a front view and a side view, a concept drawing. It is one line of the script:
+
+```python
+reference_image("hero_front.png", plane="front", height=180, center=(0, 0, 90), opacity=0.5)
+```
+
+The picture stands in the scene **behind the models**, in the plane you name, `height` mm tall (its width follows the picture) and with its middle at `center` (a point, or three numbers). The camera is free -- orbit round it,
+zoom in on a hand, look at it from any side, in perspective -- and the models are in front of it. It is not a model, and nothing of it is exported; if its `center` is a point with a gizmo, that point is its handle.
+
+**Right-click → Character → Reference image →** *Front*, *Back*, *Right*, *Left*, *Top* or *Bottom* asks for a file and writes, at the insertion point, **a point with a gizmo** -- the middle of the picture, its handle --
+and the `reference_image(...)` line that uses it as `center`: as tall as about six hundred pixels of the view, a round number, standing on the ground (a top or a bottom picture is round the origin). **Move and scale the picture
+like any model**: click the point's dot (or its row in the model tree) and drag the arrows of its gizmo to move the picture, drag its scale square to make it larger -- the picture is `height` times the scale of the gizmo. What you
+drag is written into the script as the point's numbers, and the picture follows when you let go. Change `height` in the script to fit the character. The planes are the standard views of the viewport, so a picture reads the right way
+round in the view of its name: the character faces -y, `front` is what the Front view looks at (the picture's right is +x), `back` is seen from +y, `right` from +x (its right is +y), `left` from -x, `top` from +z and
+`bottom` from -z; or `plane=((ux, uy, uz), (vx, vy, vz))` for any plane through `center`. `opacity` (0.5) lets the model show through, `flip` turns the picture over left to right, and `visible=False` hides it while the line stays.
+A script that has nothing but pictures to look at is shown from where its render region is, so they are in view.
+
+To model over one: look at it straight on (the view buttons, or `W` once a work plane faces it), right-click → **Character → Draw a limb**, and click the nodes of an arm one after the other ([Limb](#the-work-plane)); then
+look from the side, put a second picture in the right plane, and move the nodes there.
 
 ## The symmetry
 
@@ -565,8 +595,8 @@ progress of the operation in it.
 - A script exports by itself with `export_mesh(part, "part.stl")` and `export_field(field, "noise.vti")` -- see [Exporting and importing files](meshes.md#exporting-and-importing-meshes).
 ## Language
 
-FielDes shows its menus, dialogs, tooltips, the guided tour, the guide and the creation forms in **English, Spanish, French, German,
-Japanese, Simplified Chinese or Russian**. The default is the language of Windows (the first of the computer's preferred languages that FielDes has);
+FielDev shows its menus, dialogs, tooltips, the guided tour, the guide and the creation forms in **English, Spanish, French, German,
+Japanese, Simplified Chinese or Russian**. The default is the language of Windows (the first of the computer's preferred languages that FielDev has);
 **Settings → Language** chooses another and offers to **restart now** (the language is read when the program starts; an unsaved script
 is asked about, as when closing). The installer asks for the language too.
 
@@ -577,7 +607,7 @@ improve one or add a language.
 
 ## The guided tour
 
-The first time FielDes starts, a **welcome card** says in a few lines what FielDes is (field driven design) and offers the tour: **Start the guided tour** (orange)
+The first time FielDev starts, a **welcome card** says in a few lines what FielDev is (field driven design) and offers the tour: **Start the guided tour** (orange)
 or the quieter **Skip the guided tour**; **Help → Guided tour** starts it at any time, at its first step. **Leaving it -- on the first card, or at any step -- ends with a card that says where it is found again** (the Help menu, with its entry framed), so it is never lost. It runs on the program itself, not
 on a script: one walk of short cards of one or two sentences, 30 steps after the welcome card: the script and the viewport, **the model tree and selecting a model**, the gizmo and **the one you get with Shift**, **the arguments of a call (every row under a model is one)**, renaming, making things, **a placeholder that is explained, made from the right-click menu and filled in, in one step**, sections and closing rows, the section view, a field in place of a number, **a model used in two places (the Ctrl+drag that makes a shadow reference, and why)**, drawing on a **work plane** (and **stopping with a right click, coming back with `E`**), a point pulled out of an edge, a corner turned into a spline point or a round corner, **lines through points and a sweep along one that you can play with**, copies and linked copies, **the symmetry (a mirror is a model; what you make while it is selected is made at its images too; editing the original or an image; Shift+S)**, a custom function from a block, and last the keys worth knowing (grouped: general first). The steps that need more than the plate -- a field, a reference -- **work on a small model of their own**, so that only what the step is about is there, and the tree shows only the rows it is about; your model is back when the step is left. **Every step has a state of its own, and starts from it**: what you changed or deleted in a step -- a number, a row, a name, a section -- is put back when the step is left, so the next one is whole. Each step
 

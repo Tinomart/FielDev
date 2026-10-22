@@ -1,18 +1,18 @@
 # Library reference
 
-Every public function and class of the FielDes library, generated from its docstrings
-(`python scripts/gen_reference.py`).  `from fieldes import *` brings all of them in.
+Every public function and class of the FielDev library, generated from its docstrings
+(`python scripts/gen_reference.py`).  `from fieldev import *` brings all of them in.
 
-Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Materials of an export](#materials-of-an-export) | [Skeletons of an export](#skeletons-of-an-export) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: limbs made of points](#characters-limbs-made-of-points) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDes apps: the inputs of a script](#fieldes-apps-the-inputs-of-a-script)
+Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Materials of an export](#materials-of-an-export) | [Skeletons of an export](#skeletons-of-an-export) | [UV maps](#uv-maps) | [Baked textures](#baked-textures) | [PNG files](#png-files) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: limbs made of points](#characters-limbs-made-of-points) | [Armatures: limbs, a character, a skeleton](#armatures-limbs-a-character-a-skeleton) | [Reference images](#reference-images) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDev apps: the inputs of a script](#fieldev-apps-the-inputs-of-a-script)
 
 ## Primitive shapes
 
-Python library of FielDes, built on the libfive CAD kernel
+Python library of FielDev, built on the libfive CAD kernel
 
 Originally generated from the C++ standard library (kernel/stdlib/libfive_stdlib.h) by the libfive
-project; the generator is not part of FielDes, so this file is now maintained by hand.
+project; the generator is not part of FielDev, so this file is now maintained by hand.
 
-This is fieldes.stdlib.shapes
+This is fieldev.stdlib.shapes
 
 Every shape has ONE primitive, with that shape and nothing else: `box`, `cylinder`, `sphere`, ... (no centred or mitered or `_z` variants:
 a shape that stands another way is turned with rotate_x / rotate_y / rotate_z, one that sits somewhere else is moved with move).
@@ -112,12 +112,12 @@ A 2D triangle between three corners.  Its handles pull a side each: a side moves
 
 ## Combining shapes (CSG)
 
-Python library of FielDes, built on the libfive CAD kernel
+Python library of FielDev, built on the libfive CAD kernel
 
 Originally generated from the C++ standard library (kernel/stdlib/libfive_stdlib.h) by the libfive
-project; the generator is not part of FielDes, so this file is now maintained by hand.
+project; the generator is not part of FielDev, so this file is now maintained by hand.
 
-This is fieldes.stdlib.csg
+This is fieldev.stdlib.csg
 
 ### `blend(a, b, m)`
 
@@ -195,12 +195,12 @@ a rib and a plate, a horn and a head.  It works on any field.
 
 ## Moving, rotating, scaling, deforming
 
-Python library of FielDes, built on the libfive CAD kernel
+Python library of FielDev, built on the libfive CAD kernel
 
 Originally generated from the C++ standard library (kernel/stdlib/libfive_stdlib.h) by the libfive
-project; the generator is not part of FielDes, so this file is now maintained by hand.
+project; the generator is not part of FielDev, so this file is now maintained by hand.
 
-This is fieldes.stdlib.transforms
+This is fieldev.stdlib.transforms
 
 ### `attract(shape, locus, radius, exaggerate=1)`
 
@@ -403,12 +403,12 @@ Twirls the shape in the z axis about the (optional) center point
 
 ## Text
 
-Python library of FielDes, built on the libfive CAD kernel
+Python library of FielDev, built on the libfive CAD kernel
 
 Originally generated from the C++ standard library (kernel/stdlib/libfive_stdlib.h) by the libfive
-project; the generator is not part of FielDes, so this file is now maintained by hand.
+project; the generator is not part of FielDev, so this file is now maintained by hand.
 
-This is fieldes.stdlib.text
+This is fieldev.stdlib.text
 
 ### `text(txt, pos=(0, 0))`
 
@@ -447,7 +447,7 @@ Imports a triangle mesh (.stl, .obj, .ply, .3mf, .glb, .gltf, .fbx, .off, .dxf) 
 units       the units of your script ('mm', 'cm', 'm', 'in'...)
 file_units  what the numbers of the file mean ('mm' if it does not say: STL, OBJ, PLY and OFF do not; 3MF, FBX and DXF
             with $INSUNITS do, glTF is metres)
-rev         a number that is part of what an import is kept by: another one imports again ("Reimport" in FielDes)
+rev         a number that is part of what an import is kept by: another one imports again ("Reimport" in FielDev)
 
 ### `tessellate(source, units='mm', file_units=None, rev=None, bounds=None, resolution=None)`
 
@@ -474,7 +474,7 @@ and polyface meshes) files.
     view.set_bounds(*roi(parts))
 
 The mesh becomes an exact signed distance field (negative inside), so it
-works with everything else in fieldes.stdlib: union / difference with CSG
+works with everything else in fieldev.stdlib: union / difference with CSG
 shapes, offset / shell / blend, transforms and so on.  Before that its
 triangles are cleaned up (duplicate vertices welded, degenerate triangles
 dropped, windings made consistent, inside-out shells flipped).  Meshes with
@@ -484,7 +484,7 @@ generalised winding number, which closes it with a smooth membrane.
 STL, OBJ and PLY files carry no units: pass file_units= to say what their
 numbers mean (e.g. 'm' or 'in'; millimetres otherwise).  3MF files state
 their unit and glTF is always in metres; that is used unless file_units=
-overrides it.  glTF's Y-up axes are turned into FielDes's Z-up.
+overrides it.  glTF's Y-up axes are turned into FielDev's Z-up.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -497,10 +497,12 @@ count, whether it is watertight, ...) as a dict, or None.
 
 ## Materials of an export
 
-Materials: a name, a colour, how it shines -- and where on the model it applies, as a field.
+Materials: a name, a colour, how it shines, how it is lit -- and where on the model it applies, as a field.
 
     skin = material("skin", color=(0.9, 0.72, 0.6), roughness=0.7)
     metal = material("metal", color="#9aa0aa", metallic=1.0, roughness=0.3, where=box((-40, -30, 100), (40, 30, 150)))
+    glass = material("glass", color=(0.9, 0.95, 1.0), roughness=0.05, transmission=1.0, ior=1.5)
+    gold = material_preset("gold")
     export_mesh(character, "hero.glb", materials=[skin, metal])
 
 The materials of an export are LAYERS, painted in the order they are listed: each triangle takes the last material whose `where` is negative at the middle of the
@@ -508,7 +510,12 @@ triangle (inside the body or the field it names), so a material without a `where
 get a .mtl file next to them (`usemtl` for each group of triangles), glTF files a material for each and a primitive of the mesh for each.
 
 `where` is any field: a body (the material is on what is inside it), or a field -- `100 - z_field()` is negative above z = 100.  The edge between two materials
-runs along the triangles of the mesh: as fine as the resolution of the export.
+runs along the triangles of the mesh: as fine as the resolution of the export -- unless the textures are baked (`textures=bake(...)` of export_mesh), which
+asks the field at every texel of the texture: the edge is as fine as the texture is.
+
+A colour, the roughness, the metalness, the glow and the opacity can be FIELDS instead of numbers -- a pattern, noise, a gradient -- when the textures are baked:
+
+    wood = material("wood", color=(0.55 + 0.1 * noise, 0.35 + 0.1 * noise, 0.2), roughness=0.4 + 0.3 * noise)
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -518,37 +525,73 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 
 A material for `export_mesh(..., materials=[...])`: see `material`
 
-### `material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=None, where=None, texture=None)`
+#### `Material.blend_mode(self)`
 
-A material of a mesh export (`export_mesh(part, "hero.glb", materials=[...])`).
+"OPAQUE", "MASK" or "BLEND": the alpha mode asked for, else BLEND when the material is see-through, else OPAQUE
 
-name       what the file calls it (letters, digits, - and _)
-color      (r, g, b) from 0 to 1, or "#rrggbb"
-roughness  0 (a mirror) to 1 (chalk)
-metallic   0 (a dielectric) to 1 (a metal)
-emissive   (r, g, b) or "#rrggbb" for a surface that glows, or None
-where      a body or a field: the material is on the triangles whose middle is inside it (where its value is negative).  None: everywhere
-texture    the file name of an image (a path relative to the mesh file, "skin.png"): the colour of the surface, mapped with the UVs of the export
-           (`export_mesh(..., uvs="box")`).  The image is not copied or checked: it is the name the file says
+#### `Material.is_procedural(self)`
+
+True when a colour, the roughness, the metalness, the glow or the opacity is a field: the material can only be written with baked textures
+
+### `material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=None, where=None, texture=None, opacity=1.0, alpha_mode=None, double_sided=False, ior=None, transmission=0.0, clearcoat=0.0, clearcoat_roughness=0.0, sheen=None, emissive_strength=1.0, normal_texture=None, orm_texture=None, emissive_texture=None, normal_scale=1.0)`
+
+A material of a mesh export (`export_mesh(part, "hero.glb", materials=[...])`).  The physically based one glTF has (metallic and roughness).
+
+name        what the file calls it (letters, digits, - and _)
+color       (r, g, b) from 0 to 1, or "#rrggbb"; each channel can be a field (baked into the textures)
+roughness   0 (a mirror) to 1 (chalk); a number or a field
+metallic    0 (a dielectric) to 1 (a metal); a number or a field
+emissive    (r, g, b) or "#rrggbb" for a surface that glows, or None
+emissive_strength   how many times brighter than 1 the glow is (a lamp): 1 by default
+where       a body or a field: the material is on the triangles whose middle is inside it (where its value is negative); with baked textures, on the texels.  None: everywhere
+opacity     1 (solid) to 0 (invisible); a number or a field.  Below 1 the material is blended
+alpha_mode  "OPAQUE", "MASK" (a cut-out: leaves, a fence) or "BLEND"; None: BLEND below an opacity of 1, else OPAQUE
+double_sided  both sides of a triangle are drawn and lit (a leaf, a flag, a sheet)
+ior         the index of refraction (1.5 is glass); None: glTF's 1.5
+transmission  1 for glass that light passes through, 0 for a solid
+clearcoat   0 to 1: a glossy layer on top (car paint, varnish); clearcoat_roughness: how rough that layer is
+sheen       (r, g, b) of the soft glow at grazing angles of cloth and velvet, or None
+normal_scale  how strong the baked or given normal map is: 1
+texture, normal_texture, orm_texture, emissive_texture   the file names of images you made yourself ("skin.png"): the colour, the normal map, the packed
+            occlusion (red) / roughness (green) / metallic (blue) map, and the glow.  Mapped with the UVs of the export (`export_mesh(..., uvs=...)`); the
+            images are not copied or checked: they are the names the file says.  `export_mesh(..., textures=bake(...))` makes them from the fields instead
 
 The materials of an export are layers: each triangle takes the LAST one that covers it, so the base material (no `where`) goes first.
 
+### `material_preset(kind, name=None, **options)`
+
+A material that looks like a common thing: "gold", "silver", "copper", "brass", "iron", "steel", "aluminium", "chrome", "plastic", "rubber", "wood", "stone", "concrete",
+"brick", "ceramic", "skin", "leather", "cloth", "paper", "bone", "glass", "water", "paint", "glow" (see `material_presets()`).  `name` is what the file calls it (the
+kind by default); the other options are those of `material` and replace the preset's: `material_preset("plastic", color="#2060c0", where=body)`
+
+### `material_presets()`
+
+The names `material_preset` knows
+
 ## Skeletons of an export
 
-Rigging: a skeleton of joints for the glTF that a game engine animates.
+Rigging: a skeleton of joints, and the weights of a skin, for the glTF that is animated.
 
     hips = joint("hips", (0, 0, 92))
     spine = joint("spine", (0, 0, 128), parent="hips")
     shoulder = joint("shoulder.R", shoulder_point, parent="spine")           # a point works: its numbers at the time of the export
     elbow = joint("elbow.R", (31, 0, 113), parent="shoulder.R")
+    jaw = joint("jaw", (0, 6, 150), parent="head", influence=box((-8, 0, 140), (8, 14, 150)))     # the jaw owns the box: the skin there follows it alone
     bones = mirror_joints([hips, spine, shoulder, elbow])                    # every ".R" joint gets a ".L" one on the other side of x = 0
-    export_mesh(figure, "hero.glb", skeleton=bones)
+    export_mesh(figure, "hero.glb", skeleton=bones, max_influences=4)
 
 The joints are in the order they are given, every joint after its parent, and there is ONE root.  The export writes them as the nodes of the glTF, with the
-skin (the inverse bind matrices) and, for every vertex, the four joints that move it and how much (JOINTS_0 and WEIGHTS_0): the weights come from the
-distance of the vertex to the bones.  The bone of a joint is the segments from it to its children (and the joint itself): the geometry between the elbow and
-the hand follows the elbow, as it does when the elbow is turned.  A vertex follows the nearest bone alone, and shares itself with the others that are about as near
--- within `skin_falloff` -- so that a joint bends smoothly.
+skin (the inverse bind matrices) and, for every vertex, the joints that move it and how much (JOINTS_0 and WEIGHTS_0, and _1 for more than four): the weights are
+FUNCTIONS OF THE PLACE of the vertex, not of the triangles it is in -- so they are as smooth as the model is, and the same at a seam.  Two rules make them:
+
+  the bones   The bone of a joint is the segments from it to its children (and the joint itself): the geometry between the elbow and the hand follows the elbow, as it does
+              when the elbow is turned.  A vertex follows the nearest bone alone, and shares itself with the joints beside it at the two ends of that bone -- the parent at the
+              start, the child at the end: half at the very joint, less and less over `skin_falloff` mm along the bone, none beyond -- so that a joint bends smoothly and a bone that
+              is merely near (the other leg) never moves a vertex.
+  the fields  A joint with an `influence` (a body or a field) owns the places where it is negative: there the skin follows the joint alone, and it fades to the weights of the bones over
+              `skin_falloff` mm outside.  The joints are layers, as materials are: the later one is on top.  A jaw, a finger, a tail tip, a cape -- anything the bones do not shape.
+
+Then the weights are cut to the `max_influences` strongest (4 is what the engines run; up to 8) and made to add up to 1.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -558,20 +601,204 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 
 A joint of a skeleton: see `joint`
 
-### `joint(name, position, parent=None, tip=None)`
+### `joint(name, position, parent=None, tip=None, influence=None)`
 
 A joint of a skeleton for `export_mesh(..., skeleton=[...])`.
 
-name      what the file calls it (a text: "elbow.R"; each joint of a skeleton has its own)
-position  where it is in the model: a point (the numbers it has when the file is written) or (x, y, z)
-parent    the name of the joint it hangs from, a joint that was made before it; None for the root, which there is one of
-tip       where the bone of a joint with no children ends -- the hand, the head, the toe: a point or (x, y, z).  Not given: the bone goes on in the
-          direction of the one before it for half its length (the hand goes on past the wrist), so that the end of the body has a bone of its own
+name       what the file calls it (a text: "elbow.R"; each joint of a skeleton has its own)
+position   where it is in the model: a point (the numbers it has when the file is written) or (x, y, z)
+parent     the name of the joint it hangs from, a joint that was made before it; None for the root, which there is one of
+tip        where the bone of a joint with no children ends -- the hand, the head, the toe: a point or (x, y, z).  Not given: the bone goes on in the
+           direction of the one before it for half its length (the hand goes on past the wrist), so that the end of the body has a bone of its own
+influence  a body or a field: the places where it is negative belong to this joint (the skin there follows it alone), fading to the weights of the bones over the
+           `skin_falloff` of the export.  None: the joint has only its bones
 
 ### `mirror_joints(joints, axis='x', plane=0.0, suffixes=('.R', '.L'))`
 
 The joints and the mirror images of those whose name ends with `suffixes[0]`: across the plane `axis` = `plane` ("x", "y" or "z"), named with `suffixes[1]`
-instead, hanging from the mirror image of their parent when it has one and from their parent otherwise.  The skeleton of a half of a body is the skeleton of all of it
+instead, hanging from the mirror image of their parent when it has one and from their parent otherwise, with the mirror image of their influence.  The skeleton of a half
+of a body is the skeleton of all of it
+
+### `skin_weights(xyz, joints, falloff, max_influences, eval_at)`
+
+For every vertex the joints that move it and how much: (the joint numbers, a B array of `max_influences` for each vertex; the weights, an f array of the same, adding up to 1).
+See the top of this file for the two rules.  `falloff` is in mm (None: 4 % of the largest side of the model); `eval_at(field, xyz, count)` evaluates a field at the vertices
+
+## UV maps
+
+UV maps: how a surface is laid out on a texture.
+
+    export_mesh(hero, "hero.glb", uvs="unwrap")                      the surface cut into islands and packed into the 0 to 1 square (a texture atlas)
+    export_mesh(hero, "hero.glb", uvs=uv_unwrap(angle=45, margin=8))    the same, with the angle an island may bend by and the gap between islands
+    export_mesh(crate, "crate.obj", uvs=uv_box(500))                 a texture that repeats every 500 mm, going on from one face to the next
+    export_mesh(pole, "pole.obj", uvs=uv_cylinder("z"))              wrapped once round the z axis
+    export_mesh(ball, "ball.obj", uvs=[uv_sphere(), uv_unwrap(margin=8)])   two sets: the second one (TEXCOORD_1) is for a lightmap
+
+A UV map gives every corner of every triangle a place (u, v) on the texture, v up.  The vertices that are in triangles with different places are made again for each
+(a seam of the texture).  Two maps are made at most by an export: the first is the one the baked textures are made for.
+
+    uv_box(size=None)        each triangle is projected along the axis its normal is mostly along, seen from outside.  size: the millimetres one repeat of the texture covers,
+                             from one common origin (the texture goes on from one surface to the next); None: the texture fits each side once
+    uv_planar(axis="z", size=None)   the whole surface along one axis, "x", "y" or "z" ("-z": from below); size as above
+    uv_cylinder(axis="z", turns=1, size=None)   u is the angle round the axis (`turns` times round the texture), v the height: size is the millimetres of one repeat of v (None: once up the
+                             height of the model)
+    uv_sphere(axis="z")      u is the longitude, v the latitude, round the middle of the model's box
+    uv_unwrap(angle=60, margin=4, size=1024)   the surface is cut into islands, each laid flat, all at one scale (one texel is the same size everywhere), and packed into the square
+                             with `margin` texels of a `size` x `size` texture between them.  The report (`.report` after the export) has the islands, how much of the square they
+                             cover and the millimetres of a texel
+
+The unwrap works in four steps.  (1) The islands: grown from the largest triangle left over the neighbours whose normal is within `angle` degrees of the island's average; the small
+ones that are left between the large are taken into the island they touch the most when they fit it (within one and a half times the angle).  (2) Each island is laid flat: by the
+CONFORMAL map (LSCM, least squares conformal maps: angles are kept, so a texture is not sheared) when the island is a disc of at most 6000 triangles, else by projection along its
+average normal.  (3) Each is scaled to the same density, and turned to the angle where its box is smallest.  (4) The boxes are packed in the square (maximal rectangles, a quarter turn
+allowed) at the largest scale where they fit.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+
+### `UVMap`
+
+A way to lay a surface on a texture: see uv_box, uv_planar, uv_cylinder, uv_sphere and uv_unwrap
+
+#### `UVMap.corner_uvs(self, xyz, tri)`
+
+u and v of every corner of every triangle: a flat f array, (u, v) three times for each triangle
+
+### `apply_uv_maps(xyz, tri, maps)`
+
+The mesh with the vertices made again where the UV maps give a vertex more than one place: (xyz, tri, [the u, v of every vertex, one flat f array for each map])
+
+### `as_uv_maps(uvs)`
+
+The list of UV maps (one or two) for what export_mesh was given as `uvs`: a text ("box", "planar", "cylinder", "sphere", "unwrap"), ("box", 500), a UVMap, or a list of them
+
+### `uv_box(size=None)`
+
+The box projection: each triangle is projected along the axis its normal is mostly along, seen from outside, so a texture is not mirrored on the back faces.
+size: the millimetres one repeat of the texture covers, from one common origin, so that it goes on from one surface to the next in the world (a tiling texture);
+None: the texture fits each side once (the largest side of the model is 0 to 1)
+
+### `uv_cylinder(axis='z', turns=1, size=None)`
+
+u is the angle round an axis through the middle of the model's box (the texture goes `turns` times round), v the height along it: `size` is the millimetres of one
+repeat of v, None for once from the bottom to the top of the model.  On the axis itself the angle has no value: a cap on the axis is stretched
+
+### `uv_planar(axis='z', size=None)`
+
+One projection along an axis for the whole surface ("x", "y", "z", or "-z" for seen from below): a floor, a wall, a relief.  size as in uv_box (None: the projected
+box fits the texture once)
+
+### `uv_sphere(axis='z')`
+
+u is the longitude and v the latitude (from the bottom pole to the top one) about the middle of the model's box: the equirectangular map a globe is drawn on
+
+### `uv_unwrap(angle=60, margin=4, size=1024)`
+
+The surface cut into islands, laid flat and packed into the square of the texture.
+
+angle   the most, in degrees, that a triangle of an island may be turned from the island's average direction (smaller: more, flatter islands and less stretching)
+margin  the gap between islands, in texels of a `size` x `size` texture: a texture with mip maps and a filter does not bleed one island into the next
+size    the size of the texture in texels that the margin is counted in
+
+Every island is at the same scale, so a texel is the same size everywhere on the model; the islands are cut where the surface turns by more than `angle`, and the
+triangles along a cut are made again for each side of it (a seam).  An island that is a disc is laid flat by the conformal map (angles are kept); the others by projection
+
+## Baked textures
+
+Texturing: the textures of a model, baked from its fields.
+
+    export_mesh(hero, "hero.glb", uvs="unwrap", materials=[skin, metal], textures=bake(size=1024))
+
+A texture is a picture the surface is painted with.  A modelling program that works on meshes paints it by hand; here the surface IS a field, and so the picture is
+asked of the field: every texel of the picture is a place on the surface (found through the UVs of the export), and what that place is made of is read from the
+model there.  `bake` says which pictures are wanted and how fine; `export_mesh` makes them and writes them beside the mesh (`hero_color.png`, `hero_normal.png`,
+`hero_orm.png`, `hero_emissive.png`), and the glTF file refers to them (a .glb has them inside as well).
+
+    color      the base colour: the material of the place (`where` is read at the texel, so the edge between two materials is as sharp as the texture is), times the vertex
+               colours (`colors=`); a material's colour, roughness and so on can be FIELDS (a pattern, noise) and so can the colours.  sRGB, like every colour map
+    normal     the normal map: the exact normal of the field at the place, in the tangent space of the mesh (red right, green up, blue out).  A coarse mesh (`max_triangles`) shaded
+               with it looks like the fine surface -- the detail of the field is in the picture, not in the triangles
+    orm        occlusion (red), roughness (green), metalness (blue), one linear picture: what glTF and the game engines read for the metallic-roughness model
+    mr         roughness and metalness only (occlusion is 1)
+    occlusion  the occlusion alone, a grey picture (for an engine that wants it apart)
+    emissive   the glow of the materials, sRGB
+
+The occlusion is the ambient occlusion of the field: from every place rays go out over the hemisphere, and a ray is blocked where the field gets near zero again
+(cone tracing along the ray, which is exact for a field that is a distance and a good guess for one that is nearly).  The normal map and the occlusion come from the
+field and not from the mesh, so they have no triangles in them.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+
+### `Bake`
+
+What textures an export makes: see `bake`
+
+### `bake(size=1024, maps=None, padding=4, occlusion_samples=8, occlusion_distance=None, occlusion_strength=1.0, uv_set=0)`
+
+The textures that `export_mesh(..., uvs=..., textures=bake(...))` bakes out of the fields of the model.
+
+size        the texels across (the pictures are square): 16 to 8192; 1024 by default
+maps        which pictures: "color", "normal", "orm" (occlusion, roughness, metalness in one), "mr" (roughness and metalness only), "occlusion" (alone), "emissive".
+            None: color, normal and orm, and emissive when a material glows
+padding     texels the islands of the picture are grown by, so that a filter or a mip map does not take in the empty ground beside them: 4
+occlusion_samples   rays from every texel for the occlusion: 4 to 64; 8
+occlusion_distance  how far, in mm, a ray looks for something in the way: None for a fifth of the largest side of the model
+occlusion_strength  1: the occlusion as it is; 0: none; 2: twice as dark
+uv_set      the UV map the pictures are made for: 0 (the first) or 1 (the second of a list of two)
+
+The pictures are written beside the mesh file, `<name>_<map>.png`.  Needs `uvs=` in the export (a UV map where the islands do not overlap: "unwrap")
+
+### `bake_textures(values_at, xyz, tri, uv, normals, tangents, materials, colors, spec, folder, stem, eval_at, scale)`
+
+Makes the pictures `spec` asks for and writes them in `folder`.  `values_at(pts)` is the body (the union of the bodies) at the points; `xyz`, `tri` and `uv` the mesh as it is
+written (before it is turned into another unit) with the UVs of the set the pictures are for; `normals` and `tangents` the vertex normals and tangents; `materials` the list
+of materials (may be empty), `colors` the vertex colour channels or None; `scale` the largest side of the model in mm.  Returns (the pictures {map: path}, a report)
+
+### `rasterize(uv, tri, size)`
+
+The texels whose centre is inside a triangle of the UV map: (the texel, y * size + x, the triangle, and the barycentric weights of its second and third corner).  The
+picture has v up, so the row of a texel counts from the top: y = (1 - v) * size
+
+### `surface_gradient(values_at, pts, h)`
+
+The gradient of a field at the points by central differences over `h` mm: (gx, gy, gz) lists.  `values_at(pts)` gives the field there
+
+### `vertex_tangents(xyz, tri, uv, normals)`
+
+The tangent of every vertex: where u grows on the surface, made square to the normal, and the sign (w) of the bitangent -- where v (up the picture) grows is
+cross(normal, tangent) * w.  Flat array, x, y, z, w for each vertex
+
+### `write_uv_layout(path, uv, tri, size=1024)`
+
+A picture of a UV map: the islands in grey on a dark ground and the edges of the triangles in white, v up.  Returns the path
+
+## PNG files
+
+PNG files: the writer behind the baked textures, and a reader for checking them.
+
+    write_png("skin.png", 256, 256, pixels, channels=3)     8 bits a channel: 1 (grey), 2 (grey, alpha), 3 (RGB) or 4 (RGBA); the rows from the top
+    width, height, channels, pixels = read_png("skin.png")  8-bit, not interlaced: what write_png writes, and what the common tools save
+
+`pixels` is `bytes` (or a bytearray): `width * height * channels` of them.  Nothing but the standard library (zlib) is used.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+
+### `png_bytes(width, height, pixels, channels=3, level=6)`
+
+The bytes of a PNG file
+
+### `read_png(path)`
+
+(width, height, channels, pixels) of an 8-bit PNG that is not interlaced (grey, grey + alpha, RGB or RGBA)
+
+### `write_png(path, width, height, pixels, channels=3)`
+
+Writes `pixels` (8 bits a channel, the rows from the top) as a PNG file; a folder that is not there is made.  Returns the path
 
 ## Exporting files
 
@@ -606,7 +833,7 @@ hero_lod0.glb with at most 8000 triangles, hero_lod1.glb with 2000 and hero_lod2
 one before; None for a level with no budget.  The other options are those of export_mesh (units, up, symmetric, materials, skeleton, pivot ...), the same for every
 level.  Returns the paths written
 
-### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None, pivot=None)`
+### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None, pivot=None, normals=None, textures=None, uv_layout=None, max_influences=4)`
 
 Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
@@ -627,13 +854,18 @@ symmetric   "x", "y" or "z" (or ("x", 12.5): the plane at that position): the ha
 materials   a list of `material(...)`s (see materials.py), painted in the order given: each triangle has the LAST one whose `where` field is negative at the
             middle of the triangle (a material with no `where` covers everything: it goes first).  .obj (a .mtl file is written beside it), .glb, .gltf
 colors      (r, g, b), each a number or a field from 0 to 1, evaluated at every vertex: vertex colours.  .obj, .ply, .glb, .gltf
-uvs         "box": texture coordinates by the box projection -- each triangle is projected along the axis its normal is mostly along, seen from outside, so a
-            texture is not mirrored on the back faces; the vertices on a seam are made again for each side of it.  The texture fits each side once (the
-            largest side of the model is 0 to 1), or ("box", 500) repeats it every 500 mm of the model, going on from one surface to the next (world-scaled
-            tiling).  .obj (vt), .ply (s, t), .glb, .gltf (TEXCOORD_0).  The images are the `texture=` of the materials
-skeleton    a list of `joint(...)`s (see rigging.py), one root, each after its parent: written as the nodes and the skin of a glTF, with the four joints that
-            move each vertex and their weights (JOINTS_0, WEIGHTS_0) made from the distance of the vertex to the bones.  .glb, .gltf
+uvs         texture coordinates (see uvmaps.py): "box" (each triangle is projected along the axis its normal is mostly along, seen from outside; ("box", 500) repeats the
+            texture every 500 mm, going on from one surface to the next), "planar", "cylinder", "sphere", or "unwrap" (the surface cut into islands and packed into
+            the square of the texture: an atlas), or a `uv_box(...)`, `uv_unwrap(angle=45)` ... ; a list of two gives a second set (TEXCOORD_1, for a lightmap).  The vertices
+            on a seam are made again for each side of it.  .obj (vt), .ply (s, t), .glb, .gltf (TEXCOORD_0, _1)
+textures    `bake(size=1024, ...)` (see texturing.py): the pictures a model is painted with -- colour, normal map, occlusion / roughness / metalness, glow -- made from the
+            fields of the model and the materials at every texel of the UV map, written beside the file (`<name>_color.png` ...) and wired to the materials.  Needs `uvs=`
+normals     the normal of every vertex, exact (the gradient of the field), so that a coarse mesh shades smooth: written in .obj, .ply, .glb, .gltf (default there; False for none)
+uv_layout   a file name: a picture of the first UV map (the islands, the edges of the triangles) is written there, to check how the surface is laid out
+skeleton    a list of `joint(...)`s (see rigging.py), one root, each after its parent: written as the nodes and the skin of a glTF, with the joints that move each vertex and
+            their weights (JOINTS_0, WEIGHTS_0) -- functions of the place of the vertex, from the bones and from the joints' own `influence` fields.  .glb, .gltf
 skin_falloff  how far, in mm, a bone can be behind the nearest one and still move a vertex (the width of the blend at a joint); None: 4 % of the model
+max_influences  the most joints that move a vertex: 4 (what the engines run), up to 8
 pivot       where the origin of the file is: "origin" (default: as modelled), "base" (the middle of the bottom of the model: a character stands on the ground, its feet
             at 0), "center" (the middle of its box), or a place (x, y, z) of the model.  The skeleton moves with it
 
@@ -642,7 +874,7 @@ Millimetres and Z up in every format that has no unit or axis (see units, up); t
 
 ## Handles: editing shapes by dragging
 
-Handles and the gizmo: edit a shape -- an imported part too -- by dragging in FielDes's viewport.
+Handles and the gizmo: edit a shape -- an imported part too -- by dragging in FielDev's viewport.
 
 Two ways of editing by dragging work together, and the first has priority where they meet:
 
@@ -673,7 +905,7 @@ Two ways of editing by dragging work together, and the first has priority where 
 
                One line, however many numbers (nobody edits them by hand: they are dragged).  Dragging a face changes
                the number of that face (a plane's position, a radius) in the script text; a round feature keeps its centre,
-               a box keeps the face opposite the one dragged.  FielDes writes the call itself when you select the shape.
+               a box keeps the face opposite the one dragged.  FielDev writes the call itself when you select the shape.
 
 A lock button beside it (key R) is a separate switch: a locked shape cannot be dragged at all, neither by the
 gizmo nor by its handles, and keeps its gizmo mode, which comes back when it is unlocked:
@@ -681,7 +913,7 @@ gizmo nor by its handles, and keeps its gizmo mode, which comes back when it is 
                part = lock(part)
 
 Nothing is stored anywhere but in the script: delete the `handles(...)` and `gizmo(...)` calls of a part
-(FielDes's Reimport does) and it is the file's version again; the `lock(...)` call only keeps it from being
+(FielDev's Reimport does) and it is the file's version again; the `lock(...)` call only keeps it from being
 dragged. 
 
 ### `forget_literals()`
@@ -690,14 +922,14 @@ A script was opened: the numbers the last run saw in the calls of the old one sa
 
 ### `gizmo(shape, move=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1), about=None, mode=None)`
 
-Scales, rotates and moves a shape, with the gizmo FielDes shows on it.
+Scales, rotates and moves a shape, with the gizmo FielDev shows on it.
 
 scale: (x, y, z) factors about the shape's centre, `rotate`: (x, y, z)
 rotations in degrees about the same centre (x first, then y, then z),
 `move`: (x, y, z) translation.  Write the numbers as var(...) to drag
-them: FielDes's model tree does that for you.
+them: FielDev's model tree does that for you.
 about: the centre (default: the middle of the shape's box)
-mode: when FielDes shows the gizmo: 'click' (the default) while the shape is selected, 'never', or
+mode: when FielDev shows the gizmo: 'click' (the default) while the shape is selected, 'never', or
 'always'.  The shape's own surfaces (see handles()) can be dragged whatever the mode, and the gizmo has
 priority where it is shown.
 To make a shape undraggable, lock it: `shape = lock(shape)`.
@@ -711,7 +943,7 @@ The numbers handles() makes variables, in its order, as the text to write them a
 A shape whose surfaces have handles: the numbers that place its
 surfaces -- a plane's position, a radius, the faces of a box -- are
 replaced by `values`, in the order of their appearance in the shape
-(FielDes writes them as var(...) with the shape's own numbers, which
+(FielDev writes them as var(...) with the shape's own numbers, which
 makes them draggable: hover a surface, drag it).  Orientations and the
 placement of the whole part are not exposed, so a dragged face
 moves and neither turns nor takes the rest of the part along.
@@ -725,7 +957,7 @@ that move, turn and scale a shape -- is gizmo(shape, move=..., rotate=..., scale
 
 ### `lock(shape)`
 
-`shape`, locked: FielDes does not let it be dragged -- neither by the gizmo nor by its surfaces -- until the
+`shape`, locked: FielDev does not let it be dragged -- neither by the gizmo nor by its surfaces -- until the
 line is deleted.  It is the shape itself in every other way (its bounds, handles, colours and exact regions
 stay), and the way of editing it had (gizmo or handles) comes back when it is unlocked.
 
@@ -733,7 +965,7 @@ Write it under a shape's definition, with its gizmo() and handles() calls:
 
     part = lock(part)
 
-(FielDes's model tree has a lock button on every model -- shapes, results, points -- and the key R toggles it.)
+(FielDev's model tree has a lock button on every model -- shapes, results, points -- and the key R toggles it.)
 
 ## Linked copies
 
@@ -744,9 +976,9 @@ A linked copy IS another shape -- the same field, so the same surfaces, sizes, c
 its own, not the original's -- moving or turning the original does not move or turn the copy, and the other way round -- with its gizmo, `gizmo(copy, move=..., rotate=...)`.
 Nothing else is its own: no scale knobs (a scale the original has is part of that shape, and the copy has it too).  Its surfaces CAN be dragged, as the original's can,
 and they are linked: both are pulled by the numbers of the original's `handles(...)`, so dragging a surface of the copy moves the original's and every other copy's, and the
-other way round.  (A copy that has a shape of its own is another thing: copy the model's statements instead -- Shift+D in FielDes.)
+other way round.  (A copy that has a shape of its own is another thing: copy the model's statements instead -- Shift+D in FielDev.)
 
-FielDes writes one with Ctrl+D (or Operations > Repeating > instance):
+FielDev writes one with Ctrl+D (or Operations > Repeating > instance):
 
     plate_2 = instance(plate)  # shadow: plate
     plate_2 = gizmo(
@@ -766,7 +998,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 
 A linked copy of `shape`: the very same shape -- its surfaces, sizes, colours and properties are the original's, and change with it -- that can only be
 moved and rotated, with its gizmo (`gizmo(copy, move=..., rotate=...)`).  It cannot be scaled: its shape is the original's -- and so are the numbers its
-surfaces are pulled by, so dragging a surface of the copy or of the original moves both.  FielDes writes it with Ctrl+D, holding the original as a reference (`# shadow: original`: the original keeps its own row in the model tree,
+surfaces are pulled by, so dragging a surface of the copy or of the original moves both.  FielDev writes it with Ctrl+D, holding the original as a reference (`# shadow: original`: the original keeps its own row in the model tree,
 locked or not).  A copy that has a shape of its own is a copy of the statements instead (Shift+D)
 
 ## Symmetry
@@ -794,7 +1026,7 @@ Every plane makes an image of what is made while the symmetry is on, and so does
 symmetry has the turns only: the
 images of a symmetry are numbered 1 .. symmetry_count(symmetry).  `symmetry_images(x, mirror)` is all of them (`only=(1, 3)` some of them), `symmetry_image(x, mirror, 2)` one.
 The images FOLLOW what they are the images of and the symmetry: move the original and they move the way a mirror shows; move the symmetry (its gizmo) and every image of it moves
-with it.  They have no numbers of their own: pulling one pulls the original.  FielDes writes the images of what you make while a symmetry is selected (Shift+S turns that on and off):
+with it.  They have no numbers of their own: pulling one pulls the original.  FielDev writes the images of what you make while a symmetry is selected (Shift+S turns that on and off):
 one model, `leg_images`, for a body, a 2D shape or a point (a body or a 2D shape: the union of its images; a point: a set of points); what is
 made of other models -- a path_extrude, a union -- gets its images the same way (`distinct=True` leaves out those that would be the model itself or another image); a surface or a field
 gets one model for each image, `symmetry_image`; so does a profile, a line or a spline: it is made of its points, which are the models, so each point has its images
@@ -812,7 +1044,7 @@ and the symmetry card; nothing is drawn of it but its planes
 ### `base_elements(definition)`
 
 The images of a symmetry as plain matrices (rows), in the order they are numbered: every turn and mirror image but the identity, in the symmetry's own place -- before its
-gizmo moved and turned it.  The same list, in the same order, that FielDes's viewport makes
+gizmo moved and turned it.  The same list, in the same order, that FielDev's viewport makes
 
 ### `symmetry_count(symmetry)`
 
@@ -821,7 +1053,7 @@ How many images a symmetry makes of what is made with it: they are numbered 1 ..
 ### `symmetry_image(shape, symmetry, index=1)`
 
 The image of `shape` in the symmetry `symmetry`: `index` is the number of the image (1 .. symmetry_count(symmetry)).  It follows both: change the shape, or move the
-symmetry, and the image changes with it.  It has no gizmo and no numbers of its own: pulling it pulls the shape.  FielDes writes it for everything that is made while the
+symmetry, and the image changes with it.  It has no gizmo and no numbers of its own: pulling it pulls the shape.  FielDev writes it for everything that is made while the
 symmetry is selected (Shift+S)
 
 ### `symmetry_images(shape, symmetry, only=None, distinct=False)`
@@ -883,7 +1115,7 @@ bounds of what is made of it: nothing of the ball is painted.)
 
 ### `PointSet`
 
-A set of points: what the images of a point under a symmetry make (symmetry_images).  FielDes draws
+A set of points: what the images of a point under a symmetry make (symmetry_images).  FielDev draws
 them, each as the dot of a gizmo (without the gizmo's handles: they are data, not something to drag).
 .points     the points, (x, y, z) in mm
 .spacing    the average distance between a point and its nearest neighbour that it was made for
@@ -905,7 +1137,7 @@ The surface of an infinite cylinder along an axis: a surface, negative inside
 
 ### `displayed(shape)`
 
-What FielDes draws for a shape (see the top of this file)
+What FielDev draws for a shape (see the top of this file)
 
 ### `plane(point=(0, 0, 0), normal=(0, 0, 1))`
 
@@ -956,7 +1188,7 @@ A curve is a model of its own kind (a 1D shape), made of points and drawn as a l
 
 As a field a curve is the distance to it (zero on it, positive everywhere else), so `offset`, `thicken` and the field functions work on it.
 
-A polyline is made of corners and a spline of spline points -- but each POINT can say otherwise (`point(..., smooth=True)` or `smooth=False`; FielDes toggles
+A polyline is made of corners and a spline of spline points -- but each POINT can say otherwise (`point(..., smooth=True)` or `smooth=False`; FielDev toggles
 it when you double-click the point), so a spline can have a corner and a polyline a smooth stretch.  The ROTATION of a spline point -- the rotate numbers of
 its gizmo, which a point has no other use for -- turns the direction in which the curve leaves it.  With no rotation the direction comes from the
 neighbouring points (a Catmull-Rom spline); the rotation turns it about x, then y, then z (degrees), the way a gizmo turns a shape.  The same
@@ -1014,7 +1246,7 @@ changes it), and the default it follows
 
 *(no description yet)*
 
-### `owned(shape, cls=<class 'fieldes.shape.Shape'>)`
+### `owned(shape, cls=<class 'fieldev.shape.Shape'>)`
 
 A new `cls` that owns a copy of the tree of `shape`.  (`shape` is held for the whole call: a copy of `X(...).ptr` made inline would be made from a tree that
 is already freed, the temporary having died as soon as its pointer was read)
@@ -1108,7 +1340,7 @@ projected onto that plane, so a profile is made whatever the points are.  A tupl
 
 Each point is a corner (a hard edge: straight to its neighbours) or a spline point (the outline is a smooth curve through it) -- see `spline`, which makes the
 outline.  `smooth=` of the profile says which a point is that does not say itself (False, a hard edge, by default); `point(..., smooth=True)` says it for
-that point -- FielDes toggles it when you double-click the point.  The ROTATION of a spline point -- its gizmo's rotate numbers, which a point has no other use
+that point -- FielDev toggles it when you double-click the point.  The ROTATION of a spline point -- its gizmo's rotate numbers, which a point has no other use
 for -- turns the direction in which the outline leaves it.
 
 A profile is drawn from the numbers its points have, natively, while you drag them.  Its field (for `extrude`, `offset` ...) is plain math, made
@@ -1206,6 +1438,108 @@ changes along the way from one to the other: a limb that tapers, a bone with its
 numbers, or fields (a radius that is thick here and thin there).  The cone is cut across by the ends: each ends in a ball, so that limbs that
 meet at a joint are one smooth body there.  Where the radius changes fast over a short way the surface is steeper than the field is: a body, not a distance
 
+## Armatures: limbs, a character, a skeleton
+
+Armatures: a character made of parts, each a path of nodes with a thickness, and the skeleton that goes with them.
+
+    shoulder = point(18, 0, 138)                            # a node: a point, with the size of its gizmo as its thickness
+    elbow = point(31, 0, 113)
+    hand = point(37, 8, 92)
+    arm = limb([shoulder, elbow, hand], radii=[6, 4.5, 3.5], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+    spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
+    hero = character([spine, arm, ...], blend=4, symmetric="x")          # the body: the parts joined with a blend, and the left half as the mirror image
+    export_mesh(hero, "hero.glb", symmetric="x", skeleton=skeleton_of([spine, arm, ...], mirror="x"))
+
+A LIMB is a path extruded: the cross-section is swept along a smooth curve through its nodes, thicker or thinner at each node.  By default the cross-section is round and the sweep is
+made of round cones along the curve (the curve is a Catmull-Rom spline through the nodes, so the limb bends smoothly, and every number in it is an expression of the nodes, so that a node
+dragged in the viewport moves the limb with it at once).  With `profile=` -- any 2D shape, a square, a polygon, a profile of your own -- the limb is `path_extrude(profile, spline(nodes))`,
+which keeps the shape of the profile along the curve (and takes longer to draw).
+
+The nodes of a limb are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  A limb
+that begins on a node of another limb -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where a limb is joined
+when its first node is not on the other.  There is one root: the first node of the first limb.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+
+### `Limb`
+
+What a limb knows of itself, for the skeleton: its name, the nodes (as controls), the names of its joints, and where it is joined
+
+### `character(limbs, blend=3, symmetric=None)`
+
+The body made of limbs: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror image
+(the limbs are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both)
+
+### `limb(points, radii=None, profile=None, name=None, joints=None, parent=None, detail=12, twist=0)`
+
+A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
+
+    arm = limb([shoulder, elbow, hand], radii=[6, 4.5, 3.5], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+
+points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers
+radii    the thickness at each node: a number for all, or one for each (numbers or fields).  It is that number TIMES the size of the node -- the scale of its gizmo, the gold ring
+         (1 for a tuple) -- so with no radii the size of a node is its radius
+profile  None: a round cross-section (made of round cones along the path); or a 2D shape (`rectangle`, `polygon(...)`, a profile): the limb is `path_extrude(profile, spline(points))`,
+         and then the thickness at a node is the size of the node alone
+name     what the skeleton calls the limb ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
+parent   the name of the joint this limb hangs from, when its first node is not on a node of another limb
+detail   how many round cones make a stretch between two nodes: 12 (fewer is faster to draw and shows rings of the cones; more is smoother)
+twist    degrees, for a profile: the whole cross-section turned about the path
+
+### `skeleton_of(limbs, mirror=None, plane=0.0, join=None)`
+
+The joints of the limbs, for `export_mesh(..., skeleton=...)`: a joint at each node, named by the limb's `joints`, each hanging from the one before it.  A limb whose first node is
+within `join` mm of a joint already made (default: half a millimetre: the same point, or the same place typed again) is a branch of it: that joint is its first, and its other nodes hang from it.
+A limb that is not on any joint hangs from the joint it names with `parent=`.  `mirror` ("x", "y" or "z"): the joints whose name ends with ".R" get a ".L" one across that plane
+
+## Reference images
+
+Reference images: a picture standing in the 3D view, to model over.
+
+    front = reference_image("hero_front.png", plane="front", height=180)                 # a drawing of the character seen from the front, 180 mm high
+    side = reference_image("hero_side.png", plane="right", height=180, center=(0, 0, 90), opacity=0.4)
+    spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128)], radii=[13, 11, 15], name="spine")      # the nodes are placed over the pictures
+
+A reference image is not part of the model: it is drawn in the viewport, in the plane it is given, and nothing is exported of it.  The camera is free -- orbit, zoom, look at
+the pictures from any side -- and the nodes of a limb are placed over the picture, one after another, with the work plane (Shift+W) faced to the picture, or the pictures
+are the planes the nodes are dragged in.  The picture is set by numbers in the script: where its middle is (`center`), how tall it is (`height`: the width follows the picture's
+shape), how strong it is (`opacity`), whether it is turned over (`flip`) and whether it is shown (`visible`).
+
+The planes are the standard views of the viewport, so a picture reads the right way round in the view of its name: the model's z is up and its front is toward -y (the Front view
+looks at it from -y, and a glTF made of it faces +z, the way a game engine wants a character):
+
+    front   the picture's right is +x, its up is +z   (seen from -y: the Front view)
+    back    -x, +z   (seen from +y)
+    right   +y, +z   (seen from +x)
+    left    -y, +z   (seen from -x)
+    top     +x, +y   (seen from +z)
+    bottom  +x, -y   (seen from -z)
+
+or `plane=((ux, uy, uz), (vx, vy, vz))`: the two directions of the picture's right and up, any plane through `center`.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+
+### `ReferenceImage`
+
+A picture standing in the view: see `reference_image`
+
+### `reference_image(path, plane='front', height=None, center=(0, 0, 0), opacity=0.5, flip=False, visible=True)`
+
+A picture to model over, standing in the viewport (see the top of this file).
+
+path     the image file (PNG, JPG, BMP ...); a relative path is from the folder the program was started in
+plane    "front", "back", "right", "left", "top" or "bottom" (see above), or ((ux, uy, uz), (vx, vy, vz)): the directions of the picture's right and up
+height   how tall the picture is, in mm along its up (None: as tall as the render region is along it); the width follows the shape of the picture; `var(180)` for a number to drag
+center   where the middle of the picture is: (x, y, z), or a point -- a point with a gizmo is the picture's handle: drag the point and the picture goes with it, scale
+         its ring and the picture is that much larger (the script runs again when it is let go)
+opacity  0 (not seen) to 1 (solid): 0.5 by default, so that what is modelled shows through
+flip     the picture turned over left to right (a drawing of the other side)
+visible  False: not shown (the line stays in the script)
+
 ## Measuring a body
 
 Measuring a body: its box and its middle.
@@ -1253,7 +1587,7 @@ solid is the region where its field is negative; any other field (a
 distance, a ramp, noise, a regression of measured data) can drive a
 parameter such as a shell's thickness or an offset:
 
-    from fieldes import *
+    from fieldev import *
 
     part  = sphere(30)
     up    = ramp(z_field(), (-30, 30), (0.5, 3.0))   # 0.5 mm at the bottom -> 3 mm at the top
@@ -1331,7 +1665,7 @@ Limits a field to [lo, hi]
 
 ### `colored(shape, field, range=None, label=None, colormap='turbo')`
 
-`shape`, displayed in FielDes coloured by `field` (another Shape: a
+`shape`, displayed in FielDev coloured by `field` (another Shape: a
 distance, noise, a curvature) with a colour map; hovering the model shows the
 value.  range=(lo, hi) fixes the colour scale (default: the field's
 range on the part).  Anywhere else it is simply `shape`.
@@ -1488,7 +1822,7 @@ Write the math with + - * / **, the methods .sqrt() .square() .abs() .sin() .cos
 a.min(b) (or maximum(a, b, c) and minimum(a, b, c)); a number is a constant field.  What you get is a field like any
 other: it is not drawn (display it: its icon opens the field viewer), it goes wherever a number goes (`offset(part,
 waves)`), a shell's thickness.  low_level_body() is the same for a body; body_from_field() makes a
-body of a field.  In FielDes: right-click, Parametric shapes, New field, low_level_field, writes the function and the call for you.
+body of a field.  In FielDev: right-click, Parametric shapes, New field, low_level_field, writes the function and the call for you.
 
 ### `mass_properties(shape, density=1.0, lower=None, upper=None, resolution=None)`
 
@@ -1760,7 +2094,7 @@ A regression is fitted to (x, y) data and can then be applied to numbers or
 to any field -- typically a distance field -- to get a field that drives an
 operation (a shell's thickness, an offset, a blend):
 
-    from fieldes import *
+    from fieldev import *
 
     ball = sphere(30)
     # how far the surface swells at several heights
@@ -1961,7 +2295,7 @@ z_top = sz / 2 + amplitude sin(2 pi x / period) sin(2 pi y / period)
 
 Selecting a surface: the flood fill of a CAD program, as a field.
 
-    from fieldes import *
+    from fieldev import *
 
     top = select_surface(part, seed=(12.5, 40.0, -3.0), angle=10)
     top                                       # displayed: the part's surface, only the patch of it, lit up
@@ -1982,7 +2316,7 @@ What comes back is a SURFACE -- the patch of the part's surface, nothing thicker
 It is a region you can show on the part, combine with other shapes, or give to an operation that works on a part of a
 surface (`texture(part, region=top)`).
 
-In FielDes, right-click a surface in the viewport: the menu holds the mode, the angle and the radius, and
+In FielDev, right-click a surface in the viewport: the menu holds the mode, the angle and the radius, and
 writes the `select_surface(...)` line into the script under the part, like everything else the program does.
 
 `surface_from_bodies` picks a surface by other bodies instead of by a place: the surface of the FIRST body, where it meets the
@@ -1994,7 +2328,7 @@ bodies that follow.
 It is a surface like the one `select_surface` makes -- a region of a surface --
 and it too is made from the fields alone: the first body's surface is where its field is zero, and "meets" is a number, the
 distance of that surface from the other bodies (their field), so no mesh is made and a body that is dragged or has var()
-numbers moves the selection with it.  In FielDes: select several models in the model tree (Ctrl or Shift click), right-click
+numbers moves the selection with it.  In FielDev: select several models in the model tree (Ctrl or Shift click), right-click
 one, Operations > Surfaces > surface_from_bodies: the first selected is the body, the others are what it is met by.
 
 This Source Code Form is subject to the terms of the Mozilla Public
@@ -2113,7 +2447,7 @@ with a field's icon, and displayed it has an icon in the viewport that opens the
 
 ## The shape class
 
-Python library of FielDes, built on the libfive CAD kernel
+Python library of FielDev, built on the libfive CAD kernel
 Copyright (C) 2021  Matt Keeter
 
 This Source Code Form is subject to the terms of the Mozilla Public
@@ -2263,7 +2597,7 @@ Decorator which converts a target function into a Shape
 
 ## Progress of a long step
 
-A script run's progress, for FielDes's progress bar (see run_progress.hpp).
+A script run's progress, for FielDev's progress bar (see run_progress.hpp).
 
 The runner (runner.py) says which top-level statement runs; the operations
 inside one count how far they are: top-level loops (the runner counts their
@@ -2388,13 +2722,13 @@ fields).  Raises Uncacheable for anything else
 
 ## Keeping rendered meshes (render cache)
 
-The render cache: keep what FielDes meshes, so a shape that has not changed is on screen at once.
+The render cache: keep what FielDev meshes, so a shape that has not changed is on screen at once.
 
     part = difference(box((0, 0, 0), (40, 30, 10)), sphere(8))
     part                            # its mesh is kept: nothing to write
     part = render_cache(part, False)    # ... unless you opt out (the model tree's cache button writes this line)
 
-Meshing is the slow part of showing a shape.  Every shape's finished mesh is saved (in FielDes's cache
+Meshing is the slow part of showing a shape.  Every shape's finished mesh is saved (in FielDev's cache
 folder, outside your project) once it has taken a while to make, and read back when the same shape is
 shown again -- the next time you open the script, or after you changed the script and changed it back --
 instead of being meshed again.  When anything about the math changes -- an operation, a number, a
@@ -2411,12 +2745,12 @@ A shape is kept when everything it is made of can be recognised from one run to 
 numbers, var()s, imported meshes and parts, fields.
 
 The kept meshes are deleted oldest first when they fill more than 4 GB (the environment variable
-FIELDES_RENDER_CACHE_MB sets that); Settings > Clear the caches deletes them all (and the files of the field cache).
+FIELDEV_RENDER_CACHE_MB sets that); Settings > Clear the caches deletes them all (and the files of the field cache).
 
 Every field a script builds with `name = <expression>` is kept the same way -- by the statement's text, the exact
 content of what it reads, the var() numbers and the code that builds it -- so a texture laid over a part is not laid
-over again when the script is run again, also after FielDes was closed (when every part of the field can be saved).
-FIELDES_FIELD_CACHE_DIR moves the files; the details are in caching-and-performance.md.
+over again when the script is run again, also after FielDev was closed (when every part of the field can be saved).
+FIELDEV_FIELD_CACHE_DIR moves the files; the details are in caching-and-performance.md.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -2433,7 +2767,7 @@ Write it as the last line of a shape's definition, after gizmo() and handles():
 
     part = render_cache(part)
 
-(FielDes's model tree has a button for it on every shape.)
+(FielDev's model tree has a button for it on every shape.)
 
 ### `render_cache_key(shape)`
 
@@ -2452,7 +2786,7 @@ more than the rest needs.  `custom_resolution(body, resolution)` gives ONE body 
 whatever the scene's is: a part that is intricate is drawn fine and the rest of the scene stays coarse and quick -- or a part
 that is big and plain is drawn coarser than the scene.
 
-    from fieldes import *
+    from fieldev import *
 
     view.set_resolution(2)                        # the scene: 2 samples per mm
     gear = custom_resolution(gear, 8)             # ... except the gear, drawn at 8
@@ -2467,7 +2801,7 @@ The finest a body can be drawn is 2000 samples along its longest side (a longer 
 resolution above that is not an error, the body is drawn at the finest there is, and the model tree's row says what is used
 (`resolution 8 -> 7.6`).
 
-In FielDes, right-click a body and choose "Custom resolution": the line is written under its definition, and the number is a field
+In FielDev, right-click a body and choose "Custom resolution": the line is written under its definition, and the number is a field
 under the body in the model tree (type in it; the bin takes the line away).
 
 ### `custom_resolution(shape, resolution, bounds=None)`
@@ -2480,15 +2814,15 @@ bounds      ((x0, y0, z0), (x1, y1, z1)) of the body, if its extent cannot be fo
 
 Returns the body itself in every other way; only the way it is meshed for the viewport is changed.
 
-## FielDes apps: the inputs of a script
+## FielDev apps: the inputs of a script
 
-FielDes apps: a script that people who never open the editor can run.
+FielDev apps: a script that people who never open the editor can run.
 
 An engineer writes the script once and declares what the person who runs it may choose -- a radius, a model file, where to save the
-result.  FielDes shows those inputs as a form (a window of its own, with a Run button, a log and the files that were made), so an
-artist or a designer opens the app, fills in the form and presses Run.  The script is an ordinary FielDes script:
+result.  FielDev shows those inputs as a form (a window of its own, with a Run button, a log and the files that were made), so an
+artist or a designer opens the app, fills in the form and presses Run.  The script is an ordinary FielDev script:
 
-    from fieldes import *
+    from fieldev import *
 
     app.title('Rock maker', 'Roughens a model into a rock and saves it as a mesh')
     roughness = app.number('Roughness', 2, min=0, max=10, unit='mm')
@@ -2502,9 +2836,9 @@ artist or a designer opens the app, fills in the form and presses Run.  The scri
 
 In the editor the inputs are just their defaults: `app.number('Radius', 5)` is 5, so the script runs as it always did, and the script is
 tried and changed there.  File > Export as app... bundles it with the custom blocks it uses and the files it needs into one
-`.fieldesapp` file; opening that file (a double click) shows the form.  The same file runs without a window:
+`.fieldevapp` file; opening that file (a double click) shows the form.  The same file runs without a window:
 
-    FielDes run bracket.fieldesapp --Radius 7 --Material aluminium
+    FielDev run bracket.fieldevapp --Radius 7 --Material aluminium
 
 Every input is written with a plain value -- a number, a text, a list -- at the top of the script, because the form is read from the
 text of the script (it is there before the script has run).  The name of an input is what the form shows; `--Radius`, `--radius` and
@@ -2542,7 +2876,7 @@ A folder the person picks (a relative path is made under the Documents folder), 
 
 ### `app.in_app()`
 
-True when the script is run as an app (by the app window or `FielDes run`), False in the editor.  Write files only when it is: an
+True when the script is run as an app (by the app window or `FielDev run`), False in the editor.  Write files only when it is: an
 edit of the script runs it again and again in the editor, and it should only show the result there:
 
     if app.in_app():

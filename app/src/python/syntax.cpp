@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017-2021  Matt Keeter
 
@@ -21,14 +21,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QTextBlockUserData>
 #include <cassert>
 
-#include "fieldes/color.hpp"
-#include "fieldes/python/syntax.hpp"
+#include "fieldev/color.hpp"
+#include "fieldev/python/syntax.hpp"
 
-namespace FielDes {
+namespace FielDev {
 namespace Python {
 
 Syntax::Syntax(QTextDocument* doc)
-    : ::FielDes::Syntax(doc)
+    : ::FielDev::Syntax(doc)
 {
     {   // A placeholder, `...`, where an argument goes: the run stops before the statement until it is filled in.  (First, so that a
         // string or a comment that holds three dots is a string or a comment)
@@ -84,4 +84,4 @@ void Syntax::onCursorMoved(QPlainTextEdit* text)
 }
 
 }   // namespace Guile
-}   // namespace FielDes
+}   // namespace FielDev

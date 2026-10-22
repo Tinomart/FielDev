@@ -1,11 +1,11 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 */
-#include "fieldes/i18n.hpp"
+#include "fieldev/i18n.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -23,7 +23,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 #include <cstdio>
 #include <cstdlib>
 
-namespace FielDes {
+namespace FielDev {
 namespace i18n {
 
 namespace {
@@ -87,18 +87,18 @@ QString systemLanguage()
 
 QString chosen()
 {
-    // (FIELDES_LANGUAGE is a language forced from outside, for a test or a screenshot.  The program never sets it itself: what it tells its
-    // Python side goes in FIELDES_UI_LANGUAGE -- or a copy of the program that it restarts, which inherits its environment, would find
+    // (FIELDEV_LANGUAGE is a language forced from outside, for a test or a screenshot.  The program never sets it itself: what it tells its
+    // Python side goes in FIELDEV_UI_LANGUAGE -- or a copy of the program that it restarts, which inherits its environment, would find
     // the old language here and ignore the new choice)
-    const QString env = qEnvironmentVariable("FIELDES_LANGUAGE");
+    const QString env = qEnvironmentVariable("FIELDEV_LANGUAGE");
     if (!env.isEmpty()) return env;
-    const QString value = QSettings("FielDes", "FielDes").value("language", "system").toString();
+    const QString value = QSettings("FielDev", "FielDev").value("language", "system").toString();
     return value.isEmpty() ? QString("system") : value;
 }
 
 void setChosen(const QString& code)
 {
-    QSettings("FielDes", "FielDes").setValue("language", code);
+    QSettings("FielDev", "FielDev").setValue("language", code);
 }
 
 QString current()
@@ -116,7 +116,7 @@ void load()
     language() = code;
     catalog().clear();
     // (the Python side asks for the same language)
-    qputenv("FIELDES_UI_LANGUAGE", code.toUtf8());
+    qputenv("FIELDEV_UI_LANGUAGE", code.toUtf8());
     if (code == "en") return;
     QFile f(QDir(folder()).filePath(code + ".json"));
     if (!f.open(QIODevice::ReadOnly))
@@ -145,8 +145,8 @@ QString T(const QString& english)
     auto& table = i18n::catalog();
     const auto it = table.constFind(english);
     if (it != table.constEnd()) return it.value();
-    // (a text with no translation reads in English; FIELDES_I18N_LOG names them, once each, to be translated)
-    if (i18n::language() != "en" && !english.isEmpty() && qEnvironmentVariableIsSet("FIELDES_I18N_LOG"))
+    // (a text with no translation reads in English; FIELDEV_I18N_LOG names them, once each, to be translated)
+    if (i18n::language() != "en" && !english.isEmpty() && qEnvironmentVariableIsSet("FIELDEV_I18N_LOG"))
     {
         static QMutex lock;
         static QSet<QString> told;
@@ -165,4 +165,4 @@ QString T(const char* english)
     return T(QString::fromUtf8(english));
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

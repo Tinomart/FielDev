@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2021  Matt Keeter
 
@@ -28,17 +28,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <memory>
 #include <set>
 
-#include "fieldes/python/interpreter.hpp"
-#include "fieldes/i18n.hpp"
-#include "fieldes/documentation.hpp"
-#include "fieldes/shape.hpp"
+#include "fieldev/python/interpreter.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/documentation.hpp"
+#include "fieldev/shape.hpp"
 
 #include "libfive.h"
 #include "libfive/tree/data.hpp"
 #include "libfive/eval/default_vars.hpp"
 #include "libfive/run_progress.hpp"
 
-// We inject a dummy module named "_fieldes_host" into the Python namespace (fieldes.view
+// We inject a dummy module named "_fieldev_host" into the Python namespace (fieldev.view
 // re-exports its functions), then
 // use it to control settings (resolution, bounds, etc)
 static PyObject* set_resolution(PyObject* self, PyObject* args) {
@@ -61,7 +61,7 @@ static PyObject* set_quality(PyObject* self, PyObject* args) {
 
 static PyObject* set_bounds(PyObject* self, PyObject* args, PyObject* kwargs) {
     double xmin, ymin, zmin, xmax, ymax, zmax;
-    int auto_scale = 1;         // (the region grows in the script when a model reaches out of it: FielDes does that; the number is the script's)
+    int auto_scale = 1;         // (the region grows in the script when a model reaches out of it: FielDev does that; the number is the script's)
     static const char* kwlist[] = {"lo", "hi", "auto_scale", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "(ddd)(ddd)|p", const_cast<char**>(kwlist), &xmin, &ymin, &zmin,
                                      &xmax, &ymax, &zmax, &auto_scale))
@@ -74,6 +74,43 @@ static PyObject* set_bounds(PyObject* self, PyObject* args, PyObject* kwargs) {
     Py_XDECREF(bounds);
     PyObject_SetAttrString(self, "__auto_scale", auto_scale ? Py_True : Py_False);
     Py_RETURN_NONE;
+}
+
+// The pictures of the reference_image(...) calls the script has made so far: the library (fieldev.stdlib.references) appends
+// (path, (cx, cy, cz), (ux, uy, uz), (vx, vy, vz), height, opacity, flip, visible) to the host module's `__references`
+static void readReferences(PyObject* host_mod, FielDev::Settings& settings)
+{
+    settings.references.clear();
+    PyObject* list = PyObject_GetAttrString(host_mod, "__references");
+    if (!list) { PyErr_Clear(); return; }
+    if (PyList_Check(list))
+    {
+        for (Py_ssize_t i = 0; i < PyList_Size(list); ++i)
+        {
+            const char* path = nullptr;
+            double c[3], u[3], v[3], height = 0, opacity = 0.5, scale = 1;
+            int flip = 0, visible = 1;
+            if (!PyArg_ParseTuple(PyList_GetItem(list, i), "s(ddd)(ddd)(ddd)ddpp|d", &path, &c[0], &c[1], &c[2], &u[0], &u[1], &u[2],
+                                  &v[0], &v[1], &v[2], &height, &opacity, &flip, &visible, &scale))
+            {
+                PyErr_Clear();
+                continue;
+            }
+            FielDev::ReferenceImage image;
+            image.path = QString::fromUtf8(path);
+            image.center = QVector3D(float(c[0]), float(c[1]), float(c[2]));
+            image.u = QVector3D(float(u[0]), float(u[1]), float(u[2]));
+            image.v = QVector3D(float(v[0]), float(v[1]), float(v[2]));
+            image.height = float(height);
+            image.opacity = float(opacity);
+            image.scale = float(scale);
+            image.flip = flip != 0;
+            image.visible = visible != 0;
+            settings.references.append(image);
+        }
+    }
+    Py_DECREF(list);
+    PyErr_Clear();
 }
 
 static PyObject* var_func(PyObject* host_mod, PyObject* args) {
@@ -120,7 +157,7 @@ static PyObject* var_func(PyObject* host_mod, PyObject* args) {
                 v = found;
                 Py_INCREF(v);
             } else {
-                const auto shape_mod = PyImport_ImportModule("fieldes.shape");
+                const auto shape_mod = PyImport_ImportModule("fieldev.shape");
                 const auto Shape = PyObject_GetAttrString(shape_mod, "Shape");
                 v = PyObject_CallMethod(Shape, "var", NULL);
                 Py_DECREF(shape_mod);
@@ -144,7 +181,7 @@ static PyObject* var_func(PyObject* host_mod, PyObject* args) {
         Py_INCREF(v);
     } else {
         // Build a new free variable using Shape.var()
-        const auto shape_mod = PyImport_ImportModule("fieldes.shape");
+        const auto shape_mod = PyImport_ImportModule("fieldev.shape");
         const auto Shape = PyObject_GetAttrString(shape_mod, "Shape");
         v = PyObject_CallMethod(Shape, "var", NULL); // new reference
         Py_DECREF(shape_mod);
@@ -173,8 +210,8 @@ static PyObject* var_func(PyObject* host_mod, PyObject* args) {
     return v;
 }
 
-// The interpreter a run's helper thread (fieldes.runner) reports to
-static FielDes::Python::Interpreter* g_interpreter = nullptr;
+// The interpreter a run's helper thread (fieldev.runner) reports to
+static FielDev::Python::Interpreter* g_interpreter = nullptr;
 
 static PyObject* partial_scene(PyObject*, PyObject* args) {
     const char* json;
@@ -200,7 +237,7 @@ static PyObject* partial_shapes(PyObject*, PyObject* args) {
     Py_RETURN_NONE;
 }
 
-// A variable's number changed by the run itself (see fieldes.stdlib.handles._follow_literals): the entry of the run's list of variables, and the
+// A variable's number changed by the run itself (see fieldev.stdlib.handles._follow_literals): the entry of the run's list of variables, and the
 // number the kernel knows it by
 static PyObject* retune_func(PyObject*, PyObject* args) {
     PyObject* v;
@@ -208,7 +245,7 @@ static PyObject* retune_func(PyObject*, PyObject* args) {
     if (!PyArg_ParseTuple(args, "Od", &v, &value)) {
         return NULL;
     }
-    if (const auto host_mod = PyImport_ImportModule("_fieldes_host")) {
+    if (const auto host_mod = PyImport_ImportModule("_fieldev_host")) {
         if (PyObject* vars = PyObject_GetAttrString(host_mod, "__vars")) {
             if (PyList_Check(vars)) {
                 for (Py_ssize_t i = 0; i < PyList_Size(vars); ++i) {
@@ -245,8 +282,8 @@ static PyMethodDef host_methods[] = {
 
 static struct PyModuleDef host_module = {
     PyModuleDef_HEAD_INIT,
-    "_fieldes_host",   /* name of module */
-    "Global parameters to control the FielDes viewport",
+    "_fieldev_host",   /* name of module */
+    "Global parameters to control the FielDev viewport",
     -1,
     host_methods, // m_methods
     NULL, // m_slots
@@ -255,13 +292,13 @@ static struct PyModuleDef host_module = {
     NULL, // m_free
 };
 
-PyMODINIT_FUNC PyInit_fieldes_host(void) {
+PyMODINIT_FUNC PyInit_fieldev_host(void) {
     return PyModule_Create(&host_module);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace FielDes {
+namespace FielDev {
 namespace Python {
 
 const static QString SET_QUALITY_STR = "view.set_quality(%1)\n";
@@ -288,7 +325,7 @@ Interpreter::~Interpreter() {
 
 QString Interpreter::defaultScript() {
     auto default_settings = Settings::defaultSettings();
-    return "from fieldes import *\n\n" +
+    return "from fieldev import *\n\n" +
         SET_BOUNDS_STR.arg(default_settings.min.x())
                       .arg(default_settings.min.y())
                       .arg(default_settings.min.z())
@@ -364,13 +401,13 @@ void Interpreter::preinit() {
         } while (app_dir.cdUp());
 #endif
 
-        PyImport_AppendInittab("_fieldes_host", PyInit_fieldes_host);
+        PyImport_AppendInittab("_fieldev_host", PyInit_fieldev_host);
         Py_Initialize();
 
-        // Walk up directories from the program, looking for the folder the `fieldes`
+        // Walk up directories from the program, looking for the folder the `fieldev`
         // package lives in (python/ in the repository and in a packaged copy), and
         // add it to sys.path
-        const auto bind_dir = QDir::toNativeSeparators("python/fieldes");
+        const auto bind_dir = QDir::toNativeSeparators("python/fieldev");
         app_dir = QDir(QCoreApplication::applicationDirPath());
         do {
             if (app_dir.exists(bind_dir)) {
@@ -387,13 +424,13 @@ void Interpreter::preinit() {
 
         // A copy of the folder without its Python library cannot work: say so here, rather than
         // crashing when the first script runs
-        const auto library = PyImport_ImportModule("fieldes.runner");
+        const auto library = PyImport_ImportModule("fieldev.runner");
         if (!library) {
             PyErr_Print();
-            QMessageBox::critical(nullptr, "FielDes",
-                "FielDes cannot load its Python library: the folder python/fieldes and the library "
-                "(fieldes.dll, fieldes.so) must stay next to the program, as in the downloaded folder.\n\n"
-                "Details are on the console (start FielDes from a terminal).");
+            QMessageBox::critical(nullptr, "FielDev",
+                "FielDev cannot load its Python library: the folder python/fieldev and the library "
+                "(fieldev.dll, fieldev.so) must stay next to the program, as in the downloaded folder.\n\n"
+                "Details are on the console (start FielDev from a terminal).");
             std::exit(1);
         }
         Py_DECREF(library);
@@ -408,14 +445,14 @@ void Interpreter::init() {
     // TODO: do a first import check and raise a reasonable error instead of
     // crashing if the module isn't available? (it *should* always be available)
 
-    const auto runner_mod = PyImport_ImportModule("fieldes.runner");
+    const auto runner_mod = PyImport_ImportModule("fieldev.runner");
     PyErr_Print();
     m_runFunc = PyObject_GetAttrString(runner_mod, "run");
     m_resumeFunc = PyObject_GetAttrString(runner_mod, "resume");
     PyErr_Clear();
     m_runnerMod = runner_mod;   // kept: run() leaves scene info on it
 
-    const auto shape_mod = PyImport_ImportModule("fieldes.shape");
+    const auto shape_mod = PyImport_ImportModule("fieldev.shape");
     PyErr_Print();
     m_shapeClass = PyObject_GetAttrString(shape_mod, "Shape");
     Py_DECREF(shape_mod);
@@ -429,7 +466,7 @@ void Interpreter::init() {
     Py_DECREF(threading_mod);
 
     // Store the var() function locally for easy access
-    const auto host_mod = PyImport_ImportModule("_fieldes_host");
+    const auto host_mod = PyImport_ImportModule("_fieldev_host");
     m_varFunc = PyObject_GetAttrString(host_mod, "__var");
 
     // Reset studio.__vars to an empty list
@@ -482,7 +519,7 @@ void Interpreter::init() {
     Documentation docs;
 
     {   // Load all the keywords from the stdlib, then build the docs
-        const auto stdlib_mod = PyImport_ImportModule("fieldes.stdlib");
+        const auto stdlib_mod = PyImport_ImportModule("fieldev.stdlib");
         const auto stdlib_list = PyObject_Dir(stdlib_mod);
         const auto stdlib_len = PyList_Size(stdlib_list);
         PyErr_Print();
@@ -550,7 +587,7 @@ void Interpreter::init() {
     {   // Editor support: definition locations, member names and call tips,
         // passed along in reserved "__" sections of the documentation map
         // (the documentation pane skips those).
-        const auto support_mod = PyImport_ImportModule("fieldes.app_support");
+        const auto support_mod = PyImport_ImportModule("fieldev.app_support");
         if (support_mod) {
             const auto info = PyObject_CallMethod(support_mod, "completion_info", NULL);
             if (info && PyList_Check(info)) {
@@ -620,7 +657,7 @@ static QString capturePythonTraceback()
     Py_DECREF(io_mod);
 
     // Drop the runner's own frames ("File .../runner.py ... in run" plus
-    // its source line): they're FielDes internals, not the user's code
+    // its source line): they're FielDev internals, not the user's code
     QStringList lines = out.split('\n');
     QStringList kept;
     for (int i=0; i < lines.size(); ++i)
@@ -682,10 +719,10 @@ void Interpreter::eval(QString script)
     }
     if (drop)
     {
-        if (qEnvironmentVariableIsSet("FIELDES_TIMING")) std::cerr << "[run] request dropped (a newer one is waiting)" << std::endl;
+        if (qEnvironmentVariableIsSet("FIELDEV_TIMING")) std::cerr << "[run] request dropped (a newer one is waiting)" << std::endl;
         return;
     }
-    if (qEnvironmentVariableIsSet("FIELDES_TIMING")) std::cerr << "[run] start" << std::endl;
+    if (qEnvironmentVariableIsSet("FIELDEV_TIMING")) std::cerr << "[run] start" << std::endl;
     evaluate(script, false);
 }
 
@@ -729,7 +766,7 @@ void Interpreter::evaluate(QString script, bool resuming)
     libfive::run_progress::requestPause(false);
     m_evaluating = true;
 
-    const auto host_mod = PyImport_ImportModule("_fieldes_host");
+    const auto host_mod = PyImport_ImportModule("_fieldev_host");
 
     // The lines to stop before, as a Python list
     QList<int> breakpoints;
@@ -749,13 +786,13 @@ void Interpreter::evaluate(QString script, bool resuming)
     PyObject* ret;
     if (!resuming)
     {
-        // (the numbers this run finds the text behind on: see fieldes.stdlib.handles._follow_literals)
+        // (the numbers this run finds the text behind on: see fieldev.stdlib.handles._follow_literals)
         {
             const auto fresh_resync = PyList_New(0);
             PyObject_SetAttrString(host_mod, "__resync", fresh_resync);
             Py_DECREF(fresh_resync);
         }
-        // (the numbers of the gizmo() calls of this run: see fieldes.stdlib.handles._note_gizmo_vars and sceneGizmoIds)
+        // (the numbers of the gizmo() calls of this run: see fieldev.stdlib.handles._note_gizmo_vars and sceneGizmoIds)
         {
             const auto fresh_gizmos = PyList_New(0);
             PyObject_SetAttrString(host_mod, "__gizmo_vars", fresh_gizmos);
@@ -766,6 +803,12 @@ void Interpreter::evaluate(QString script, bool resuming)
         PyObject_SetAttrString(host_mod, "__quality", Py_None);
         PyObject_SetAttrString(host_mod, "__bounds", Py_None);
         PyObject_SetAttrString(host_mod, "__auto_scale", Py_True);
+        {
+            // (the pictures of reference_image(...): the ones of this run only)
+            const auto fresh_references = PyList_New(0);
+            PyObject_SetAttrString(host_mod, "__references", fresh_references);
+            Py_DECREF(fresh_references);
+        }
 
         // (no variable has been asked for by a key yet in this run, and the kernel knows the number of none)
         libfive::DefaultVars::clear();
@@ -1029,10 +1072,10 @@ void Interpreter::evaluate(QString script, bool resuming)
         }
 
       if (reprOk) {
-        // The field models of the script, for the section viewer (fieldes.app_support.field_sources): the field is the colour
+        // The field models of the script, for the section viewer (fieldev.app_support.field_sources): the field is the colour
         // of a plane whose own value is below zero everywhere, so the viewer shows it at every point of the plane
         {
-            PyObject* sup = PyImport_ImportModule("fieldes.app_support");
+            PyObject* sup = PyImport_ImportModule("fieldev.app_support");
             PyObject* list = sup ? PyObject_CallMethod(sup, "field_sources", nullptr) : nullptr;
             if (list && PyList_Check(list))
             {
@@ -1138,6 +1181,7 @@ void Interpreter::evaluate(QString script, bool resuming)
                                   .arg(out.settings.max.z())});
         }
         Py_XDECREF(bounds);
+        readReferences(host_mod, out.settings);
 
         // A resolution far finer than the region needs (e.g. 1000 per unit
         // kept from when a model was imported in metres, now in mm: a 1 um
@@ -1163,11 +1207,11 @@ void Interpreter::evaluate(QString script, bool resuming)
             }
         }
 
-        if (!out.warnings.isEmpty() && !script.contains("from fieldes import") &&
-            !script.contains("import fieldes")) {
+        if (!out.warnings.isEmpty() && !script.contains("from fieldev import") &&
+            !script.contains("import fieldev")) {
             out.warnings.insert(0, {
-                "<b>Warning:</b> Missing <code>from fieldes import *</code>",
-                "from fieldes import *\n"});
+                "<b>Warning:</b> Missing <code>from fieldev import *</code>",
+                "from fieldev import *\n"});
         }
 
         // A stopped script hasn't reached its settings yet: no warnings
@@ -1192,7 +1236,7 @@ QString Interpreter::callSupport(const QString& function, const QString& arg, QS
 {
     PyGILState_STATE gstate = PyGILState_Ensure();
     QString out;
-    PyObject* mod = PyImport_ImportModule("fieldes.app_support");
+    PyObject* mod = PyImport_ImportModule("fieldev.app_support");
     PyObject* fn = mod ? PyObject_GetAttrString(mod, function.toUtf8().constData()) : nullptr;
     PyObject* res = fn ? PyObject_CallFunction(fn, "s", arg.toUtf8().constData()) : nullptr;
     if (res && PyUnicode_Check(res))
@@ -1233,7 +1277,7 @@ void Interpreter::publishPartial(PyObject* snapshot, PyObject* linesList, int ru
     out.keepFromLine = runningLine;     // (the shapes of the statements from the one that runs on are the last run's, until it makes them)
     out.settings = Settings::defaultSettings();
     out.okay = true;
-    const auto host_mod = PyImport_ImportModule("_fieldes_host");
+    const auto host_mod = PyImport_ImportModule("_fieldev_host");
     if (!host_mod) { PyErr_Clear(); return; }
 
     // The render settings the script has given by now
@@ -1262,6 +1306,7 @@ void Interpreter::publishPartial(PyObject* snapshot, PyObject* linesList, int ru
         }
         Py_XDECREF(bounds);
         PyErr_Clear();
+        readReferences(host_mod, out.settings);
     }
     // The numbers of the script (var) the shapes hold
     std::map<libfive::Tree::Id, float> vars;
@@ -1343,14 +1388,14 @@ void Interpreter::publishPartial(PyObject* snapshot, PyObject* linesList, int ru
     emit(partialResult(out));
 }
 
-// The numbers of every gizmo() call of the run (fieldes.stdlib.handles notes them in host.__gizmo_vars): a surface pull never changes one of them, whichever shape the surface
+// The numbers of every gizmo() call of the run (fieldev.stdlib.handles notes them in host.__gizmo_vars): a surface pull never changes one of them, whichever shape the surface
 // belongs to.  The same set for every shape of a run, made again when the list has grown; the list is held, so that no other list can take its place
 static std::shared_ptr<const std::set<libfive::Tree::Id>> sceneGizmoIds()
 {
     static PyObject* seen = nullptr;
     static Py_ssize_t seenSize = -1;
     static std::shared_ptr<const std::set<libfive::Tree::Id>> made;
-    PyObject* host = PyImport_ImportModule("_fieldes_host");
+    PyObject* host = PyImport_ImportModule("_fieldev_host");
     PyObject* list = host ? PyObject_GetAttrString(host, "__gizmo_vars") : nullptr;
     Py_XDECREF(host);
     if (!list || !PyList_Check(list))
@@ -1391,7 +1436,7 @@ void Interpreter::recordShape(
         const auto ptr_obj = PyObject_GetAttrString(obj, "ptr");
         const auto ptr = PyLong_AsVoidPtr(ptr_obj);
         const auto tree = static_cast<libfive_tree>(ptr);
-        // A distance field is drawn from the field it was made from (fieldes.stdlib.fields.exact_distance): the surface is the same, and the viewport
+        // A distance field is drawn from the field it was made from (fieldev.stdlib.fields.exact_distance): the surface is the same, and the viewport
         // meshes one evaluation of the plain field at each point, not the walk to the surface (a dozen calls of it)
         libfive::Tree drawn(tree);
         {
@@ -1417,7 +1462,7 @@ void Interpreter::recordShape(
             if (hasExact)
             {
                 shape->setExactKey(QString::number(reinterpret_cast<quintptr>(ptr)));
-                PyObject* support = PyImport_ImportModule("fieldes.app_support");
+                PyObject* support = PyImport_ImportModule("fieldev.app_support");
                 if (support)
                 {
                     PyObject* r = PyObject_CallMethod(support, "register_view_shape", "O", obj);
@@ -1428,7 +1473,7 @@ void Interpreter::recordShape(
             }
         }
         {
-            // (a 2D shape is drawn as its face in the plane z = 0, flat: see fieldes.stdlib.points.displayed)
+            // (a 2D shape is drawn as its face in the plane z = 0, flat: see fieldev.stdlib.points.displayed)
             PyObject* flat = PyObject_GetAttrString(obj, "_flat2d");
             shape->setFlat(flat && PyObject_IsTrue(flat) == 1);
             Py_XDECREF(flat);
@@ -1444,7 +1489,7 @@ void Interpreter::recordShape(
             return out;
         };
         {
-            // (the plane of a flat shape that is not z = 0: (origin, u, v), each three expressions -- see fieldes.stdlib.profile)
+            // (the plane of a flat shape that is not z = 0: (origin, u, v), each three expressions -- see fieldev.stdlib.profile)
             PyObject* fr = PyObject_GetAttrString(obj, "_flat_frame");
             if (fr && PyTuple_Check(fr) && PyTuple_Size(fr) == 3)
             {
@@ -1464,7 +1509,7 @@ void Interpreter::recordShape(
         }
         {
             // (the points of a profile or a curve: where each is and what it says of itself, as expressions of the script's numbers -- the line or the face is
-            // made from them natively at every render, see Shape::setControls and fieldes.stdlib.curves)
+            // made from them natively at every render, see Shape::setControls and fieldev.stdlib.curves)
             PyObject* cp = PyObject_GetAttrString(obj, "_ctrl_pos");
             if (cp && PyList_Check(cp) && PyList_Size(cp) > 0)
             {
@@ -1543,7 +1588,7 @@ void Interpreter::recordShape(
         }
         {
             // (a straight extrusion of a profile of points -- a prism: its points, and a and b, as expressions of the script's numbers, and the numbers that must still be what
-            // they were; the viewport makes it from them natively at every render: see Shape::setPrism and fieldes.stdlib.profile.extrude)
+            // they were; the viewport makes it from them natively at every render: see Shape::setPrism and fieldev.stdlib.profile.extrude)
             PyObject* pp = PyObject_GetAttrString(obj, "_prism_pos");
             if (pp && PyList_Check(pp) && PyList_Size(pp) > 0)
             {
@@ -1621,7 +1666,7 @@ void Interpreter::recordShape(
         }
         {
             // (a sweep of a profile of points along a curve of points: both lists of points, the twist and where the gizmo places it -- the viewport makes it from the numbers
-            // natively at every render: see Shape::setSweep and fieldes.stdlib.profile.path_extrude)
+            // natively at every render: see Shape::setSweep and fieldev.stdlib.profile.path_extrude)
             PyObject* pp = PyObject_GetAttrString(obj, "_sweep_ppos");
             PyObject* qp = PyObject_GetAttrString(obj, "_sweep_qpos");
             if (pp && PyList_Check(pp) && PyList_Size(pp) > 0 && qp && PyList_Check(qp) && PyList_Size(qp) > 0)
@@ -1782,7 +1827,7 @@ void Interpreter::recordShape(
             PyErr_Clear();
         }
         {
-            // A symmetry model (fieldes.stdlib.symmetries): (kind, planes, centre, axis, first).  Nothing of it is painted: its planes are drawn by the viewport
+            // A symmetry model (fieldev.stdlib.symmetries): (kind, planes, centre, axis, first).  Nothing of it is painted: its planes are drawn by the viewport
             PyObject* sd = PyObject_GetAttrString(obj, "_symmetry_def");
             if (sd && PyTuple_Check(sd) && PyTuple_Size(sd) == 5)
             {
@@ -1809,7 +1854,7 @@ void Interpreter::recordShape(
             PyErr_Clear();
         }
         {
-            // (a set of points -- fieldes.stdlib.lattices.PointSet._display -- is carried by a shape with no extent: its points are drawn
+            // (a set of points -- fieldev.stdlib.lattices.PointSet._display -- is carried by a shape with no extent: its points are drawn
             // by the viewport, each as the dot of a gizmo)
             PyObject* dots = PyObject_GetAttrString(obj, "_markers");
             if (dots && PyList_Check(dots))
@@ -1855,7 +1900,7 @@ void Interpreter::recordShape(
             PyErr_Clear();
         }
 
-        // A thin part meshed on its own (fieldes.stdlib.cad_import):
+        // A thin part meshed on its own (fieldev.stdlib.cad_import):
         // (box lo, box hi, resolution, cube side, thinnest feature)
         // (a part placed with gizmo() has the hint of the part it was placed from)
         // (a part edited with handles() and placed with gizmo() is two steps from the part)
@@ -1892,7 +1937,7 @@ void Interpreter::recordShape(
         Py_XDECREF(hintOwner);
         PyErr_Clear();
 
-        // The exact triangles of a tessellated part (fieldes.stdlib.tessellated_import): (key, vertices as bytes of floats,
+        // The exact triangles of a tessellated part (fieldev.stdlib.tessellated_import): (key, vertices as bytes of floats,
         // triangles as bytes of unsigned ints, the 12 numbers of the 3 x 4 matrix that places them).  The part is drawn from them
         // (Shape::setExactMesh); a mesh is kept by its key, so that the script's next run does not copy it again
         if (PyObject_HasAttrString(obj, "_display_mesh"))
@@ -1941,7 +1986,7 @@ void Interpreter::recordShape(
             PyErr_Clear();
         }
 
-        // The gizmo of a placed part (fieldes.stdlib.handles): (mode, about (3),
+        // The gizmo of a placed part (fieldev.stdlib.handles): (mode, about (3),
         // move (3), rotate (3), scale (3)), each number a var Shape or a plain float
         // (the mode is when the gizmo is shown: 'click', 'never' or 'always')
         if (PyObject_HasAttrString(obj, "_gizmo"))
@@ -2082,7 +2127,7 @@ void Interpreter::recordShape(
             else if (const auto copyOf = treeOf("_instance_of")) shape->setFollows(Shape::FOLLOW_COPY, copyOf);
         }
 
-        // A model the app's viewport shows, and the name it was given there (fieldes.app.viewport)
+        // A model the app's viewport shows, and the name it was given there (fieldev.app.viewport)
         if (viewport && PyObject_HasAttrString(obj, "_app_shown"))
         {
             PyObject* v = PyObject_GetAttrString(obj, "_app_shown");
@@ -2096,7 +2141,7 @@ void Interpreter::recordShape(
             PyErr_Clear();
         }
 
-        // Locked by a line `x = lock(x)` (fieldes.stdlib.handles.lock): it cannot be dragged, by gizmo or surface
+        // Locked by a line `x = lock(x)` (fieldev.stdlib.handles.lock): it cannot be dragged, by gizmo or surface
         if (PyObject_HasAttrString(obj, "_locked"))
         {
             PyObject* v = PyObject_GetAttrString(obj, "_locked");
@@ -2114,7 +2159,7 @@ void Interpreter::recordShape(
         }
 
         // Kept in the render cache: on unless the script says render_cache(x, False)
-        // (fieldes.stdlib.render_cache.render_cache); written for every shape that took a while to mesh, and for
+        // (fieldev.stdlib.render_cache.render_cache); written for every shape that took a while to mesh, and for
         // one under an explicit render_cache(x) always
         if (PyObject_HasAttrString(obj, "_render_cache"))
         {
@@ -2129,7 +2174,7 @@ void Interpreter::recordShape(
             shape->setRenderCache(true, false);
         }
 
-        // Shown coloured by a field (fieldes.stdlib.fields.colored)
+        // Shown coloured by a field (fieldev.stdlib.fields.colored)
         if (PyObject_HasAttrString(obj, "_color_field"))
         {
             PyObject* field = PyObject_GetAttrString(obj, "_color_field");
@@ -2157,7 +2202,7 @@ void Interpreter::recordShape(
                 shape->setColorField(libfive::Tree(ft), lo, hi, autoRange,
                                      str("_color_label"), str("_color_map"));
 
-                // A patch of a surface (fieldes.stdlib.selection): the part is drawn only where the field is at
+                // A patch of a surface (fieldev.stdlib.selection): the part is drawn only where the field is at
                 // most this value, in the colour of the map's top
                 PyObject* cutoff = PyObject_GetAttrString(obj, "_color_cutoff");
                 if (cutoff && PyFloat_Check(cutoff)) shape->setColorCutoff(float(PyFloat_AsDouble(cutoff)));
@@ -2178,4 +2223,4 @@ void Interpreter::recordShape(
 }
 
 }   // namespace Python
-}   // namespace FielDes
+}   // namespace FielDev

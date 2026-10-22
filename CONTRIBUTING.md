@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking. FielDes is a young program, so reports of what does not work are as valuable as patches.
+Thanks for looking. FielDev is a young program, so reports of what does not work are as valuable as patches.
 
 ## Reporting a problem
 
@@ -27,10 +27,10 @@ A test suite that automates those is the most useful contribution there is.
   New files carry the header of the part they belong to; see [NOTICE.md](NOTICE.md).
 - Match the surrounding style: short comments that say *why*, no dead code, no opt-in flags for rejected
   behaviour.
-- Docstrings in `python/fieldes/stdlib` become [docs/reference.md](docs/reference.md): run
+- Docstrings in `python/fieldev/stdlib` become [docs/reference.md](docs/reference.md): run
   `python scripts/gen_reference.py` after changing one.
 - The documents in `docs/` describe behaviour; change them with the behaviour.
-- Text the user reads is `T("English text")` in `app/src` and `tr('English text')` in `python/fieldes` (the English *is* the key; `%1`, `%2` / `%s` for what
+- Text the user reads is `T("English text")` in `app/src` and `tr('English text')` in `python/fieldev` (the English *is* the key; `%1`, `%2` / `%s` for what
   varies). After adding or changing one, run `python scripts/translations.py check`: it lists what the six translations lack.
   Better translations are welcome: see [translations/README.md](translations/README.md).
 

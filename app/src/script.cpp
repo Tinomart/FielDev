@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 Derived from Studio, a simple GUI for the libfive CAD kernel
 Copyright (C) 2017  Matt Keeter
 
@@ -38,13 +38,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QJsonDocument>
 #include <QJsonArray>
 
-#include "fieldes/i18n.hpp"
-#include "fieldes/script.hpp"
-#include "fieldes/formatter.hpp"
-#include "fieldes/color.hpp"
-#include "fieldes/theme.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/script.hpp"
+#include "fieldev/formatter.hpp"
+#include "fieldev/color.hpp"
+#include "fieldev/theme.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 bool isIdentChar(QChar c) { return c.isLetterOrNumber() || c == '_'; }
@@ -76,7 +76,7 @@ QString assignedName(const QString& text)
     return m.hasMatch() ? m.captured(1) : QString();
 }
 
-// "name = handles(name, ...", gizmo, lock ... : a statement that goes on with a model that is already defined: the name.  (FielDes writes them one
+// "name = handles(name, ...", gizmo, lock ... : a statement that goes on with a model that is already defined: the name.  (FielDev writes them one
 // argument to a line -- `name = handles(` and `name,` under it -- so the first argument may be on the next line)
 QString setupOf(const QTextBlock& block)
 {
@@ -1368,7 +1368,7 @@ void Script::zoomFont(int delta)
 {
     const int size = std::max(6, std::min(40, document()->defaultFont().pointSize() + delta));
     setFontSize(size);
-    QSettings("FielDes", "FielDes").setValue("editor-font-size", size);
+    QSettings("FielDev", "FielDev").setValue("editor-font-size", size);
     emit(fontSizeChanged(size));
 }
 
@@ -1533,7 +1533,7 @@ void Script::insertCompletion(const QString& completion)
     if (known && !onlyAVariable && !opens && !inStringOrComment(line, col))
     {
         call = true;
-        // The call as the library writes it (fieldes.completion): what it cannot do without is a placeholder after its name (`region=...`), every
+        // The call as the library writes it (fieldev.completion): what it cannot do without is a placeholder after its name (`region=...`), every
         // other argument is there with its default, and one argument to a line when it does not fit -- the same call a menu entry writes
         QString written;
         if (m_support && tip != m_callTips.constEnd())
@@ -2427,4 +2427,4 @@ bool Script::event(QEvent* e)
     return QPlainTextEdit::event(e);
 }
 
-}   // namespace FielDes
+}   // namespace FielDev

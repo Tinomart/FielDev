@@ -144,9 +144,9 @@ else()
 endif()
 
 # (a build on a copy of the source that has no git history -- the Linux packages are built on a copy in the Linux file system, made without .git -- is told the revision by the one who made the copy:
-# FIELDES_GIT_REV in the environment, the short hash and a "+" when the tree had changes that were not committed.  A checkout that has its history says it itself, above)
-if ("${GIT_REV}" STREQUAL "N/A" AND NOT "$ENV{FIELDES_GIT_REV}" STREQUAL "")
-    set(GIT_REV "$ENV{FIELDES_GIT_REV}")
+# FIELDEV_GIT_REV in the environment, the short hash and a "+" when the tree had changes that were not committed.  A checkout that has its history says it itself, above)
+if ("${GIT_REV}" STREQUAL "N/A" AND NOT "$ENV{FIELDEV_GIT_REV}" STREQUAL "")
+    set(GIT_REV "$ENV{FIELDEV_GIT_REV}")
     set(GIT_DIFF "")
 endif()
 
@@ -159,8 +159,8 @@ set_property(
 )
 
 ################################################################################
-# The library is named 'fieldes' on all platforms
-set_target_properties(libfive PROPERTIES PREFIX "" OUTPUT_NAME fieldes)
+# The library is named 'fieldev' on all platforms
+set_target_properties(libfive PROPERTIES PREFIX "" OUTPUT_NAME fieldev)
 
 target_include_directories(libfive SYSTEM PUBLIC
     ${Boost_INCLUDE_DIRS}

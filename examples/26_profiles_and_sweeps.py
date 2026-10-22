@@ -12,7 +12,7 @@
 #     curve leaves it; for the tube below, how THICK the tube is there (the middle point of the path is drawn at 1.8 times the thickness).
 #   * Select the plate and its points are the dots round it. Select several points together (Ctrl+click) and one dot moves them all, in the plane.
 #   * Shift+D copies a model, Ctrl+D links it (see example 27).
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-10, -10, -10], [115, 70, 55], auto_scale=True)
 view.set_resolution(2)

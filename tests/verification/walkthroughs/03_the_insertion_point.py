@@ -13,7 +13,7 @@
 #   4. With no point set (the arrow faint, at the end of the tree) a new shape goes to the end of the script, as it always did.
 #   5. Operations (union, offset ...) still go under the model they work on.
 
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-10, -10, -5], [80, 30, 30])
 view.set_resolution(3)

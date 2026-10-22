@@ -1,5 +1,5 @@
 /*
-FielDes: field-driven design
+FielDev: field-driven design
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -21,11 +21,11 @@ of the License, or (at your option) any later version.
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "fieldes/carddrag.hpp"
-#include "fieldes/i18n.hpp"
-#include "fieldes/workplane.hpp"
+#include "fieldev/carddrag.hpp"
+#include "fieldev/i18n.hpp"
+#include "fieldev/workplane.hpp"
 
-namespace FielDes {
+namespace FielDev {
 
 namespace {
 
@@ -71,6 +71,19 @@ QIcon drawingIcon(int kind)
             p.setPen(QPen(QColor(238, 232, 213, 170), 0.8));
             p.drawEllipse(q, 3.3, 3.3);
             p.setPen(QPen(ink, 1.3));
+        }
+    }
+    else if (kind == 4)
+    {
+        // (a limb: three nodes, thicker in the middle, joined by a path)
+        const QPointF a[3] = {{6, 13}, {15, 5.5}, {25, 11}};
+        const double radii[3] = {2.2, 3.8, 2.6};
+        p.drawLine(a[0], a[1]);
+        p.drawLine(a[1], a[2]);
+        for (int i = 0; i < 3; ++i)
+        {
+            p.setBrush(QColor(38, 139, 210, 200));
+            p.drawEllipse(a[i], radii[i], radii[i]);
         }
     }
     else
@@ -139,18 +152,20 @@ WorkPlanePanel::WorkPlanePanel(QWidget* parent)
     // click selects, moves, turns and scales things as usual (the active kind is turned off by clicking it again, or with a right click in the viewport)
     auto modeRow = new QHBoxLayout;
     modeRow->setSpacing(3);
-    const QString names[3] = {T("Line"), T("Spline"), T("Point")};
-    const QString tips[3] = {
+    const QString names[4] = {T("Line"), T("Spline"), T("Point"), T("Limb")};
+    const QString tips[4] = {
         T("Click to put down the corners of a shape with straight edges; a click on the first one closes it, Enter ends it open (E: the next kind, right click: stop drawing)"),
         T("Click to put down the points of a smooth curve; a click on the first one closes it into a shape, Enter ends it open (E: the next kind, right click: stop drawing)"),
-        T("Every click puts a point on the plane (E: the next kind, right click: stop drawing)")};
-    for (int i = 0; i < 3; ++i)
+        T("Every click puts a point on the plane (E: the next kind, right click: stop drawing)"),
+        T("Click the nodes of a limb of a character, one after the other: a path extrude with the joints of its skeleton on the nodes.  Enter ends it (E: the next kind, right click: stop drawing)")};
+    for (int i = 0; i < 4; ++i)
     {
         m_modes[i] = new QToolButton;
         m_modes[i]->setText(names[i]);
         m_modes[i]->setIcon(drawingIcon(i + 1));
         m_modes[i]->setIconSize(QSize(30, 18));
-        m_modes[i]->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        // (the picture above the word: four kinds side by side would cut the words short beside their pictures)
+        m_modes[i]->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         m_modes[i]->setCheckable(true);
         m_modes[i]->setObjectName(QString("workPlaneMode%1").arg(i + 1));
         m_modes[i]->setToolTip(tips[i]);
@@ -313,7 +328,7 @@ void WorkPlanePanel::setPlane(const WorkPlane& plane, float step)
     m_updating = true;
     {
         QSignalBlocker a(m_grid), b(m_snap), c(m_snapPoints), d(m_auto), e(m_step), f(m_offset);
-        for (int i = 0; i < 3; ++i) m_modes[i]->setChecked(plane.mode == i + 1);
+        for (int i = 0; i < 4; ++i) m_modes[i]->setChecked(plane.mode == i + 1);
         m_grid->setChecked(plane.grid);
         m_snap->setChecked(plane.snap);
         m_snapPoints->setChecked(plane.snapPoints);
@@ -324,12 +339,13 @@ void WorkPlanePanel::setPlane(const WorkPlane& plane, float step)
     }
     m_updating = false;
     // What a click does now: dim when nothing is being drawn (it selects), lit when it puts a point down
-    const QString hints[4] = {
+    const QString hints[5] = {
         T("Not drawing: clicks select, move, turn and scale things. Pick a kind to draw (E)."),
         T("Click the corners of a shape; click the first one to close it, or press Enter to end it open."),
         T("Click the points of a spline; click the first one to close it, or press Enter to end it open."),
-        T("Every click puts a point on the plane.")};
-    const int mode = std::max(0, std::min(3, plane.mode));
+        T("Every click puts a point on the plane."),
+        T("Click the nodes of a limb, one after the other; press Enter to end it, Backspace to take the last one back.")};
+    const int mode = std::max(0, std::min(4, plane.mode));
     m_hint->setText(hints[mode]);
     m_hint->setStyleSheet(mode == 0 ? "color: #93a1a1;" : "color: #eee8d5;");
     const QVector3D n = plane.normal(), o = plane.origin();
@@ -370,4 +386,4 @@ void WorkPlanePanel::place()
     }
 }
 
-}   // namespace FielDes
+}   // namespace FielDev
