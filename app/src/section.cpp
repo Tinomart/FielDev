@@ -47,8 +47,7 @@ bool SectionSettings::operator==(const SectionSettings& o) const
 {
     return enabled == o.enabled && axis == o.axis && offset == o.offset &&
            flip == o.flip && clip == o.clip && field == o.field &&
-           opacity == o.opacity && range == o.range && spacing == o.spacing &&
-           wholeElements == o.wholeElements;
+           opacity == o.opacity && range == o.range && spacing == o.spacing;
 }
 
 QVector4D SectionSettings::clipPlane() const
@@ -686,14 +685,6 @@ void FieldLegend::paintEvent(QPaintEvent*)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectionPanel::setWholeElementsAvailable(bool available)
-{
-    if (!m_wholeBox || m_wholeBox->isVisibleTo(this) == available) return;
-    m_wholeBox->setVisible(available);
-    adjustSize();
-    place();
-}
-
 SectionPanel::SectionPanel(QWidget* parent)
     : QFrame(parent),
       m_header(new QToolButton), m_enable(new QToolButton), m_close(new QToolButton),
@@ -814,24 +805,12 @@ SectionPanel::SectionPanel(QWidget* parent)
     m_field->setCheckable(true);
     m_field->setChecked(true);
     m_field->setText(T("Field"));
-    m_field->setToolTip(T("Colour the plane: distance, or the analysis result"));
-    m_whole = new QToolButton;
-    m_whole->setObjectName("sectionWhole");
-    m_whole->setCheckable(true);
-    m_whole->setText(T("Whole elements"));
-    m_whole->setToolTip(T("Keep elements whole at the plane"));
+    m_field->setToolTip(T("Colour the plane by the field's value"));
     auto showRow = new QHBoxLayout;
     showRow->addWidget(label(T("Show")));
     showRow->addWidget(m_clip);
     showRow->addWidget(m_field);
     showRow->addStretch();
-    m_wholeBox = new QWidget;
-    auto wholeRow = new QHBoxLayout(m_wholeBox);
-    wholeRow->setContentsMargins(0, 0, 0, 0);
-    wholeRow->addWidget(label(""));
-    wholeRow->addWidget(m_whole);
-    wholeRow->addStretch();
-    m_wholeBox->hide();
 
     m_opacity->setRange(10, 100);
     m_opacity->setValue(90);
@@ -875,7 +854,6 @@ SectionPanel::SectionPanel(QWidget* parent)
     body->addLayout(axisRow);
     body->addLayout(offsetRow);
     body->addLayout(showRow);
-    body->addWidget(m_wholeBox);
     body->addLayout(opacityRow);
     body->addLayout(rangeRow);
     body->addWidget(m_legend);
@@ -914,7 +892,6 @@ SectionPanel::SectionPanel(QWidget* parent)
     });
     connect(m_flip, &QToolButton::toggled, this, [this](bool b){ m_settings.flip = b; emitChange(); });
     connect(m_clip, &QToolButton::toggled, this, [this](bool b){ m_settings.clip = b; emitChange(); });
-    connect(m_whole, &QToolButton::toggled, this, [this](bool b){ m_settings.wholeElements = b; emitChange(); });
     connect(m_field, &QToolButton::toggled, this, [this](bool b){ m_settings.field = b; emitChange(); });
     connect(m_opacity, &QSlider::valueChanged, this, [this](int v){
         m_settings.opacity = v / 100.f;

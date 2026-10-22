@@ -331,22 +331,6 @@ const QIcon& cacheIcon(const QString& state)
     return iOff;
 }
 
-const QIcon& resetIcon()
-{
-    static QIcon i = makeIcon([](QPainter& p) {         // an arrow turning back
-        p.setPen(QPen(kText, 1.4));
-        p.drawArc(QRectF(3, 3, 10, 10), 120 * 16, -290 * 16);
-        QPainterPath head;
-        head.moveTo(2.4, 2.8);
-        head.lineTo(2.6, 7.2);
-        head.lineTo(6.7, 5.8);
-        head.closeSubpath();
-        p.setBrush(kText);
-        p.drawPath(head);
-    });
-    return i;
-}
-
 const QIcon& deleteIcon()
 {
     static QIcon i = makeIcon([](QPainter& p) {         // a bin

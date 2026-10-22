@@ -891,7 +891,6 @@ Window::Window(Arguments args)
         connect(view, &View::sectionOffsetDragged, panel, &SectionPanel::setOffset);
         connect(view, &View::sectionReadout, panel, &SectionPanel::setReadout);
         connect(view, &View::fieldReadout, fieldPanel, &FieldPanel::setReadout);
-        connect(view, &View::sectionCutsElements, panel, &SectionPanel::setWholeElementsAvailable);
         if (automated)
         {
             connect(view, &View::sectionReadout, this, [](QString t) {

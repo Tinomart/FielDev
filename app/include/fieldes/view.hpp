@@ -397,10 +397,6 @@ signals:
     /*  The value of the field under the mouse on a field viewer's plane ("" = none)  */
     void fieldReadout(QString text);
 
-    /*  Whether the section plane cuts a shown analysis result that has elements (the section
-     *  card offers "whole elements" only then)  */
-    void sectionCutsElements(bool cuts);
-
     /*
      *  A click (press + release without dragging) on a shape: the 0-based
      *  line of the statement displaying it, or -1 for empty space
@@ -704,9 +700,6 @@ protected:
     bool show_axes=true;
     bool show_bbox=false;
     bool show_triad=true;
-    /*  Emits sectionCutsElements when the answer changed  */
-    void updateSectionElements();
-    bool m_sectionElements=false;
 
     bool show_legends=true;
     QSet<QString> hidden_legends;                  // closed with their x (by label)

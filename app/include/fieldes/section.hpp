@@ -43,7 +43,6 @@ struct SectionSettings
     float opacity = 0.9f;
     float range = 0;         // colour range (+-); 0 = automatic
     float spacing = 0;       // iso-line spacing; 0 = automatic
-    bool wholeElements = false;  // analysis elements shown whole, not cut
 
     bool operator==(const SectionSettings& o) const;
     bool operator!=(const SectionSettings& o) const { return !(*this == o); }
@@ -201,8 +200,6 @@ public:
     { m_cameraDir = f; }
 
 public slots:
-    /*  "Whole elements" is offered only while the plane cuts a part shown with analysis elements  */
-    void setWholeElementsAvailable(bool available);
     /*  The render bounds, which set the offset slider's range  */
     void setBounds(QVector3D min, QVector3D max);
     void setSlice(FieldSlice s);
@@ -248,8 +245,6 @@ protected:
     QDoubleSpinBox* m_offsetSpin;
     QToolButton* m_clip;
     QToolButton* m_field;
-    QToolButton* m_whole;
-    QWidget* m_wholeBox = nullptr;
     QSlider* m_opacity;
     QToolButton* m_autoRange;
     QDoubleSpinBox* m_range;
