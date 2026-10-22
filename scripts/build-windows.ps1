@@ -112,10 +112,8 @@ if ($Package) {
         @('/XD', '__pycache__', 'test', 'idlelib', 'turtledemo', '/XF', '_freeze_module.exe')
     # 3. The Python package
     Mirror (Join-Path $Source 'python') (Join-Path $PackageDir 'python') @('/XD', '__pycache__')
-    # 4. The examples (without sample STEP files: those are GrabCAD downloads that may not be redistributed -- except the one
-    #    bracket that is distributed at the maintainer's decision, copied in below)
-    Mirror (Join-Path $Source 'examples') (Join-Path $PackageDir 'examples') @('/XD', '__pycache__', '*.fieldes-cache.trees', '*.fieldes-bspline', '*.fieldes-tessellation', 'meshes', '/XF', '*.fieldes-cache.py', '*.step', '*.stp')
-    Copy-Item (Join-Path $Source 'examples\step\PivotBearingSupportBracket.STEP') (Join-Path $PackageDir 'examples\step') -Force
+    # 4. The examples
+    Mirror (Join-Path $Source 'examples') (Join-Path $PackageDir 'examples') @('/XD', '__pycache__', '*.fieldes-cache.trees', '*.fieldes-bspline', '*.fieldes-tessellation', 'meshes', '/XF', '*.fieldes-cache.py')
     # The command line of the apps (`fieldes run tool.fieldesapp --Radius 7`): FielDes.exe is a window program, this waits for it
     Copy-Item (Join-Path $Source 'scripts\fieldes.cmd') $PackageDir -Force
     foreach ($doc in 'README.md', 'LICENSE-GPL-2.0', 'LICENSE-MPL-2.0', 'NOTICE.md', 'CHANGELOG.md') {

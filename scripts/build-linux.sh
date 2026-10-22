@@ -51,8 +51,7 @@ case "$REPO" in
         mkdir -p "$SRC"
         echo "== copying the sources to $SRC"
         rsync -a --delete --exclude '/dist' --exclude '/.git' --exclude '__pycache__' \
-              --exclude '*.fieldes-cache.*' --include '/examples/step/README.md' --include '/examples/step/PivotBearingSupportBracket.STEP' \
-              --exclude '/examples/step/*' --exclude '/examples/meshes' "$REPO/" "$SRC/"
+              --exclude '*.fieldes-cache.*' --exclude '/examples/meshes' "$REPO/" "$SRC/"
         ;;
 esac
 
@@ -96,14 +95,12 @@ if [ "$PACKAGE" = 1 ]; then
     echo "== packaging into $OUT"
     rm -rf "$OUT"
     mkdir -p "$OUT/lib"
-    # (the kernel's libraries, the application, the Python package, the examples with one sample STEP file (the others are not distributed), the
-    # blocks, the docs, the translations)
+    # (the kernel's libraries, the application, the Python package, the examples, the blocks, the docs, the translations)
     cp -f "$BUILD"/kernel/src/fieldes.so "$BUILD"/kernel/stdlib/fieldes-stdlib.so "$OUT"/
     [ "$APP" = ON ] && cp -f "$BUILD"/app/FielDes "$OUT"/
     rsync -a --exclude '__pycache__' "$SRC/python" "$OUT/"
     mkdir -p "$OUT/examples"
-    rsync -a --exclude '__pycache__' --include 'step/PivotBearingSupportBracket.STEP' --exclude 'step/*.s*p' --exclude 'step/*.STEP' --exclude 'step/*.STP' --exclude '*.fieldes-cache.*' \
-          --exclude 'meshes' "$SRC/examples/" "$OUT/examples/"
+    rsync -a --exclude '__pycache__' --exclude '*.fieldes-cache.*' --exclude 'meshes' "$SRC/examples/" "$OUT/examples/"
     rsync -a "$SRC/blocks" "$SRC/docs" "$SRC/translations" "$OUT/"
     cp -f "$SRC"/README.md "$SRC"/CHANGELOG.md "$SRC"/LICENSE-GPL-2.0 "$SRC"/LICENSE-MPL-2.0 "$SRC"/NOTICE.md "$OUT"/
     cp -f "$SRC"/app/deploy/icon/fieldes.png "$OUT"/fieldes.png          # (the icon of the menu entry the installers make)
