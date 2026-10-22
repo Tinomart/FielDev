@@ -19,13 +19,22 @@ A colour, the roughness, the metalness, the glow and the opacity can be FIELDS i
 
     wood = material("wood", color=(0.55 + 0.1 * noise, 0.35 + 0.1 * noise, 0.2), roughness=0.4 + 0.3 * noise)
 
+`with_materials(model, [skin, metal])` is the model shown in the viewport in the colours of its materials -- the same layers, found the same way -- and the materials an
+export takes when it is not given any, so the list is written once:
+
+    hero = with_materials(hero, [skin, metal])
+    export_mesh(hero, "hero.glb")
+
+The viewport shows the colour of each material, as an engine shows it, and a key of their names.  It does not show the rest of a material (roughness, metalness, glow,
+transparency, a texture), and a colour that is a field is shown grey: those are in the exported file.
+
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 from fieldev.shape import Shape
 
-__all__ = ['material', 'material_preset', 'material_presets', 'Material']
+__all__ = ['material', 'material_preset', 'material_presets', 'with_materials', 'Material']
 
 
 class Material:
@@ -210,3 +219,50 @@ def material_preset(kind, name=None, **options):
     values = dict(_PRESETS[key])
     values.update(options)
     return material(name or key, **values)
+
+
+def _as_shown(channel):
+    ''' A colour channel as a screen shows it: the numbers of a material are linear, as glTF has them, and a viewer or an engine puts them through the sRGB curve.  A channel that
+        is a field has no one colour: it is shown as a mid grey '''
+    if isinstance(channel, Shape):
+        return 0.5
+    c = min(1.0, max(0.0, float(channel)))
+    return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1.0 / 2.4) - 0.055
+
+
+def with_materials(model, materials):
+    ''' `model`, shown in the viewport in the colours of `materials` (a list of `material(...)`s, or one), and carrying them: `export_mesh(model, "hero.glb")` writes them when it is
+        not given `materials=`.
+
+        The layers are those of an export: each place takes the LAST material whose `where` is negative there (a body: inside it; a field: where it is below zero), and a material
+        without a `where` covers everything, so the base goes first.  A place no material covers is a light grey.  The edge between two materials is as fine as the viewport's mesh.
+
+        The viewport shows the colour of each material, as an engine shows it (the numbers of a material are linear; the screen gets them through the sRGB curve, so a "#3a6ea5" is
+        lighter here, and in the engine, than the same hex is in a paint program), with a key of the names.  Roughness, metalness, glow, opacity and textures are in the exported
+        file, not here; a colour that is a field is shown grey.  Hovering shows no value. '''
+    from fieldev.stdlib.fields import colored
+    if not isinstance(model, Shape):
+        raise TypeError('with_materials(model, materials): model is a body, not {!r}'.format(type(model).__name__))
+    layers = list(materials) if isinstance(materials, (list, tuple)) else [materials]
+    if not layers or not all(isinstance(m, Material) for m in layers):
+        raise TypeError('with_materials(model, materials): materials is a list of material(...)')
+    names = [m.name for m in layers]
+    for name in names:
+        if names.count(name) > 1:
+            raise ValueError('with_materials: two materials are called {!r}'.format(name))
+    # the number of the material at every place: 0 where none is, k for the k-th layer where it covers (a field that is 1 where `where` is negative, 0 where it is positive)
+    number = Shape.wrap(0.0)
+    for k, m in enumerate(layers, 1):
+        if m.where is None:
+            number = Shape.wrap(float(k))
+        else:
+            # (1 where `where` is below zero, 0 where it is zero or above: exactly as an export reads it -- a vertex that lies on the very edge of a body is not in it, and has no
+            # half of a material, which would be the colour of another)
+            covers = (-m.where.compare(0)).max(0)
+            number = number - (number - k) * covers
+    entries = ['ccccc4=none']
+    for m in layers:
+        entries.append('%02x%02x%02x=%s' % (tuple(int(round(255 * _as_shown(c))) for c in m.color) + (m.name,)))
+    shown = colored(model, number, range=(0, len(layers)), label='materials', colormap='palette:' + ','.join(entries))
+    shown._materials = layers
+    return shown

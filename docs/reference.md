@@ -517,6 +517,14 @@ A colour, the roughness, the metalness, the glow and the opacity can be FIELDS i
 
     wood = material("wood", color=(0.55 + 0.1 * noise, 0.35 + 0.1 * noise, 0.2), roughness=0.4 + 0.3 * noise)
 
+`with_materials(model, materials)` is the model shown in the viewport in the colours of its materials -- the same layers, found the same way -- and the materials `export_mesh` takes
+when it is not given `materials=`, so the list is written once. A key of the names is drawn at the right of the viewport (closed with its x; View > Show legends brings it back). The viewport
+shows the colour of each material, as an engine shows it (the numbers are linear, the screen gets them through the sRGB curve), and a place no material covers is a light grey; the roughness,
+metalness, glow, opacity and textures are in the exported file only, and a colour that is a field is shown grey.
+
+    hero = with_materials(hero, [skin, metal])
+    export_mesh(hero, "hero.glb")
+
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.

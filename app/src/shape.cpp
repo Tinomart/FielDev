@@ -2981,7 +2981,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         // (it is the difference of two distances), so a triangle whose nearest corner is further from the patch than
         // that over its longest edge cannot hold any of it, and is left; one with all its corners on the patch is drawn
         // as it is; every other triangle may hold the edge of the patch, and is cut
-        if (color_map == "bc" && verts.size() > 1)
+        if (colormapIsCategorical(color_map) && verts.size() > 1)
         {
             double extent = 0;
             for (int a = 0; a < 3; a++) extent = std::max(extent, r.upper[a] - r.lower[a]);

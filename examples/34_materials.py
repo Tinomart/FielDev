@@ -3,6 +3,7 @@
 #   skin = material("skin", color=(0.93, 0.74, 0.62), roughness=0.7)                    the base: everywhere
 #   shirt = material("shirt", color="#3a6ea5", where=box((-45, -30, 100), (45, 30, 150)))   on what is inside the box
 #   export_mesh(figure, "hero.glb", materials=[skin, shirt], colors=(r_field, g_field, b_field))
+#   with_materials(figure, [skin, shirt])                                               the figure in the viewport in their colours (and what export_mesh writes without materials=)
 #
 # The materials are LAYERS: each triangle takes the last material that covers the middle of it, so the base goes first.  A .glb or .gltf gets a material
 # and a primitive of the mesh for each; an .obj gets a .mtl file; vertex colours are in OBJ, PLY and glTF.  The script writes the files, reads them back with
@@ -24,7 +25,6 @@ figure = symmetric_x(union_all([
     chain([(9, 0, 88), (11, 0, 48), (11, 0, 9)], radii=[8, 5.5, 4]),
     chain([(11, 0, 9), (11, 14, 4)], radii=[4.5, 3]),
 ], blend=4))
-figure
 
 shirt_box = ((-45, -30, 100), (45, 30, 150))
 trousers_box = ((-26, -30, 12), (26, 30, 100))
@@ -34,6 +34,9 @@ shirt = material("shirt", color="#3a6ea5", roughness=0.9, where=box(*shirt_box))
 trousers = material("trousers", color="#2b2b33", roughness=0.8, where=box(*trousers_box))
 shoes = material("shoes", color="#5a3a22", roughness=0.5, where=box(*shoes_box))
 layers = [skin, shirt, trousers, shoes]
+# The viewport shows the figure in the colours of its materials, with a key of their names at the right; the file gets the same materials without being told twice
+shown = with_materials(figure, layers)
+shown
 # vertex colours: a gradient with the height (a field is evaluated at every vertex)
 tint = (0.2 + z_field() / 250, 0.5, 0.9 - z_field() / 250)
 
@@ -105,6 +108,16 @@ check("glb: four materials, a primitive for each, vertex colours", magic == b"gl
 check("glb: the same triangles as the obj, the shirt's colour and its roughness", sum(doc["accessors"][p["indices"]]["count"] for p in prims) == 3 * total
       and abs(shirt_gltf["baseColorFactor"][2] - 0.647) < 1e-3 and shirt_gltf["roughnessFactor"] == 0.9 and length == len(data))
 
+# 2b. a model shown with its materials carries them: no materials= is needed
+export_mesh(shown, "meshes/hero_shown.glb")
+data = open("meshes/hero_shown.glb", "rb").read()
+doc_shown = json.loads(data[20:20 + struct.unpack_from("<I", data, 12)[0]].decode("utf-8"))
+check("glb: a model shown with with_materials writes its materials without materials=", [m["name"] for m in doc_shown["materials"]] == [m.name for m in layers]
+      and len(doc_shown["meshes"][0]["primitives"]) == 4 and sum(doc_shown["accessors"][p["indices"]]["count"] for p in doc_shown["meshes"][0]["primitives"]) == 3 * total)
+# (and an STL, which has no materials, is not refused for them)
+export_mesh(shown, "meshes/hero_shown.stl")
+check("stl: a model shown with its materials is written as any other", os.path.getsize("meshes/hero_shown.stl") > 1000)
+
 # 3. a PLY with vertex colours only
 export_mesh(figure, "meshes/hero.ply", colors=tint)
 data = open("meshes/hero.ply", "rb").read()
@@ -127,7 +140,8 @@ for label, call in (("an STL has no materials", lambda: export_mesh(figure, "mes
                     ("an FBX has no vertex colours", lambda: export_mesh(figure, "meshes/hero.fbx", colors=tint)),
                     ("two materials with one name", lambda: export_mesh(figure, "meshes/hero2.obj", materials=[skin, skin])),
                     ("a roughness of 2", lambda: material("x", roughness=2)),
-                    ("a colour that is no colour", lambda: material("x", color="blue"))):
+                    ("a colour that is no colour", lambda: material("x", color="blue")),
+                    ("with_materials of names that are no materials", lambda: with_materials(figure, ["skin"]))):
     try:
         call()
         check(label + " is refused", False)

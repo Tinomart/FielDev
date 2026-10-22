@@ -1156,7 +1156,7 @@ void View::drawLegends(QPainter& painter)
     for (auto s : shapes)
     {
         // (the shading of a fit that is off -- an imported part lit up from grey to red -- is its colour alone: no bar of percentages, and nothing read under the cursor)
-        if (!s->hasColorField() || !s->hasMesh() || s->colorMap() == "bc" || s->colorMap() == "fit") continue;
+        if (!s->hasColorField() || !s->hasMesh() || colormapIsCategorical(s->colorMap()) || s->colorMap() == "fit") continue;
         Bar b{s->colorLabel(), s->colorMap(), s->colorLo(), s->colorHi()};
         bool dup = false;
         for (auto& o : bars)
@@ -1171,7 +1171,19 @@ void View::drawLegends(QPainter& painter)
         }
         if (!dup && !hidden_legends.contains(b.label)) bars.push_back(b);
     }
-    if ((bars.isEmpty() && bcCategories.isEmpty()) || !show_legends) return;
+    // The materials of the models shown with with_materials: the colour and the name of each, once (the first entry of a palette is what no material covers)
+    QVector<QPair<QColor, QString>> materialRows;
+    for (auto s : shapes)
+    {
+        if (!s->hasColorField() || !s->hasMesh() || !s->colorMap().startsWith("palette:")) continue;
+        const Palette& palette = paletteOf(s->colorMap());
+        for (int k = 1; k < int(palette.colours.size()); ++k)
+        {
+            const QPair<QColor, QString> row(QColor::fromRgbF(palette.colours[size_t(k)][0], palette.colours[size_t(k)][1], palette.colours[size_t(k)][2]), palette.names.value(k));
+            if (!materialRows.contains(row)) materialRows.push_back(row);
+        }
+    }
+    if ((bars.isEmpty() && bcCategories.isEmpty() && materialRows.isEmpty()) || !show_legends) return;
 
     QFont font = painter.font();
     font.setPointSizeF(8.5);
@@ -1217,6 +1229,37 @@ void View::drawLegends(QPainter& painter)
             painter.setPen(QColor(0xee, 0xe8, 0xd5));
             painter.drawText(QRect(box.left() + 28, y, textW, rowH), Qt::AlignLeft | Qt::AlignVCenter,
                              names[std::max(0, std::min(kBcCategories, c))]);
+            y += rowH;
+        }
+        right = box.left() - 8;
+    }
+    // The key of the materials: a swatch and the name of each, in a box like the one of the boundary conditions
+    const QString materialsTitle = T("Materials");
+    if (!materialRows.isEmpty() && !hidden_legends.contains("Materials"))
+    {
+        int textW = fm.horizontalAdvance(materialsTitle) + 16;
+        for (const auto& row : materialRows) textW = std::max(textW, 18 + fm.horizontalAdvance(row.second));
+        const int rowH = fm.height() + 4;
+        const int boxW = textW + 20, boxH = fm.height() + 20 + rowH * int(materialRows.size());
+        const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(22, 76, 94, 200));
+        painter.drawRoundedRect(box, 6, 6);
+        painter.setPen(QColor(0xee, 0xe8, 0xd5));
+        painter.drawText(QRect(box.left() + 10, box.top() + 6, boxW - 20, fm.height()), Qt::AlignLeft | Qt::AlignVCenter, materialsTitle);
+        bottom_items.push_back(QRectF(box));
+        const QRect close(box.right() - 18, box.top() + 4, 14, 14);
+        painter.setPen(QColor(0xee, 0xe8, 0xd5, 170));
+        painter.drawText(close, Qt::AlignCenter, QString(QChar(0x00d7)));
+        legend_close.push_back({close, QString("Materials")});
+        int y = box.top() + fm.height() + 14;
+        for (const auto& row : materialRows)
+        {
+            painter.setPen(QPen(QColor(0x93, 0xa1, 0xa1), 1));
+            painter.setBrush(row.first);
+            painter.drawRect(QRect(box.left() + 10, y + 2, 12, fm.height() - 2));
+            painter.setPen(QColor(0xee, 0xe8, 0xd5));
+            painter.drawText(QRect(box.left() + 28, y, textW, rowH), Qt::AlignLeft | Qt::AlignVCenter, row.second);
             y += rowH;
         }
         right = box.left() - 8;
@@ -4230,7 +4273,7 @@ void View::checkHoverTarget(QPoint pos)
     const bool had_probe = probe_valid;
     // (a model coloured by a field is probed while its legend is shown: closing the legend ends the probing)
     const bool legend_on = target && show_legends && !hidden_legends.contains(target->colorLabel());
-    probe_valid = target && target->hasColorField() && target->colorMap() != "bc" && target->colorMap() != "fit" && legend_on &&
+    probe_valid = target && target->hasColorField() && !colormapIsCategorical(target->colorMap()) && target->colorMap() != "fit" && legend_on &&
                   target->probe(cursor_pos, probe_value);
     if (probe_valid)
     {

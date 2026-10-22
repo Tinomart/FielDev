@@ -407,7 +407,8 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
                     model, cut exactly at the plane, and the other half is its mirror image -- exactly symmetric, and closed where the mesh was.
                     The model is only as symmetric as the half you give it: the mesh does not have to be
         materials   a list of `material(...)`s (see materials.py), painted in the order given: each triangle has the LAST one whose `where` field is negative at the
-                    middle of the triangle (a material with no `where` covers everything: it goes first).  .obj (a .mtl file is written beside it), .glb, .gltf
+                    middle of the triangle (a material with no `where` covers everything: it goes first).  .obj (a .mtl file is written beside it), .glb, .gltf.
+                    None: the materials of a model shown with `with_materials(model, [...])`, if it is one
         colors      (r, g, b), each a number or a field from 0 to 1, evaluated at every vertex: vertex colours.  .obj, .ply, .glb, .gltf
         uvs         texture coordinates (see uvmaps.py): "box" (each triangle is projected along the axis its normal is mostly along, seen from outside; ("box", 500) repeats the
                     texture every 500 mm, going on from one surface to the next), "planar", "cylinder", "sphere", or "unwrap" (the surface cut into islands and packed into
@@ -432,6 +433,9 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         raise ValueError('export_mesh({!r}): the mesh formats are {}'.format(path, ', '.join(meshfiles.MESH_WRITE_FORMATS)))
     units, up = _conventions(ext, units, up)
     half = _half_of(symmetric)
+    if materials is None and ext in _MATERIAL_FORMATS:
+        # (a model shown with `with_materials` carries the materials it is shown with)
+        materials = next((m for m in (getattr(p, '_materials', None) for p in (part if isinstance(part, (list, tuple)) else [part])) if m), None)
     if materials and ext not in _MATERIAL_FORMATS:
         raise ValueError('export_mesh: materials are written in {} files, not {}'.format(', '.join(_MATERIAL_FORMATS), ext))
     if colors is not None and ext not in _COLOR_FORMATS:

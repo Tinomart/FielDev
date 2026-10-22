@@ -12,10 +12,13 @@ of the License, or (at your option) any later version.
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <vector>
 
 #include <QColor>
 #include <QString>
+#include <QStringList>
 
 namespace FielDev {
 
@@ -46,6 +49,48 @@ inline void bcCategoryRGB(int k, float& r, float& g, float& b)
     b = table[k][2];
 }
 
+/*  The colour map "palette:rrggbb=name,rrggbb=name,...": a model shown with its materials (with_materials of the library).  The value of the colour field is the
+ *  number of an entry -- over the range 0 .. the number of entries less one -- and the nearest entry is the colour.  The first entry is what no material covers (its
+ *  name is not shown); the colours are as the screen shows them, the names are those of the materials  */
+struct Palette
+{
+    std::vector<std::array<float, 3>> colours;
+    QStringList names;
+};
+
+inline const Palette& paletteOf(const QString& map)
+{
+    // (read for every vertex of a mesh: the last one asked for is kept, for the thread that asks)
+    thread_local QString key;
+    thread_local Palette palette;
+    if (key != map || palette.colours.empty())
+    {
+        key = map;
+        palette = Palette();
+        for (const QString& entry : map.mid(8).split(',', Qt::SkipEmptyParts))
+        {
+            bool ok = false;
+            const unsigned rgb = entry.left(6).toUInt(&ok, 16);
+            palette.colours.push_back(ok ? std::array<float, 3>{float((rgb >> 16) & 255u) / 255.f, float((rgb >> 8) & 255u) / 255.f, float(rgb & 255u) / 255.f}
+                                         : std::array<float, 3>{0.80f, 0.80f, 0.77f});
+            palette.names << entry.mid(7);
+        }
+        if (palette.colours.empty())
+        {
+            palette.colours.push_back({0.80f, 0.80f, 0.77f});
+            palette.names << QString();
+        }
+    }
+    return palette;
+}
+
+/*  A colour map whose values are the numbers of classes -- the boundary conditions, the materials -- and not a scale: a triangle whose corners are in different
+ *  classes is cut, so that the edge between two is as sharp as the mesh is fine  */
+inline bool colormapIsCategorical(const QString& map)
+{
+    return map == "bc" || map.startsWith("palette:");
+}
+
 /*  Where the value v of a field stands on the section view's scale (-1 deep blue ... 0 cream ... 1 deep orange; fieldColour in
  *  section.cpp, and gl/slice.frag, have the colours), for a field whose values run from lo to hi: a field that has both signs has its zero
  *  where the section view has the surface (blue below it, scaled by the lowest value; orange above it, by the highest), any other has its
@@ -72,6 +117,16 @@ inline void colormapRGB(const QString& map, float t, float& r, float& g, float& 
     if (map == "bc")
     {
         bcCategoryRGB(int(std::lround(t * float(kBcCategories))), r, g, b);
+        return;
+    }
+    if (map.startsWith("palette:"))
+    {
+        const Palette& p = paletteOf(map);
+        const int last = int(p.colours.size()) - 1;
+        const auto& c = p.colours[size_t(std::max(0, std::min(last, int(std::lround(t * float(last))))))];
+        r = c[0];
+        g = c[1];
+        b = c[2];
         return;
     }
     if (map == "viridis")

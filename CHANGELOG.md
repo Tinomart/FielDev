@@ -30,6 +30,8 @@ What FielDes did before the fork is in the git history of this repository (this 
 ### PBR materials
 - `material(...)`: colour, roughness, metalness, opacity and emission, each a number **or a field**; alpha mode, double sidedness, IOR, transmission, clear coat, sheen, normal scale; `where=` for the region of a material;
   **24 presets** (`material_preset`, `material_presets`). Written as glTF materials with their extensions, and as OBJ + MTL.
+- **`with_materials(model, [...])`**: the model shown in the viewport in the colours of its materials (the same layers an export paints, found at every vertex of the mesh; the edge between two is cut as sharp as the mesh is fine), with a
+  key of their names; `export_mesh` writes the same materials when it is not given `materials=`. The roughness, metalness, glow, opacity and textures are only in the exported file.
 
 ### Rigging
 - `joint`, `mirror_joints`, `skeleton_of`; skin weights by the nearest bone with a blend at the joints, **a joint that owns a place** (`influence=` a body or a field: the skin there follows it alone, fading outside it over
