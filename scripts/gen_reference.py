@@ -25,6 +25,7 @@ MODULES = [
     ('points', 'Points and surfaces', 'fieldes.stdlib.points'),
     ('curves', 'Lines and curves: 1D shapes made of points', 'fieldes.stdlib.curves'),
     ('profile', 'Profiles and extrusions', 'fieldes.stdlib.profile'),
+    ('characters', 'Characters: limbs made of points', 'fieldes.stdlib.characters'),
     ('measure', 'Measuring a body', 'fieldes.stdlib.measure'),
     ('fields', 'Fields', 'fieldes.stdlib.fields'),
     ('regression', 'Regressions and data', 'fieldes.stdlib.regression'),

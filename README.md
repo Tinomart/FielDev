@@ -35,7 +35,7 @@ the viewport. **A mesh is only ever the output**: the field is the model.
 
 New here? A welcome card offers a **guided tour** the first time FielDes starts (**Help → Guided tour** any time after): short cards over the
 program itself that point at what they talk about and let you try it. The [tutorial](docs/tutorial.md) is the written version.
-**File → Open example file** has 14 scripts (`00_START_HERE.py` says where everything is); the [examples README](examples/README.md) lists them.
+**File → Open example file** has 15 scripts (`00_START_HERE.py` says where everything is); the [examples README](examples/README.md) lists them.
 
 ## What it does
 
@@ -55,6 +55,7 @@ program itself that point at what they talk about and let you try it. The [tutor
 | **Copies and linked copies** | `Shift+D` copies a model. `Ctrl+D` **links** it: `bolt_2 = instance(bolt)` is the bolt itself, follows every change of it and can only be moved and rotated; the bolt is held by a shadow reference and keeps its own row. [Copies](docs/handles.md#copies-shiftd-and-ctrld) |
 | **Texture, noise, symmetry** | `texture(body, 'grit' / 'stipple' / 'leather' / 'ribs' / 'dimples' / 'knurl', ...)` lays a pattern of small bumps and pits over a body, or over a region of it; five kinds of noise (perlin, billow, ridged, cellular, cracks) are fields that can drive anything; a symmetry is a model of the script, and whatever you make is made at its images too. |
 | **Inspect** | A section card that cuts the model and paints a field on the plane; curvature and depth fields; hover probing; legends. |
+| **Characters from points** | `chain([points], radii)` makes a limb of round cones between joints; the size of a point -- the ring of its gizmo -- is how thick the limb is there; blend limbs into a body and mirror the other half. [Characters](docs/characters.md) |
 | **Meshes in and out** | `import_model()` reads STL, OBJ, PLY, 3MF, glTF, FBX, OFF and DXF as exact distance fields (a mesh with holes imports too); `export_mesh` writes the same formats; `export_field` samples any field on a grid (VTK, CSV). [Meshes](docs/meshes.md) |
 | **Fast to work in** | Content-addressed caches (imports, exact distances), a render cache for finished meshes, per-statement progress, breakpoints, go to definition into any library or module file (opened in a tab), hot reload of imported files and blocks, cancel for slow renders. |
 
@@ -107,6 +108,7 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [`30_noise_kinds.py`](examples/30_noise_kinds.py) | Noise, one of every kind, and what scale, octaves, stretch and warp do to it |
 | [`31_texture.py`](examples/31_texture.py) | A pattern of small bumps and pits laid over the surface of a body: grit, stipple, leather, ribs, dimples, knurl |
 | [`32_game_export.py`](examples/32_game_export.py) | Exporting for a game engine: the unit and the up axis, a budget of triangles, a mesh that is exactly symmetric — each checked by reading the files back |
+| [`33_character.py`](examples/33_character.py) | A character from points: limbs that taper between joints (`chain`, `round_cone`), blended into one body, the other half made by a mirror |
 
 ## Documentation
 
@@ -123,7 +125,8 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [The symmetry](docs/interface.md#the-symmetry) | A symmetry is a model of the script -- mirror planes through a centre (`symmetry_planes`); select it and everything you make is made at its images too (`symmetry_images`: all the images of a model are one model), which follow both the model and the symmetry; `Shift+S` |
 | [Profiles, lines and extrusions](docs/profiles.md) | Shapes made of points: `profile`, `polyline`, `spline`, `extrude`, `path_extrude`; pull a point out of an edge, double-click a point for a spline, rotate and scale a point to shape the curve and the sweep |
 | [Selecting surfaces](docs/selecting-surfaces.md) | Right-click a face: a flood-filled surface as a field, to work on one part of a body |
-| [Meshes](docs/meshes.md) | Mesh import and export |
+| [Meshes](docs/meshes.md) | Mesh import and export, with the units, up axis, triangle budget and exact symmetry a game engine asks for |
+| [Characters](docs/characters.md) | Limbs and bodies made of points: `chain`, `round_cone`, a mirror for the other half |
 | [Caching and performance](docs/caching-and-performance.md) | What is cached, resolution and quality, long renders |
 | [Troubleshooting](docs/troubleshooting.md) | Empty viewport, slow renders, import errors |
 | [Library reference](docs/reference.md) | Every function and class, from its docstring |

@@ -23,6 +23,7 @@ from fieldes.stdlib.surfaces import *
 from fieldes.stdlib.points import *
 from fieldes.stdlib.curves import *
 from fieldes.stdlib.profile import *
+from fieldes.stdlib.characters import *
 from fieldes.stdlib.measure import *
 from fieldes.stdlib.content_cache import cache_info, clear_caches
 

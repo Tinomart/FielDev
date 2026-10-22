@@ -71,6 +71,7 @@ _PROFILE = _PROFILE_POINTS + '#@@#\nprofile([' + _PROFILE_LIST + '])'
 _LINE_POINTS, _LINE_LIST = _points(('{xm}', '{y}', '{z}'), ('{x}', '{yp}', '{z}'), ('{xp}', '{y}', '{z}'))
 _POLYLINE = _LINE_POINTS + '#@@#\npolyline([' + _LINE_LIST + '])'
 _SPLINE = _LINE_POINTS + '#@@#\nspline([' + _LINE_LIST + '])'
+_CHAIN = _LINE_POINTS + '#@@#\nchain([' + _LINE_LIST + '], radii={q})'
 
 # What an entry can be made OF the models selected, as DATA -- the entries that are made of what is selected, each with the words for its tooltip and the WAYS it is made, tried
 # in the order they are listed: (the kinds of model it is made of, the least and the most of them (None: any number), the call it is written as -- `{names}` is those models in
@@ -88,6 +89,9 @@ FROM_SELECTION = {
     'spline': (tr('A smooth curve through points.  With points selected: made from them, in the order you selected them.  With none: three new points to '
                   'drag.  Press the curve and drag to pull a point out of it; double-click a point to make it a corner or a spline point'),
                [({'point'}, 2, None, 'spline([{names}])')]),
+    'chain': (tr('A limb through points: a round cone between each two, thick where the point is big.  With points selected: made from them, in the order you selected them.  '
+                 'With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the limb is there'),
+              [({'point'}, 1, None, 'chain([{names}], radii=3)')]),
 }
 
 # (function, group, template)
@@ -101,6 +105,7 @@ PRIMITIVES = [
     ('pyramid', '3D', 'pyramid(({xm}, {ym}), ({xp}, {yp}), {zm}, {s})'),
     ('prism', '3D', 'prism(({xm}, {ym}), ({xp}, {ym}), ({x}, {yp}), {zm}, {zp})'),
     ('half_space', '3D', 'half_space((0, 0, 1), ({x}, {y}, {z}))'),
+    ('chain', '3D', _CHAIN),
     ('low_level_body', '3D', _LOW_LEVEL_BODY),
     ('circle', '2D', 'circle({h}, ({x}, {y}))'),
     ('rectangle', '2D', 'rectangle(({xm}, {ym}), ({xp}, {yp}))'),
