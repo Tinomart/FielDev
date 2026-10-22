@@ -7,7 +7,6 @@
 - [The model tree](#the-model-tree)
 - [The section card](#the-section-card)
 - [Legends and probing](#legends-and-probing)
-- [The result card](#the-result-card)
 - [Status bar and progress](#status-bar-and-progress)
 - [Exporting](#exporting)
 - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -29,7 +28,7 @@ does; *Clear list* empties it; a file that is gone is left out). Then the menus:
 | **Settings** | **Keyboard shortcuts…**, **Blocks folder…** and **Show the blocks folder** (your [custom blocks](blocks.md)), editor text bigger / smaller, Automatically reload changes, Rotation mode, Rotation sensitivity, Zoom center |
 | **Help** | The guide, About, **Report a bug** (a new GitHub issue in your browser with the version and your system filled in; your script only if you choose to copy it; known problems are in [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)), **Guided tour** (cards over the program that walk through the basics, offered the first time it starts; see also the [tutorial](tutorial.md)), Shape reference |
 
-Everything else is in the viewport: the model tree, the section card, the legends and the result card.
+Everything else is in the viewport: the model tree, the section card and the legends.
 
 ### Your own primitives
 
@@ -73,16 +72,14 @@ A code editor for the Python script, with:
   - **⏸ / ▶ pause / continue** (`F6`). A running script *freezes* where it is and goes on from there when continued -- nothing
     is lost or recomputed. It cannot be frozen at any instant (a program stopped in the middle of its memory handling or of the
     interpreter's own work could take the whole application down with it), so it waits at the next point where it reports
-    progress: an iteration of a solver or an optimisation, a step of a STEP import (its parts, faces, solids), the start of the next
-    statement. The bar says *Pausing...* until it has, then *Paused*; a step that reports nothing (a long meshing, say) runs to its end
+    progress: the start of the next statement, or the next step of a long operation that reports one. The bar says *Pausing...* until it has, then *Paused*; a step that reports nothing (a long meshing, say) runs to its end
     first. At a breakpoint the same button is **▶ continue** (`F8`). A script that finishes before it reaches a pause point simply
     finishes. Editing the script while it is paused lets the paused run go on to its end and starts the new one;
   - **↻ run again** (`Ctrl+Shift+F5`) runs the script from the beginning: a run in flight (or paused) is terminated first. Results
     that are in the caches come back at once, as with any run;
-  - **● terminate** (the red dot, `Shift+F5`): the long solvers (static, modal, thermal and flow analyses, the optimisations) give up
-    at their next iteration, and the script is interrupted at its next line; nothing of that run is shown (the viewport keeps what
-    the last run that finished made) and the result line says it was terminated. A step that cannot be interrupted -- a STEP or mesh
-    import, the cell layout of a lattice, a meshing -- finishes first; the bar says *Terminating the script...* until it has;
+  - **● terminate** (the red dot, `Shift+F5`): the script is interrupted at its next line; nothing of that run is shown (the viewport keeps what
+    the last run that finished made) and the result line says it was terminated. A step that cannot be interrupted -- a mesh
+    import, a meshing -- finishes first; the bar says *Terminating the script...* until it has;
 - text size `Ctrl++` / `Ctrl+-` (also on the numeric keypad; remembered; **Settings → Editor text bigger / smaller**).
 
 ### Tabs: the script and the files it uses
@@ -109,7 +106,7 @@ says *Editing only: this file is not rendered*, and what you change in them does
 
 The script runs **statement by statement** after every edit (shortly after you stop typing). While it
 runs, the output pane shows which statement (`3/12`), and a thin bar shows how far the operation in it
-has got — a STEP import's stages, an analysis's iterations, a loop's items. A run that is slow to mesh
+has got — a mesh import's stages, a loop's items. A run that is slow to mesh
 can be cancelled with `Esc`.
 
 Editing is disabled while you drag something in the viewport, so the drag and the text never fight.
@@ -120,7 +117,7 @@ Editing is disabled while you drag something in the viewport, so the drag and th
 ## The output pane
 
 Below the editor: what the script printed (`print(...)`), the value of the last expression when it is
-not a shape, import and analysis summaries, warnings, and the traceback of an error — with the
+not a shape, import summaries, warnings, and the traceback of an error — with the
 offending line underlined in the editor. The error's text is red, everything else dark grey.
 
 ## The viewport
@@ -130,8 +127,8 @@ offending line underlined in the editor. The error's text is red, everything els
 | **Shift+left-drag** or **middle-drag** | Rotate (turntable; **Z points up** (the axis of the library's own shapes) unless you choose Y up in **Settings → Rotation mode**) |
 | **Right-drag** | Pan. For hands that have no right or middle button to spare, **Settings → Navigation** adds a second set of gestures -- *Blender style*: also **Shift+middle-drag** pans; *Touchpad*: also **Alt+left-drag** pans. The default (*FielDes*) is the one above and stays the default; the others only add to it |
 | **Left-drag** | Draw a selection rectangle: when you let go, every model that lies **wholly inside** it is selected (a model that is only partly inside is not; a rectangle that holds none leaves the selection alone). With **Ctrl+left-drag** the models inside are added to the selection instead of replacing it. A drag that starts on a surface you can pull (a model in *handles* mode, not locked, alone in the selection) pulls the surface instead, and one that starts on a handle or a gizmo moves that |
-| **Right-click** empty space | Make things where the cursor is: **New 3D shape**, **New 2D shape**, **New point**, **New surface**, **New field** and **New custom block** (a menu for each kind, each entry with the kind's icon: every primitive of the library, your [blocks](blocks.md) that need no argument), **Import model…** (a STEP file or a mesh, written as one `import_model` line: see [Importing models](step-import.md)), **Add operation** (*thicken*, *shell*, *smooth*, moving, repeating and combining, the **Periodic lattices** *lattice* and *lattice_surface_conform* and the **Non-periodic lattices** *random_points*, *voronoi_lattice*, *delaunay_lattice* and *surface_lattice*, *tessellate* under **Importing**, and the custom blocks that work on a model) and **Add simulation**: **New material**, **New fluid**, **New support or load**, **New thermal condition** and **New flow condition** (the presets of the library written out with their numbers; a condition is written with a placeholder where it acts, for a body, a field or a surface to be dropped on -- **or, with several models selected, for the body and the regions you selected**: see below), then, with a model, the analyses. Choosing one writes the call into the script, with a line showing it, and selects the new model, ready to drag. A new thing is placed where the cursor is (the point of the ray under the cursor that is closest to the origin, as large as about a hundred pixels, and in the plane through the origin that faces you, so y = 0 in a front view -- except a 2D shape, which lies in the plane z = 0 and is made where the ray under the cursor meets it, in any view; a place outside the render region is moved just inside it, or it would not be drawn) and goes at the end of the script; an operation works on the selected model (or the last one) |
-| **Right-click** a model (or a line of the script that defines it, or its row in the model tree: see below) | **center** and **bounding_box** (the middle of the model's box, as a point, and the smallest axis-aligned box that holds it, as a body: library functions of their own, used all the time, so at the top of the menu), **Operation** (the same list, written with that model as its argument, under its definition; with **several models selected** and the one you right-click among them, the operations that combine models work on all of them, in the order you selected them: *union* unites all, *difference* takes every one after the first from the first, *intersection* keeps what they share, *exclude* locks the others as regions of the first (see [Excluded regions](fields.md#excluded-regions-exclude)); **Surfaces → surface_from_bodies** makes the first one's surface where the others meet it, and of one model alone, all of its surface (see [Selecting surfaces](selecting-surfaces.md#by-other-bodies)); the others work on the model you right-clicked), **Engineering** (a category for each domain -- *Structural*, *Thermal*, *Fluid* -- with *static_analysis*, *modal_analysis*, *topology_optimization*, *thermal_analysis*, *fluid_analysis* ...: the call is written with that model as the part, and a **placeholder for every kind of boundary condition** the analysis takes -- `supports=...`, `loads=...`; `inlets=...`, `outlets=...`, `boundaries=...` -- that you then fill in the model tree or the script; the result is a model of its own, shown when it is solved. **With several models selected** the body is the part and the conditions among them go in the input of their kind: see below), **Delete** (the model, or all the selected ones) and **Select Surface**, which opens the menu of the **surface selection**: the mode, the angle and the radius of a flood fill over the surface from the point you clicked; **Select** writes a `select_surface(...)` line into the script, under the model's definition. See [Selecting surfaces](selecting-surfaces.md) |
+| **Right-click** empty space | Make things where the cursor is: **New 3D shape**, **New 2D shape**, **New point**, **New surface**, **New field** and **New custom block** (a menu for each kind, each entry with the kind's icon: every primitive of the library, your [blocks](blocks.md) that need no argument), **Import model…** (a mesh, written as one `import_model` line: see [Meshes](meshes.md)) and **Add operation** (*thicken*, *shell*, *smooth*, moving, repeating and combining, and the custom blocks that work on a model). Choosing one writes the call into the script, with a line showing it, and selects the new model, ready to drag. A new thing is placed where the cursor is (the point of the ray under the cursor that is closest to the origin, as large as about a hundred pixels, and in the plane through the origin that faces you, so y = 0 in a front view -- except a 2D shape, which lies in the plane z = 0 and is made where the ray under the cursor meets it, in any view; a place outside the render region is moved just inside it, or it would not be drawn) and goes at the end of the script; an operation works on the selected model (or the last one) |
+| **Right-click** a model (or a line of the script that defines it, or its row in the model tree: see below) | **center** and **bounding_box** (the middle of the model's box, as a point, and the smallest axis-aligned box that holds it, as a body: library functions of their own, used all the time, so at the top of the menu), **Operation** (the same list, written with that model as its argument, under its definition; with **several models selected** and the one you right-click among them, the operations that combine models work on all of them, in the order you selected them: *union* unites all, *difference* takes every one after the first from the first, *intersection* keeps what they share, *exclude* locks the others as regions of the first (see [Excluded regions](fields.md#excluded-regions-exclude)); **Surfaces → surface_from_bodies** makes the first one's surface where the others meet it, and of one model alone, all of its surface (see [Selecting surfaces](selecting-surfaces.md#by-other-bodies)); the others work on the model you right-clicked), **Delete** (the model, or all the selected ones) and **Select Surface**, which opens the menu of the **surface selection**: the mode, the angle and the radius of a flood fill over the surface from the point you clicked; **Select** writes a `select_surface(...)` line into the script, under the model's definition. See [Selecting surfaces](selecting-surfaces.md) |
 | **Wheel** | Zoom (about the cursor or the scene: **Settings → Zoom center**) |
 | **Shift+wheel** or **Ctrl+wheel** | **Scale** the point the mouse is on (selected or not), else what is selected: every selected model by its gizmo's scale numbers (a point by its scale), a notch is 10 %, written to the script when the wheel rests. With nothing under the mouse or selected that can be scaled, the wheel zooms |
 | **Hold Shift** on a selected model | The gizmo changes: the move arrows become **flat squares** that move the model along a plane, and the three scale squares become **one gold ring** round the middle that scales all three axes together: drag it outward to grow, inward to shrink; a faint ring stays at the size you started from and the factor is shown while you drag. **The rotation rings turn in steps of 5 degrees** while Shift is held (the angle that results is a multiple of 5, whatever it was before) |
@@ -168,25 +165,22 @@ model had been right-clicked in the viewport:
   *New point*, *New surface*, *New field*): a sphere, a box, a cylinder, a cone, a torus, a pyramid, a prism; a circle, a rectangle, a triangle, a polygon; a polyline, a spline; a point; a plane, a sphere surface, a cylinder
   surface; a distance, a radial, a z and a noise field. **Parametric shapes** hold the more complicated ones -- shapes made with parameters that are not the most basic of their kind, though they need no model to be made: a rounded box,
   a ring, a wave, noise, your own low-level logic (*low_level_body*, *low_level_field*), a custom block -- by kind in the same way. **Operations** are what is done to a model: the operation groups (*Offsets and walls*,
-  *Rounding*, *Moving* ...), and the two lattice categories, **Periodic lattices** and **Non-periodic lattices**; **Engineering** is a menu of its own. What makes a primitive is being the most basic form of its kind, not how few arguments it needs. (`menu_catalog.BASIC` lists them; the quick operations *center*
+  *Rounding*, *Moving* ...). What makes a primitive is being the most basic form of its kind, not how few arguments it needs. (`menu_catalog.BASIC` lists them; the quick operations *center*
   and *bounding_box* are below the three.)
-- **Python** is a menu of its own, next to Engineering: the most basic features of the language as blocks of plain code -- *variable*, *if*, *if / else*, *for loop (a count)*, *for loop (a list)*,
+- **Python** is a menu of its own: the most basic features of the language as blocks of plain code -- *variable*, *if*, *if / else*, *for loop (a count)*, *for loop (a list)*,
   *while loop*, *function (def)*, *class*, *list*, *list from a loop*, *dictionary*, *try / except*, *with (a file)*, *import*, *print* -- written **as code, at the insertion point of the tree**
   (see [The insertion point](#the-insertion-point)): no `name =` in front, no line that shows it, because it is no model. The code is edited in the code editor; the model tree shows the block and what is in it
   ([Python in the tree](#python-in-the-tree)).
-- **The menu is made of what is valid, and the same wherever it is opened.** A **category** (a submenu, at any depth: *Operations*, *Extruding* inside it, *Periodic lattices*, *Primitives → New 2D shape* ...) is in the menu
+- **The menu is made of what is valid, and the same wherever it is opened.** A **category** (a submenu, at any depth: *Operations*, *Extruding* inside it, *Primitives → New 2D shape* ...) is in the menu
   **when there is at least one valid entry in it, and is not in it when there is none** -- it is not greyed out, it is left out -- and that is worked out from the entries themselves, by asking whether
   what is selected is something the entry takes, not from a list of categories. So a **surface** selected shows *New 2D shape* with *profile* (the outline of that surface) whether you right-click it in the
   viewport, on its row in the tree or on its line in the script, and *Extruding* is not in the menu of a solid and is in the menu of a 2D shape (it holds something valid there). An entry that takes a second model
   is valid when the pair it would be written with -- the selected model and the last other model of the script -- is what it takes (with no other model in the script the second is a placeholder, `...`, and the entry is valid all the same). **What an entry takes is declared by the library function itself**
   (`fn._takes = takes(...)`, with the kinds of `fieldes.kinds`: `SHAPES`, `BODIES`), the menu reads it from there, and a function that declares nothing takes any shape: so `smooth`, `round_edges`, `fillet`, `shell_inside`,
-  `shell_outside`, `shell_exact`, `lattice` and `random_points` take a body (not a surface, a curve, a point or a field), `extrude` a 2D shape, a foam its points -- and a new function is covered by one line on it, with
+  `shell_outside`, `shell_exact` take a body (not a surface, a curve, a point or a field) and `extrude` a 2D shape -- and a new function is covered by one line on it, with
   no list of names in the menus.
-- On a line (or row) that defines a model: **Primitives**, **Parametric shapes**, **Operations** (which hold **Periodic lattices** and **Non-periodic lattices**), **Engineering**, the quick operations (*center*, *bounding_box*), **Import model...**, **Select Surface** (greyed outside the viewport: the
-  selection spreads from the place you click on the surface) and **Delete**, written for that model. The two lattice categories are sections of their own
-  (not groups of the operations): **Periodic lattices** holds the operations that fill a model with cells that repeat and a menu for every family of cells, each entry making that cell;
-  **Non-periodic lattices** the three steps of a foam (random points, then a Voronoi or Delaunay lattice made of them) and a random net over the surface (see
-  [Lattices](lattices.md#in-the-menus-and-the-model-tree)); both are in **Operations**, on empty space too.
+- On a line (or row) that defines a model: **Primitives**, **Parametric shapes**, **Operations**, the quick operations (*center*, *bounding_box*), **Import model...**, **Select Surface** (greyed outside the viewport: the
+  selection spreads from the place you click on the surface) and **Delete**, written for that model.
 - **A right-click on a model has the *Primitives* of empty space and *Import model...*** (Primitives → New 3D shape, New 2D shape, New point ...), **wherever it is opened**: made at the place you clicked on its surface in
   the viewport, at the middle of the model from its row or its line -- a model can be all there is under the cursor, and somewhere to put a point is not only empty space. **A point made from the menu is exactly where
   the cursor was**: on the surface under it, else in the plane through the origin that faces
@@ -199,48 +193,19 @@ model had been right-clicked in the viewport:
 - The model tree has no menu of its own: what that menu had is the row's buttons and keys (the eye, gizmo, lock, cache, reimport,
   reset, delete, `V`, `E`, `R`, `C`, `D`).
 
-**Nothing is asked: what a menu entry writes is code, and the code is the place to change it.** A *topology_optimization* is written with its
-`volume_fraction`, `element_size`, `iterations` and every other argument it has, each with its default; a *lattice* with its cell, its cell size and
-the rest; a `force` with its `vector` -- and where something is **missing** (the region a force acts on, a body for an analysis) the call has a
-**placeholder** after the argument's name (`force(region=..., vector=(0, -100, 0), profile=None)`). It is the same call the completion writes,
+**Nothing is asked: what a menu entry writes is code, and the code is the place to change it.** A *smooth* is written with its
+`radius`, `steps` and every other argument it has, each with its default -- and where something is **missing** (the model an
+operation works on) the call has a **placeholder** after the argument's name (`select_surface(shape=..., seed=...)`). It is the same call the completion writes,
 laid out the same way (one argument to a line). Nothing opens a form: edit the numbers in the code editor, where the call is.
-**A model of the wrong kind is refused**, in a placeholder or on a call, with the reason in the drop's note: a 2D shape dropped where `path_extrude` takes its path (*The path of path_extrude() takes a curve or a point: 'rounded_rectangle_1' is a 2D shape, so it does not go there*), a material on an `offset`. What a place takes is what the library says of the call -- the kinds the menus offer an entry by; where it says nothing, the run says if a model does not fit.
+**A model of the wrong kind is refused**, in a placeholder or on a call, with the reason in the drop's note: a 2D shape dropped where `path_extrude` takes its path (*The path of path_extrude() takes a curve or a point: 'rounded_rectangle_1' is a 2D shape, so it does not go there*), a point on an `extrude`. What a place takes is what the library says of the call -- the kinds the menus offer an entry by; where it says nothing, the run says if a model does not fit.
 (The visual jobs stay visual: dragging a surface or a gizmo, picking a surface with *Select Surface*.)
 
-**An entry the selection cannot make is greyed out** (no message: it is just not offered). Every selected model is classified once -- a part, a profile, a field, a surface, a point, a lattice cell, a result,
-a support, a load, a thermal or a flow condition (each of them a kind of its own: the input of an analysis it goes in), a material or a fluid -- and every entry says what it takes; a selection that has something an entry does not take in it, or
-lacks what it needs, does not fit. So *move* or *offset* is greyed out with a force selected; an **Engineering** entry is greyed out only when the selection has something it does not take -- *static_analysis* with a thermal condition or a fluid
-among the models (*modal_analysis* takes no load, *thermal_analysis* only thermal conditions, *fluid_analysis* only flow conditions and a fluid), or with a second part or a second material for an
-input that takes one (*flow_topology_optimization* takes two parts: the body and its fluid domain); a surface, a field, a point or a lattice cell is no argument of any simulation. **An operation or a simulation is never greyed out, or left out of the menu, for lack of something to work on**: the menu of empty space has every operation and the whole *Lattice* menu even in a script that has no model (only *center*, *bounding_box* and *Select Surface*, which are about a model, need one), and an operation with nothing selected is written with `...` where the model goes -- on the last model of the script when that is what it takes. A simulation too, with nothing selected (right-click
-the empty viewport), with only its conditions or only its material selected, it is written with a placeholder for the part and for everything that is missing; the conditions of **New support or load** and the other **New ... condition**
-menus take the surfaces, fields or bodies they act on -- **a condition has no body of its own**: the simulation is given the body. A model that has not run yet has no known kind and fits everything; your own [custom blocks](blocks.md) say nothing about what they take, so they are always offered.
-
-The **Engineering** menu has a category for each domain -- **Structural**, **Thermal**, **Fluid** and **Manufacturing** (its constraints and *manufacturing_analysis* and *manufacturing_optimization*: see [Manufacturing](manufacturing.md)), each in the colour and with the icon of its domain in the model tree -- and lists in them *static_analysis*, *modal_analysis*, *topology_optimization*, *thermal_analysis*, *thermal_topology_optimization*,
-*fluid_analysis* (the flow around a body in a domain, as it is: the same inputs as *flow_topology_optimization*, which changes the body) and *flow_topology_optimization*; and, in the menu itself, under them, *parametric_optimization* -- it works over an analysis of any domain, so it is in no category -- which is written for the result you right-clicked, with `variables=...` and `minimize=...` to fill in (see [Parametric optimization](analysis.md#parametric-optimization)). Each analysis is written with the model you right-clicked as the part (the first argument of every simulation; the boundary
-conditions have no body in them) -- or, when you right-clicked the empty viewport or selected only conditions, with `shape=...` in its place -- with **`parameter_name=...` for everything the call cannot do without** -- **one input for each kind of boundary condition it takes**, all of them
-required -- and the library's own default for every other argument. A menu never makes up a region, a number, a text
-or a call of its own to put there:
-
-```python
-static_analysis_1 = static_analysis(
-    plate,
-    supports=...,
-    loads=...,
-    material=steel,
-    element_size=None,
-    ...
-)
-static_analysis_1
-```
-
-A flow is written the same way, with a placeholder for **each** of `inlets`, `outlets` and `boundaries` (the walls and the slips); a thermal analysis with one for each of `fixed_temperatures`, `heat_inputs`,
-`heat_generations` and `convections`. The line does not run until the placeholders are filled (the rest of the script does): make the conditions
-(**New support or load**, **New thermal condition**, **New flow condition**: each is a model of its own, with an eye, and **its own row**) and drop them -- one, or all the ones of a kind at once --
-on the placeholder rows of the model tree, or write them. Select the model **together with** its conditions first and they are written in the input of their kind.
+**Entries the selection cannot make are greyed out** (no message: it is just not offered). Every selected model is classified once -- a part, a profile, a field, a surface, a point -- and every entry says what it takes; a selection that has something an entry does not take in it, or
+lacks what it needs, does not fit. So *extrude* is greyed out with only a solid selected (it takes a 2D shape), and an entry that takes a second model is greyed out when the pair is not what it takes. **An operation is never greyed out, or left out of the menu, for lack of something to work on**: the menu of empty space has every operation even in a script that has no model (only *center*, *bounding_box* and *Select Surface*, which are about a model, need one), and an operation with nothing selected is written with `...` where the model goes -- on the last model of the script when that is what it takes. A model that has not run yet has no known kind and fits everything; your own [custom blocks](blocks.md) say nothing about what they take, so they are always offered.
 
 ## The model tree
 
-The card at the top left of the viewport: one row per model the script makes; the parts of a STEP file are listed under
+The card at the top left of the viewport: one row per model the script makes; the parts of an imported file are listed under
 it. **Render settings** at the top lists the script's `view.set_*` statements and the numbers they have; a click on a row goes to its line, where the numbers are changed.
 
 **Every kind of thing has its own icon and colour**, in the tree and in the right-click menus that make them:
@@ -250,17 +215,12 @@ it. **Render settings** at the top lists the script's `view.set_*` statements an
 | cube, blue | **3D shape** | a body: its field is negative inside |
 | square, teal | **2D shape** | a profile (a field that does not depend on z), drawn as a flat face in the z = 0 plane, with no thickness, its **edges blue**; pulled by its edges. A **profile** is a 2D shape made of points, in the plane of its first three: click an edge to put a point there, double-click a point to make it a corner or a spline point -- see [Profiles](profiles.md) |
 | curve, light | **1D shape** | a `curve` through points: a blue line in the viewport, the path of `path_extrude`, the outline of a `profile`; as a field the distance to it. Select it by a click on its line; press the line and drag to put a point on it |
-| soft disc, green | **field** | a value at every point that is not a body: a distance, a ramp, noise, a stress; not drawn: it has an icon in the viewport (with its name over it) and an eye in the tree, and selecting it opens its [field viewer](#the-field-viewer) |
+| soft disc, green | **field** | a value at every point that is not a body: a distance, a ramp, noise; not drawn: it has an icon in the viewport (with its name over it) and an eye in the tree, and selecting it opens its [field viewer](#the-field-viewer) |
 | sheet, purple | **surface** | the zero of a field with no body behind it; drawn as the sheet itself, with no thickness |
 | cross, amber | **point** | a point: a dot in the viewport (the middle point of a gizmo), always there while the point is shown (its eye); click the dot to select it, and its full gizmo shows |
-| bars, red | **simulation** | a solved analysis or optimisation |
-| hatched block, tan | **material** | what a part (or a fluid) is made of: `Material(...)`, steel, aluminium, water ...; an analysis is given one (`material=steel`). A model like the others: it is in the tree, and dragged onto an analysis it becomes its `material=` (or `fluid=`) |
-| arrow on a base, orange | **conditions** | what an analysis is given: supports, loads, thermal and flow boundary conditions. Dragged onto an analysis, its **boundary conditions** row or the placeholder of its kind, one or several of them go into the input of their kind, as a list |
-| hexagon, gold | **lattice cell** | what a lattice is made of: a cell (a strut cell, a TPMS, a planar pattern, a custom cell), a cell map, a graph of beams |
-| small cube of struts, rose | **lattice** | a body filled with cells: what `lattice()` and `lattice_surface_conform()` make |
-| scattered dots, orange | **point set** | what `random_points()` makes: the points a foam is made around (`voronoi_lattice`, `delaunay_lattice`). Drawn in the viewport, each as the dot of a gizmo without its handles |
-| dashed square, pink | **selection** | a patch picked on a surface |
 | open box, teal | **import** | a file read in |
+| scattered dots, orange | **point set** | the images of a point under a [symmetry](#the-symmetry), drawn as the dots of gizmos |
+| mirror and dashed line, magenta | **symmetry** | mirror planes through a centre: what is made while it is selected is made at its images too (see [The symmetry](#the-symmetry)) |
 | **f** badge on any of them | **custom block** | the model was made by one of your [blocks](blocks.md) |
 
 Hover a row: the first line of its tooltip says what it is.
@@ -292,25 +252,15 @@ nesting, renesting and denesting is an edit of the arguments of a call**, writte
 
 **Closing rows is remembered, and it is the editor's folding too.** What you close in the tree is kept **for each file** and comes back when the file is opened. Closing a statement's row folds its lines in the code editor -- **a model and its whole setup**: the line that defines a variable folds together with the `x = handles(x, ...)`, `x = gizmo(x, ...)` and `x = lock(x)` that go on with it, with one arrow for all of them -- closing a section folds the section, and **folding in the editor's gutter closes the row** -- the same in both directions, kept together. **A row that holds a placeholder is never closed**: that is where you have to write, so it stays open (and its lines unfolded) whatever was saved, and a collapse of it is undone at once.
 
-**Properties.** A **result** (an analysis, an optimisation) has more to give than its picture. **Move the mouse over its row: a small teal tab comes out of the right edge of the tree**, level with the row. Click it and a **drawer** opens beside it, listing what the result has -- its **fields** (`von_mises`, `displacement`, `ux` ..., `pressure` ...) and its **numbers** (`max_von_mises`, `safety_factor`, `reaction`, `drag_force` ...) with their values. **Click one and it is written under the statement as a model of its own**: `von_mises_1 = result.von_mises` -- a **field** (every field a solver calculates is one, not a body: it is shown with the field viewer, sliced, used in other models), a number is a line you can use. A property is **not made of the result**: its row has no child for it and no shadow of it, as an operation's has for the models it is made of. The drawer's last button writes the result's **key numbers as a text file**. The tab is there once the analysis has run.
-
-**Boundary conditions.** A simulation has one row of its own for its conditions, **boundary conditions**, with a **placeholder row for every kind it still waits for** (`inlets`,
-`outlets`, `boundaries` ...) and the conditions it has under them, in the order the simulation takes them. Each condition is a model of its own with **its own eye**: shown, it draws only
-the surface it acts on, in its colour, with its pads or arrows and its label, on the body of the simulation. **The eye of the *boundary conditions* row shows all of them at once, or hides all of them** (it
-shows them when they are not all shown). Select several conditions of one kind (Ctrl or Shift) and drop them **all** on the placeholder of their kind, on the simulation, or on this row: they go in as a list
-(`boundaries=[wall_1, slip_1]`). **Dropped on the simulation or on this row, conditions of different kinds each go into the input of their kind** (select the whole problem and drop it at once);
-on one placeholder only its own kind is taken, and another kind is refused, with the reason.
-
 **A shadow never stands by itself at the top level.** A model that statements only *reference* (a Ctrl+drag put it there: their line says `# shadow: name`) keeps its own row at the top level, with a shadow in each of them. If such a statement is dragged **above** the model's row, or the model's row **below** the statement, the reference would be the first use, so a message asks: the fix (the default) makes the reference inside the statement the real model. Its definition goes directly above that statement, the comment goes, and the separate top-level row is gone; other statements that use it keep a shadow. *Do not show this message again* always does that (Settings → Show hidden messages again brings the message back); Cancel leaves everything as it is.
 
 **A shadow cannot be put above its original.** The tree gives a model its row under the **first statement that uses it** when it stands directly above it (otherwise it keeps its own row where it is made, and every use shows a shadow): that row is the original; every later use is a shadow. So a shadow can only go into a statement *below* the original. Ctrl+drag a model into a statement that is *above* it, or move a shadow there, and a message explains it: the new use would come first, so it would become the original and the old place would only show a shadow — and the model has to be defined above any use for the script to run. The same happens **indirectly**: a statement that holds a shadow can be dragged above the original, or the original dragged below it. The program works out the tree the edit would give, before it writes anything, and if any shadow would then come first it asks **once**, listing every model it is about (three shadows in one statement are one message, not three). The message offers the easy fix, which is its default: **the first use becomes the original place** (for a copy (Ctrl+drag), the model's definition goes directly above that statement, when nothing in between uses it) **and a reference stays where the original was**. *Do not show this message again* makes it always do that, without asking (**Settings → Show hidden messages again** brings the message back); Cancel leaves everything as it is; one `Ctrl+Z` undoes it. It is the same kind of rule as taking a model out of an operation that cannot do without it: the script is never left broken.
 
-**Taking a model out of a list.** A model that is one of the things in a **list** a call is given -- `loads=[force_1, force_2]`,
-`topology_optimization(part, supports, [[push], [pull]])`, `union_all([a, b, c])` -- is taken out of the list, and the call keeps the rest:
-the trash button of the `force_1` row under `static_analysis_1` leaves `loads=[force_2]`, not nothing. Taking out the **last**
-model of a list leaves a **placeholder** in it (`loads=...`, never an empty `[]`, which would only fail later): the analysis
-and its other inputs stay, and the statement waits there, as at every placeholder, until something is written -- drop a model on the
-placeholder's row. A list inside a list (`loads=[[a, b], [c]]`, load cases) goes whole when its last model does.
+**Taking a model out of a list.** A model that is one of the things in a **list** a call is given -- `union_all([a, b, c])` -- is taken out of the list, and the call keeps the rest:
+the trash button of the `b` row under `union_all_1` leaves `union_all([a, c])`, not nothing. Taking out the **last**
+model of a list leaves a **placeholder** in it (`union_all(...)`, never an empty `[]`, which would only fail later): the statement
+waits there, as at every placeholder, until something is written -- drop a model on the
+placeholder's row. A list inside a list goes whole when its last model does.
 
 **Taking a model out of a call it cannot do without: a placeholder, not a deletion.** `union`, `difference` and the other operations that
 take any number of models just lose that argument, and a model in a list keeps the rest (see above). When the call cannot do without the
@@ -330,11 +280,10 @@ statement's row: the first one). Placeholders come from the creation menus and f
 written for it, after the argument's name** (`union(a, b=...)`, `force(region=..., vector=...)`) -- and from taking a model out of a call that cannot do without it.
 
 **Replacing a model.** Drop a model **on a model of its kind that is one of a call's arguments** and it **takes that one's place** in the call,
-no menu: a part on a part, a force on a force, a field on a field, a support on a support (a load on a support is refused: they stand in
-different inputs of an analysis). The model it replaces is not deleted: if the call was its first user it goes out to the top level (or
+no menu: a 3D shape on a 3D shape, a field on a field, a point on a point. The model it replaces is not deleted: if the call was its first user it goes out to the top level (or
 to the next statement that uses it). Dropped on a **shadow**, only that reference goes -- the model the shadow stands for stays where it is.
 The dragged model leaves the call it came from as it always does (a placeholder there if that call needs it; with `Ctrl` it is a copy and stays).
-Dropping on an operation still adds the model to it, as in the table below: replacing is for what cannot take the model in -- a part, a force.
+Dropping on an operation still adds the model to it, as in the table below: replacing is for what cannot take the model in -- a part.
 
 **Deleting a shadow.** A shadow has a bin button too, and `D` works on it: the reference is taken out of its call by the same rule
 (the model is not deleted).
@@ -346,8 +295,7 @@ Dropping on an operation still adds the model to it, as in the table below: repl
 | **a field on an operation** | the field takes the place of **a number** the operation is written with — *anywhere a number goes, a field goes*: drag `swell` onto `thick = offset(plate, 1.0)` and it becomes `offset(plate, swell)`. It takes the first plain number of the call that is no count (not one inside a tuple, such as a corner or a centre; not a whole number such as 
  or count: a field has a different value at every point, so it cannot say how many); where there is none, the drop is refused and says why |
 | **a point on an operation** | the point takes the place of **a position** the call is written with: drag `anchor` onto `d = distance_to_point((5, 5, 5))` and it becomes `distance_to_point(anchor)`. It takes the first position written as a tuple of numbers that is a position (not a size, a direction, a scale or a range), or the other point the call is given. A flat shape's position has two coordinates: `circle(3, (20, 50))` becomes `circle(3, (anchor.x, anchor.y))`. A point reads as its coordinates wherever a position goes, so the same works when you write it |
-| **on a placeholder row** | the model takes the placeholder's place, at once (on the statement's row: its first placeholder). A placeholder for an input of conditions (`inlets=...`) takes **all the conditions dropped, as a list** -- all of one kind, or the drop is refused and says why |
-| **conditions on a simulation** (or on its *boundary conditions* row) | each goes into the input of its kind, as a list: a placeholder is replaced by the list, a list that is there gets them as more items, a single one written becomes a list with them. Conditions of different kinds each go to their own input, all in one edit |
+| **on a placeholder row** | the model takes the placeholder's place, at once (on the statement's row: its first placeholder) |
 | **on a model of a call (or on a shadow) that cannot take it in** | the model of the same kind **replaces** it in that call -- see *Replacing a model* above |
 | **on an operation** | **no menu, ever**: the dragged model becomes one more argument of an operation that takes any number (`union`, `difference`, `intersection`, ...), after the last one. An operation that works on exactly one model (`offset(plate, 1.0)`) gives that place to the dragged model; with several fixed places the drop is refused, with the reason, because nothing says which to replace. A model that is defined below the operation moves up, with what it is made of. A model that was an argument of another call leaves that one (with `Ctrl`, it stays: a reference is added) |
 | **between the children of an operation** (or a shadow) | the model stands there among its arguments. An operation that takes exactly its models cannot be given another this way (the drop is refused, and says why); it can have its arguments reordered |
@@ -443,7 +391,7 @@ A drop whose fix would put everything back where it was -- a `def` dropped below
 
 ### The insertion point
 
-What is added from the tree -- a new shape, a condition, a simulation, a block from the **Python** menu, a paste -- goes to the **insertion point**. The line between two top-level rows, where the **+** that starts a section shows,
+What is added from the tree -- a new shape, a block from the **Python** menu, a paste -- goes to the **insertion point**. The line between two top-level rows, where the **+** that starts a section shows,
 is clickable: **a press on the line itself** (a few pixels each side of it, away from the circle) puts the point there -- a **white line** lights up along the gap as soon as the cursor is on it (under the **+**, never over it), and
 a **cyan line with a small arrow** marks the point: faint while it is only the default (the end of the
 script), solid once it is set -- and puts the **text cursor of the code editor** on that line, with the keyboard in the editor. The two are one: **the cursor you move in the editor moves the point** (inside a statement the point is after
@@ -461,10 +409,6 @@ work on different things, and **both can be open at the same time** (the field v
 - **Cut model** clips the geometry at the plane (the cut faces are drawn flat).
 - **Field** paints the plane with the signed distance field around the model: blue inside, brown outside,
   iso-lines, and the black contour is the surface. Hover the plane to read the distance under the mouse.
-- Inside a model shown with an **analysis result**, the plane shows the result instead (stress,
-  displacement, temperature …), deformed with the model.
-- **Whole elements** appears when the plane cuts a part shown with analysis elements: it keeps the
-  elements on the kept side whole instead of cutting them (a cut element looks smaller than it is).
 - **Opacity** and **Colours** (automatic or a manual ± range) tune the plane; **2D view** shows the plane
   as a flat plot.
 
@@ -564,8 +508,7 @@ card shows, and what you make next is made at its images too, so you can add to 
 A *field* model (a distance, a ramp, noise, `field_from_body(...)`, anything made from them with arithmetic) is not a body, so no surface of it is drawn.
 **Every field has an icon in the viewport and a viewer of its own**:
 
-- **The icon.** A shown field is a small green field icon in the scene, with **its name over it in a card** (the style of the labels of boundary
-  conditions), so that where there are several fields you tell at a glance which is which. It sits **where the field is about**: the place of the
+- **The icon.** A shown field is a small green field icon in the scene, with **its name over it in a card** (a small card), so that where there are several fields you tell at a glance which is which. It sits **where the field is about**: the place of the
   object it was made from (`distance_to_point(anchor)` at `anchor`, `depth_below(part)` at the middle of `part`; a field made of those, such as
   `ramp(distance_to_point(anchor), ...)` or `a * b`, at the first of them) -- a field made of nothing, such as `x_field()`, at the origin.
   **Drag the icon** to put it somewhere else: it is positionable, in the plane facing you, and the disc goes with it. When a point's dot is
@@ -576,7 +519,7 @@ A *field* model (a distance, a ramp, noise, `field_from_body(...)`, anything mad
   model's gizmo does. Nothing keeps the disc inside the render region or anywhere else. (A field has no model gizmo: nothing of it is moved in the script, the viewer is.)
 - **Show and hide.** A field has an **eye** in the model tree, like every model: when it is off, the icon and the viewer of the field are not in the scene
   at all. (A field is shown when the script displays it -- the eye writes that line, and a field made from the menu is displayed at once. A field
-  that only feeds other models, such as the cell size of a lattice, stays hidden until you turn its eye on.)
+  that only feeds other models, such as the radius of a blend, stays hidden until you turn its eye on.)
 - **Select it** by clicking its icon, or its row in the model tree (the two are one selection; Ctrl adds). The icon lights up and **its viewer opens
   where the icon is**. Click the icon again, or select something else, to close it. Several fields can be open at once, each with its own plane.
 - **The viewer is a disc through the field.** It shows the value at every point of a plane **in the section view's own colours and dark lines**: blue to cream to orange,
@@ -587,55 +530,22 @@ A *field* model (a distance, a ramp, noise, `field_from_body(...)`, anything mad
   in the card chooses the one it is about. It has no close button: it is there while a viewer is open.
 - It is independent of the section view: the two can be open together, each with its own plane and its own card.
 
-The same icons are in an [app's viewport](apps.md#a-viewport-look-at-it-drag-it): a field given to `app.viewport({'Stress': field})` is an icon with its name
+The same icons are in an [app's viewport](apps.md#a-viewport-look-at-it-drag-it): a field given to `app.viewport({'Noise': field})` is an icon with its name
 over it, and a click on it opens its viewer.
 
 ## The cards
 
-The model tree, the section card, the field viewer and the result card are **cards** floating over the viewport, and every one can
+The model tree, the section card and the field viewer are **cards** floating over the viewport, and every one can
 be **dragged anywhere inside it** (by its header, or by any empty place of the card; a click on the header still collapses it) and
 **resized from its edges and corners**. A card keeps its place relative to the window when the window changes size, and where you
 left it and how large it was are remembered for the next start. A card you never moved or sized keeps its own place and size.
 
 ## Legends and probing
 
-A model coloured by a field (`colored(shape, field)`, the fit-deviation shading of an import, …) gets a
+A model coloured by a field (`colored(shape, field)`, …) gets a
 **legend** at the bottom right: the colour map with its range. **Hover** the model to read the field's
 value at the surface point under the cursor. Close a legend with its ×: its probing stops with it.
 **View → Show legends** brings them back.
-
-## The result card
-
-Shown at the bottom right when an analysis result is displayed (a result stated on its own, like any shape):
-
-- the **field** drop-down (von Mises, displacement, each component, principal stresses, strain energy;
-  temperature and heat flux; speed, pressure, vorticity, ...) above the colour bar — hover the part to read
-  the value under the cursor;
-- the **key numbers** under it: what the result found that matters (maximum stress and displacement, safety factor, reactions; drag and lift of a flow and their
-  coefficients, pressure drop; temperatures; natural frequencies) -- the same numbers `export_results(result, "numbers.txt")` writes;
-- a short note under the bar says what the values are: **Nodal average** (the elements' values averaged at
-  each node: peaks are lower than the elements' own), **Element values**, or **Solver values at nodes**;
-  hover it for the explanation;
-- the **step** rows — one step back, play / pause, one step forward, then how it runs and how fast, on one
-  row; the step's name on the next; the slider below them across the card's whole width — the same for every analysis: a static result steps the load from 5 % to
-  100 %, a mode the phase of its vibration, a flow its solver iterations (the Stokes start to the converged
-  flow) or, in time, its stored times (fields and streamlines), a topology optimisation its iterations (the
-  part as it was after each one, meshed the first time it is shown; a flow optimisation the body and the flow
-  around it). The button beside play sets how it runs — round and round (↻), back and forth (⇄), once to the
-  end (→) — and the drop-down its speed: ×⅛, ×¼, ×½, ×1 (ten steps a second), ×2, ×4;
-- the **deformation** slider (`1:1` = true size) — the part is drawn deformed;
-- **Elements**: draw the tetrahedra (or hexahedra) the solver used, each with its own value (the
-  stress in a tetrahedron is constant in it); hover one to read it. The line below says how many there
-  are. The result line and the safety factor use the elements' peak. The elements carry the result's own
-  values, so the button is there at the result's own step (the full load, the last time);
-- **Flow** (a fluid result): the streamlines from the inlets, coloured by the speed, with particles moving
-  along them, drawn over the fluid (which is drawn like every other result, coloured by its field); its
-  **Opacity** slider lowers how opaque the fluid is drawn, so that the body in it shows.
-
-**What you choose on the card stays.** The field shown, the deformation (as a multiple of the result's own automatic one),
-Elements, Flow and the opacity are kept by the window, not by one result: the next run's result, and every picture of an
-optimisation that is running (a new one after every iteration), is drawn the way you set the last one. A field the new result
-does not have is left alone (it shows its own first one).
 
 ## Status bar and progress
 
@@ -649,16 +559,13 @@ progress of the operation in it.
 - **Right-click a model (in the viewport or on its row) → Export:**
   - a **body**: **Mesh** in any of those formats (the surface at the scene's resolution);
   - a **field**: **Field on a grid** (VTK image data `.vti`, or a CSV table) -- the field sampled on a regular grid for other programs;
-  - a **result**: **Finite-element model** (Abaqus / CalculiX `.inp`, Nastran `.bdf`, Gmsh `.msh`) and **Results** (VTK `.vtu`, CSV tables, **key numbers as text** `.txt`). The model and its mesh are those of a static analysis; the others export their key numbers and their fields.
 
   The file is asked for, then written in the background by the same functions a script calls, so the window stays alive.
 - **Export screenshot…** (`Ctrl+Shift+E`) and **Copy screenshot to clipboard** (`Ctrl+Alt+C`).
-- A script exports by itself with `export_mesh(part, "part.stl")`, `export_fea(result, "bracket.inp")`, `export_results(result, "bracket.vtu")` and `export_field(field, "stress.vti")` -- see [Exporting and importing files](meshes.md#exporting-and-importing-meshes).
-- **Key numbers on the screen:** the result card prints the numbers that matter under its field drop-down -- the maximum stress, displacement and safety factor of a static analysis, the drag and lift (and their coefficients), flows and pressure drop of a flow, the temperatures of a thermal analysis, the natural frequencies of a modal analysis -- and the same numbers are the **Export key numbers as text** button of the result's property drawer.
-
+- A script exports by itself with `export_mesh(part, "part.stl")` and `export_field(field, "noise.vti")` -- see [Exporting and importing files](meshes.md#exporting-and-importing-meshes).
 ## Language
 
-FielDes shows its menus, dialogs, tooltips, the guided tour, the guide, the creation forms and the result legends in **English, Spanish, French, German,
+FielDes shows its menus, dialogs, tooltips, the guided tour, the guide and the creation forms in **English, Spanish, French, German,
 Japanese, Simplified Chinese or Russian**. The default is the language of Windows (the first of the computer's preferred languages that FielDes has);
 **Settings → Language** chooses another and offers to **restart now** (the language is read when the program starts; an unsaved script
 is asked about, as when closing). The installer asks for the language too.
@@ -672,7 +579,7 @@ improve one or add a language.
 
 The first time FielDes starts, a **welcome card** says in a few lines what FielDes is (field driven design) and offers the tour: **Start the guided tour** (orange)
 or the quieter **Skip the guided tour**; **Help → Guided tour** starts it at any time, at its first step. **Leaving it -- on the first card, or at any step -- ends with a card that says where it is found again** (the Help menu, with its entry framed), so it is never lost. It runs on the program itself, not
-on a script: one walk of short cards of one or two sentences, 32 steps after the welcome card: the script and the viewport, **the model tree and selecting a model**, the gizmo and **the one you get with Shift**, **the arguments of a call (every row under a model is one)**, renaming, making things, **a placeholder that is explained, made from the right-click menu and filled in, in one step**, sections and closing rows, the section view, a field in place of a number, **a lattice whose wall thickness is a field (one line changes every cell)**, **a model used in two places (the Ctrl+drag that makes a shadow reference, and why)**, drawing on a **work plane** (and **stopping with a right click, coming back with `E`**), a point pulled out of an edge, a corner turned into a spline point or a round corner, **lines through points and a sweep along one that you can play with**, copies and linked copies, **the symmetry (a mirror is a model; what you make while it is selected is made at its images too; editing the original or an image; Shift+S)**, **simulations and optimizations** (one is shown running, step by step), the property tab of a result, a custom function from a block, and last the keys worth knowing (grouped: general first). The steps that need more than the plate -- a field, a reference, a result -- **work on a small model of their own**, so that only what the step is about is there, and the tree shows only the rows it is about; your model is back when the step is left. **Every step has a state of its own, and starts from it**: what you changed or deleted in a step -- a number, a row, a name, a section -- is put back when the step is left, so the next one is whole. Each step
+on a script: one walk of short cards of one or two sentences, 30 steps after the welcome card: the script and the viewport, **the model tree and selecting a model**, the gizmo and **the one you get with Shift**, **the arguments of a call (every row under a model is one)**, renaming, making things, **a placeholder that is explained, made from the right-click menu and filled in, in one step**, sections and closing rows, the section view, a field in place of a number, **a model used in two places (the Ctrl+drag that makes a shadow reference, and why)**, drawing on a **work plane** (and **stopping with a right click, coming back with `E`**), a point pulled out of an edge, a corner turned into a spline point or a round corner, **lines through points and a sweep along one that you can play with**, copies and linked copies, **the symmetry (a mirror is a model; what you make while it is selected is made at its images too; editing the original or an image; Shift+S)**, a custom function from a block, and last the keys worth knowing (grouped: general first). The steps that need more than the plate -- a field, a reference -- **work on a small model of their own**, so that only what the step is about is there, and the tree shows only the rows it is about; your model is back when the step is left. **Every step has a state of its own, and starts from it**: what you changed or deleted in a step -- a number, a row, a name, a section -- is put back when the step is left, so the next one is whole. Each step
 
 - **dims** the window except what it is about, and puts a **glowing frame** round it (and round the line or field it means) -- yellow while there is
   something to do, and **green** (the frames, the arrow, the card's border and its button) as soon as the step is done, so nothing says there is more to do;
@@ -694,7 +601,7 @@ on a script: one walk of short cards of one or two sentences, 32 steps after the
 - can be **skipped** (*Skip step*), gone back from (*Back*), or left altogether (*Skip the tour*, on the first card *Skip the guided tour*): the last card then says where the tour is found again.
 
 The tour works on a model of its own (a plate with a hole, loaded as a new script: your files are not touched; a question asks first
-if the script in the editor has unsaved changes). It builds a field, a second model and a small analysis as it goes, so the later steps have something
+if the script in the editor has unsaved changes). It builds a field and a second model as it goes, so the later steps have something
 to show. When it is done, the model stays for you to play with.
 
 ## Keyboard shortcuts

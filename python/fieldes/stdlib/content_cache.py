@@ -147,7 +147,7 @@ def is_local(key):
 
 def value_key(v):
     ''' A hashable key for an argument, by its content: numbers (every bit), text, sequences, shapes (by
-        their expression), and the library's own small objects (a material, a support, a load: by their
+        their expression), and the library's own small objects (by their
         fields).  Raises Uncacheable for anything else '''
     if v is None or isinstance(v, (int, str, bytes)) and not isinstance(v, bool):
         return v
