@@ -500,6 +500,9 @@ count, whether it is watertight, ...) as a dict, or None.
 Exporting: a body as a mesh file, a field sampled on a grid.
 
     export_mesh(part, "part.stl")                   .stl .obj .ply .3mf .glb .gltf .fbx .off .dxf  (see meshfiles.py)
+    export_mesh(part, "hero.obj", units="m", up="y")    the unit and the up axis of the numbers in a file that has none of its own
+    export_mesh(part, "hero.glb", max_triangles=3000)   the finest mesh that is within a budget of triangles
+    export_mesh(part, "hero.glb", symmetric="x")        the x >= 0 half, cut exactly at x = 0, and its mirror image: symmetric to the last bit
     export_field(field, "noise.vti")                any field sampled on a regular grid: .vti (VTK image data), .csv
 
 This Source Code Form is subject to the terms of the Mozilla Public
@@ -518,7 +521,7 @@ resolution  samples per mm (the scene's resolution by default, limited to 2 mill
 
 A field is not a mesh: this is the sampling of it that other programs work with, at the resolution asked for.  Returns the path.
 
-### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False)`
+### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None)`
 
 Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
@@ -530,9 +533,15 @@ bounds      ((x0, y0, z0), (x1, y1, z1)) the region meshed; the body's own exten
 resolution  samples per mm of the mesh (the scene's resolution when it is not given: the one of the viewport)
 name        the object's name inside the file (the file's name)
 ascii       STL as text, not binary
+units       the unit of the numbers in the file: "mm" (default), "cm", "m" or "in".  Only for .stl .obj .ply .off, which have no unit of their own
+up          the axis that is up in the file: "z" (default: as modelled) or "y" (a game engine's; the model is turned, not mirrored).  Same four formats
+max_triangles   a budget: the finest mesh of at most this many triangles (the resolution is lowered until it fits; a mesh within it is left as it is)
+symmetric   "x", "y" or "z" (or ("x", 12.5): the plane at that position): the half on the larger-coordinate side ("-x": the smaller) is the
+            model, cut exactly at the plane, and the other half is its mirror image -- exactly symmetric, and closed where the mesh was.
+            The model is only as symmetric as the half you give it: the mesh does not have to be
 
-Millimetres in every format that has no unit; the ones that state their unit (3MF, FBX, DXF) say millimetres (a glTF is in metres, Y up, as
-glTF is).  Returns the path.
+Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
+(a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path.
 
 ## Handles: editing shapes by dragging
 

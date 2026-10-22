@@ -57,6 +57,9 @@ makes the script re-read a file that changed on disk.
 export_mesh(part, "part.stl")                              # the extent of the part, the scene's resolution
 export_mesh(part, "part.glb", bounds=(lo, hi), resolution=4)
 export_mesh([a, b], "assembly.fbx")                        # several bodies, one file
+export_mesh(part, "hero.obj", units="m", up="y")           # metres, Y up (see below)
+export_mesh(part, "hero.glb", max_triangles=3000)          # the finest mesh within a budget of triangles
+export_mesh(part, "hero.glb", symmetric="x")               # exactly symmetric across x = 0
 ```
 
 `bounds` is the region meshed (`((x0, y0, z0), (x1, y1, z1))`; a body that knows its extent needs none), `resolution` is samples per mm (larger is
@@ -64,14 +67,33 @@ finer and slower; the scene's resolution when not given). The older `part.save_s
 
 | Format | Extension | Written as | Read |
 |---|---|---|---|
-| STL | `.stl` | binary (`ascii=True` for text), millimetres by convention | yes |
-| Wavefront OBJ | `.obj` | text, millimetres by convention | yes |
-| Stanford PLY | `.ply` | binary little endian, millimetres by convention | yes |
+| STL | `.stl` | binary (`ascii=True` for text), millimetres and Z up unless `units=` / `up=` say otherwise | yes |
+| Wavefront OBJ | `.obj` | text, millimetres and Z up unless `units=` / `up=` say otherwise | yes |
+| Stanford PLY | `.ply` | binary little endian, millimetres and Z up unless `units=` / `up=` say otherwise | yes |
 | 3D Manufacturing Format | `.3mf` | states its unit: millimetre | yes |
 | glTF 2.0 | `.glb`, `.gltf` | metres, Y up (the numbers are turned into them) | yes |
 | **Autodesk FBX** | `.fbx` | ASCII 7.4, Z up, unit scale 0.1 cm (= 1 mm) | yes (binary and ASCII) |
-| OFF | `.off` | text, millimetres by convention | yes |
+| OFF | `.off` | text, millimetres and Z up unless `units=` / `up=` say otherwise | yes |
 | DXF | `.dxf` | `3DFACE` entities, `$INSUNITS` 4 (millimetres) | yes (`3DFACE`, polyface meshes) |
+
+### Units, axes, a budget of triangles, symmetry
+
+Four options of `export_mesh` are for what a game engine asks of a mesh. (`examples/32_game_export.py` uses each, reads the files back and prints a
+line that starts with `ok` or `FAIL` for everything it checks.)
+
+- **`units="mm" | "cm" | "m" | "in"`** is the unit of the numbers in the file, for the formats that have none (STL, OBJ, PLY, OFF; the OBJ and the PLY
+  say it in a comment). The model itself is in millimetres. 3MF, FBX, DXF and glTF state their own unit and axes, so `units=` and `up=` for them are an
+  error (the value the format has anyway is accepted).
+- **`up="z" | "y"`**: the axis that is up in the file. `"y"` turns the model about the X axis, `(x, y, z)` becomes `(x, z, -y)`: it is turned, not mirrored,
+  so the triangles keep their sides and the volume is the same.
+- **`max_triangles=N`** is a ceiling: the mesh is made at the resolution asked for, and while it has more than N triangles the resolution is lowered
+  (the triangles of a surface grow with its square) until the finest mesh that fits is found. It is not a decimation -- the mesh stays an even one of
+  its own resolution -- and a mesh that is within the budget is left as it is.
+- **`symmetric="x" | "y" | "z"`** (or `("x", 12.5)` for a plane at that position; `"-x"` keeps the other side): the half on the larger-coordinate side is
+  the model. It is meshed with a margin across the plane, cut exactly at it, and its mirror image is added: the triangles are cut with one shared
+  vertex for each edge that crosses, the vertices on the plane belong to both halves, and the mirrored half is turned over. The result is symmetric to
+  the last bit, closed wherever the mesh was closed, and the two halves are joined with no seam. The vertices within a quarter of a cell of the plane
+  are put on it. Model the half you want and the mirror does the rest; the body does not have to be symmetric itself.
 
 **FBX is a proprietary format** of Autodesk, whose SDK is available under its own licence and whose files have no published specification. FielDes
 reads and writes FBX **without the Autodesk SDK**, from the structure of the files as the community documents it (the node tree, the property types,

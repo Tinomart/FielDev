@@ -139,8 +139,8 @@ def convert_mesh(source, target):
 # ---------------------------------------------------------------------------
 # OBJ
 
-def write_obj(path, xyz, tri, name='fieldes'):
-    out = ['# FielDes (millimetres)\n', 'o %s\n' % _clean_name(name)]
+def write_obj(path, xyz, tri, name='fieldes', note='millimetres'):
+    out = ['# FielDes (%s)\n' % note, 'o %s\n' % _clean_name(name)]
     for i in range(0, len(xyz), 3):
         out.append('v %s %s %s\n' % (_num(xyz[i]), _num(xyz[i + 1]), _num(xyz[i + 2])))
     for t in range(0, len(tri), 3):
@@ -152,12 +152,12 @@ def write_obj(path, xyz, tri, name='fieldes'):
 # ---------------------------------------------------------------------------
 # PLY
 
-def write_ply(path, xyz, tri, name='fieldes'):
+def write_ply(path, xyz, tri, name='fieldes', note='millimetres'):
     nv, nt = len(xyz) // 3, len(tri) // 3
-    head = ('ply\nformat binary_little_endian 1.0\ncomment FielDes (millimetres) %s\n'
+    head = ('ply\nformat binary_little_endian 1.0\ncomment FielDes (%s) %s\n'
             'element vertex %d\nproperty float x\nproperty float y\nproperty float z\n'
             'element face %d\nproperty list uchar int vertex_indices\nend_header\n'
-            % (_clean_name(name), nv, nt)).encode('ascii')
+            % (note, _clean_name(name), nv, nt)).encode('ascii')
     verts = array('f', xyz)
     if struct.pack('=I', 1) != struct.pack('<I', 1):
         verts.byteswap()
@@ -436,8 +436,9 @@ def read_dxf(path):
 
 # ---------------------------------------------------------------------------
 
-def write_mesh(path, xyz, tri, name=None, ascii=False):
-    ''' Writes a mesh in the format of the file's extension (see the top of this file) '''
+def write_mesh(path, xyz, tri, name=None, ascii=False, note='millimetres'):
+    ''' Writes a mesh in the format of the file's extension (see the top of this file).  `note` is what the comment of an OBJ or a PLY says of the numbers
+        ("millimetres", "metres, Y up"): the unit and the axes are the caller's to say in the formats that have none of their own '''
     path = os.fspath(path)
     ext = os.path.splitext(path)[1].lower()
     name = name or os.path.splitext(os.path.basename(path))[0]
@@ -446,9 +447,9 @@ def write_mesh(path, xyz, tri, name=None, ascii=False):
     if ext == '.stl':
         write_stl(path, xyz, tri, name, ascii)
     elif ext == '.obj':
-        write_obj(path, xyz, tri, name)
+        write_obj(path, xyz, tri, name, note)
     elif ext == '.ply':
-        write_ply(path, xyz, tri, name)
+        write_ply(path, xyz, tri, name, note)
     elif ext == '.3mf':
         write_3mf(path, xyz, tri, name)
     elif ext == '.glb':

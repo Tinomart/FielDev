@@ -2,6 +2,9 @@
 Exporting: a body as a mesh file, a field sampled on a grid.
 
     export_mesh(part, "part.stl")                   .stl .obj .ply .3mf .glb .gltf .fbx .off .dxf  (see meshfiles.py)
+    export_mesh(part, "hero.obj", units="m", up="y")    the unit and the up axis of the numbers in a file that has none of its own
+    export_mesh(part, "hero.glb", max_triangles=3000)   the finest mesh that is within a budget of triangles
+    export_mesh(part, "hero.glb", symmetric="x")        the x >= 0 half, cut exactly at x = 0, and its mirror image: symmetric to the last bit
     export_field(field, "noise.vti")                any field sampled on a regular grid: .vti (VTK image data), .csv
 
 This Source Code Form is subject to the terms of the Mozilla Public
@@ -52,18 +55,36 @@ def _body_of(x, what):
 # ---------------------------------------------------------------------------
 # Meshes
 
-def _surface_arrays(shape, bounds, resolution):
-    from fieldes.stdlib.fields import _shape_bounds, render_mesh
-    lo, hi = _shape_bounds(shape, bounds)
+def _default_resolution(lo, hi, resolution):
+    ''' The samples per mm of a mesh: the one asked for, else the scene's, else enough for about 200 samples across the body '''
     if resolution is None:
         resolution = _host('__resolution', None)
         if resolution is None:
             size = max(h - l for l, h in zip(lo, hi))
             resolution = max(0.5, min(20.0, 200.0 / max(size, 1e-9)))
+    return resolution
+
+
+def _surface_arrays(shape, bounds, resolution, half=None):
+    ''' The surface of a body as flat vertices (x, y, z ... in mm) and triangles.  `half` = (axis, plane, sign): only the side of that plane which
+        `sign` names (+1: the larger coordinates) is meshed, and its mirror image is made of it (see _mirrored) '''
+    from fieldes.stdlib.fields import _shape_bounds, render_mesh
+    lo, hi = _shape_bounds(shape, bounds)
+    resolution = _default_resolution(lo, hi, resolution)
     if bounds is None:
         # (the extent of a body is the box its faces lie on: a region that ends exactly on a face has no face inside it -- one cell more all round)
         pad = max(1.0 / resolution, 0.005 * max(h - l for l, h in zip(lo, hi)))
         lo, hi = tuple(l - pad for l in lo), tuple(h + pad for h in hi)
+    lo, hi = list(lo), list(hi)
+    if half is not None:
+        axis, plane, sign = half
+        # (the region reaches two cells across the plane: the cut is made in the mesh, where the surface is, not at the edge of the region)
+        if sign > 0:
+            lo[axis] = max(lo[axis], plane - 2.0 / resolution)
+        else:
+            hi[axis] = min(hi[axis], plane + 2.0 / resolution)
+        if not lo[axis] < hi[axis]:
+            raise RuntimeError('nothing to export: the shape has nothing on the {} side of the plane {} = {}'.format('+' if sign > 0 else '-', 'xyz'[axis], plane))
     region = libfive_region_t(*[libfive_interval_t(a, b) for a, b in zip(lo, hi)])
     mesh_p = render_mesh(shape, region, resolution)
     if not mesh_p:
@@ -79,10 +100,188 @@ def _surface_arrays(shape, bounds, resolution):
         tri.frombytes(ctypes.string_at(ctypes.cast(mesh.tris, ctypes.c_void_p).value, nt * 12))
     finally:
         lib.libfive_mesh_delete(mesh_p)
+    if half is not None:
+        xyz, tri = _mirrored(xyz, tri, axis, plane, sign, 0.25 / resolution)
     return xyz, tri
 
 
-def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False):
+def _mirrored(xyz, tri, axis, plane, sign, snap):
+    ''' The part of a mesh on one side of a plane, cut at the plane, and its mirror image: a mesh that is symmetric to the last bit, and closed where
+        the mesh was.  `sign` names the side kept (+1: the larger coordinates).  The vertices within `snap` of the plane are put on it; a triangle that
+        crosses it is cut, and the point where an edge crosses is ONE vertex for the triangles on either side of the edge; the vertices on the plane are
+        shared by the half and its image, so that the two are joined there. '''
+    n = len(xyz) // 3
+    height = [0.0] * n              # above the plane on the kept side (0: on it, negative: on the side that is dropped)
+    for i in range(n):
+        d = sign * (xyz[3 * i + axis] - plane)
+        height[i] = 0.0 if abs(d) <= snap else d
+    pts = []                        # the vertices kept (x, y, z)
+    where = {}                      # vertex of the mesh -> its place in pts
+    cut = {}                        # edge of the mesh -> the place in pts of the vertex where it crosses the plane
+    flat = set()                    # the places in pts that are on the plane
+
+    def keep(i):
+        j = where.get(i)
+        if j is None:
+            j = where[i] = len(pts)
+            p = [xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]]
+            if height[i] == 0.0:
+                p[axis] = plane
+                flat.add(j)
+            pts.append(p)
+        return j
+
+    def crossing(a, b):
+        key = (a, b) if a < b else (b, a)
+        j = cut.get(key)
+        if j is None:
+            ka, kb = key
+            t = height[ka] / (height[ka] - height[kb])
+            p = [xyz[3 * ka + c] + t * (xyz[3 * kb + c] - xyz[3 * ka + c]) for c in range(3)]
+            p[axis] = plane
+            j = cut[key] = len(pts)
+            flat.add(j)
+            pts.append(p)
+        return j
+
+    half = []
+    for t in range(0, len(tri), 3):
+        corners = (tri[t], tri[t + 1], tri[t + 2])
+        hs = [height[c] for c in corners]
+        if min(hs) >= 0.0:
+            if max(hs) > 0.0:       # (a triangle lying in the plane is dropped: the two halves are joined along the edges of the ones that are kept)
+                half.append(tuple(keep(c) for c in corners))
+        elif max(hs) > 0.0:         # (it crosses the plane: what is on the kept side is a triangle or a quadrilateral)
+            polygon = []
+            for k in range(3):
+                a, b = corners[k], corners[(k + 1) % 3]
+                if height[a] >= 0.0:
+                    polygon.append(keep(a))
+                if height[a] * height[b] < 0.0:
+                    polygon.append(crossing(a, b))
+            for k in range(1, len(polygon) - 1):
+                corner = (polygon[0], polygon[k], polygon[k + 1])
+                if len(set(corner)) == 3:
+                    half.append(corner)
+    if not half:
+        raise RuntimeError('nothing to export: the shape has no surface on the {} side of the plane'.format('+' if sign > 0 else '-'))
+    out_xyz = array('f')
+    for p in pts:
+        out_xyz.extend(p)
+    image = {}                      # the mirror image of a vertex (a vertex on the plane is its own)
+    for j, p in enumerate(pts):
+        if j in flat:
+            image[j] = j
+        else:
+            image[j] = len(out_xyz) // 3
+            out_xyz.extend(p[c] if c != axis else 2.0 * plane - p[c] for c in range(3))
+    out_tri = array('I')
+    for a, b, c in half:
+        out_tri.extend((a, b, c))
+    for a, b, c in half:
+        out_tri.extend((image[a], image[c], image[b]))      # (turned over: it is seen from outside the other way round)
+    return out_xyz, out_tri
+
+
+def _meshes(bodies, bounds, resolutions, factor, half):
+    ''' The surfaces of the bodies as one mesh, each at its own resolution times `factor` '''
+    xyz, tri = array('f'), array('I')
+    for body, res in zip(bodies, resolutions):
+        x, t = _surface_arrays(body, bounds, res * factor, half)
+        base = len(xyz) // 3
+        xyz.extend(x)
+        tri.extend(base + i for i in t)
+    return xyz, tri
+
+
+def _within_budget(bodies, bounds, resolutions, half, limit):
+    ''' The finest mesh of at most `limit` triangles.  The mesh is made at the resolution asked for; when it has more triangles the resolution is lowered
+        until it has not.  The triangles of a surface grow with the square of the resolution, so each try goes by the square root of the ratio, between the
+        finest one that fitted and the coarsest one that did not.  A mesh already within the budget is left as it is. '''
+    good = None                     # (factor, xyz, tri): the finest that fitted
+    bad = None                      # the lowest factor that gave too many
+    factor = 1.0
+    for _ in range(10):
+        try:
+            xyz, tri = _meshes(bodies, bounds, resolutions, factor, half)
+        except RuntimeError:        # (so coarse that no surface is left)
+            if good is None:
+                raise
+            break
+        count = len(tri) // 3
+        if count <= limit:
+            if good is None or factor > good[0]:
+                good = (factor, xyz, tri)
+            if factor >= 1.0 or count >= 0.85 * limit:
+                break
+        elif bad is None or factor < bad:
+            bad = factor
+        below = good[0] if good else 0.0
+        above = bad if bad is not None else float('inf')
+        if good and above - below < 0.01 * below:
+            break
+        factor = factor * math.sqrt(0.93 * limit / max(count, 1))
+        if not below < factor < above:
+            factor = 0.5 * (below + above)
+    if good is None:
+        raise RuntimeError('max_triangles={}: the coarsest mesh tried still has more triangles'.format(limit))
+    return good[1], good[2]
+
+
+# What a format with a unit and axes of its own says (unit, up axis); the others (STL, OBJ, PLY, OFF) say nothing, and the numbers are the exporter's to choose
+UNITS = {'mm': 1.0, 'cm': 10.0, 'm': 1000.0, 'in': 25.4}      # (in millimetres)
+_UNIT_NAMES = {'mm': 'millimetres', 'cm': 'centimetres', 'm': 'metres', 'in': 'inches'}
+_OWN = {'.3mf': ('mm', 'z'), '.fbx': ('mm', 'z'), '.dxf': ('mm', 'z'), '.glb': ('m', 'y'), '.gltf': ('m', 'y')}
+
+
+def _conventions(ext, units, up):
+    ''' (unit, up axis) the numbers are written in: the ones asked for in a file that has none of its own (millimetres, Z up by default); in a format that
+        states its own they are left as the writer takes them, and asking for another is an error '''
+    for what, value, allowed in (('units', units, UNITS), ('up', up, ('y', 'z'))):
+        if value is not None and value not in allowed:
+            raise ValueError('export_mesh: {}={!r} -- one of {}'.format(what, value, ', '.join(allowed)))
+    own = _OWN.get(ext)
+    if own is None:
+        return units or 'mm', up or 'z'
+    for what, value, mine in (('units', units, own[0]), ('up', up, own[1])):
+        if value is not None and value != mine:
+            raise ValueError('export_mesh: a {} file has its own unit ({}) and up axis ({}), so {}={!r} does not apply; units= and up= are for .stl .obj .ply .off'
+                             .format(ext, own[0], own[1], what, value))
+    return 'mm', 'z'
+
+
+def _convert(xyz, units, up):
+    ''' The vertices (mm, Z up) in the unit and with the up axis asked for: Y up is a turn about X (x, z, -y), which keeps the triangles' sides '''
+    k = 1.0 / UNITS[units]
+    if k == 1.0 and up == 'z':
+        return xyz
+    out = array('f')
+    if up == 'y':
+        for i in range(0, len(xyz), 3):
+            out.extend((xyz[i] * k, xyz[i + 2] * k, -xyz[i + 1] * k))
+    else:
+        out.extend(v * k for v in xyz)
+    return out
+
+
+def _half_of(symmetric):
+    ''' (axis, plane, sign) from "x", "-y", ("z", 12.5) ...: the axis the mirror is across, where it is, and which side is kept '''
+    if symmetric is None or symmetric is False:
+        return None
+    plane = 0.0
+    if isinstance(symmetric, (tuple, list)):
+        if len(symmetric) != 2:
+            raise ValueError('export_mesh: symmetric is an axis ("x", "y", "z", or "-x" to keep the negative side) or (axis, position)')
+        symmetric, plane = symmetric
+    text = str(symmetric).strip().lower()
+    sign = -1 if text.startswith('-') else 1
+    text = text.lstrip('+-')
+    if text not in ('x', 'y', 'z'):
+        raise ValueError('export_mesh: symmetric={!r} -- an axis: "x", "y" or "z" ("-x" keeps the negative side)'.format(symmetric))
+    return 'xyz'.index(text), float(plane), sign
+
+
+def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None):
     ''' Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
             .stl (binary; ascii=True for text), .obj, .ply, .3mf, .glb, .gltf, .fbx (Autodesk FBX, ASCII 7.4: see fbx.py), .off, .dxf (3DFACE)
@@ -93,24 +292,36 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         resolution  samples per mm of the mesh (the scene's resolution when it is not given: the one of the viewport)
         name        the object's name inside the file (the file's name)
         ascii       STL as text, not binary
+        units       the unit of the numbers in the file: "mm" (default), "cm", "m" or "in".  Only for .stl .obj .ply .off, which have no unit of their own
+        up          the axis that is up in the file: "z" (default: as modelled) or "y" (a game engine's; the model is turned, not mirrored).  Same four formats
+        max_triangles   a budget: the finest mesh of at most this many triangles (the resolution is lowered until it fits; a mesh within it is left as it is)
+        symmetric   "x", "y" or "z" (or ("x", 12.5): the plane at that position): the half on the larger-coordinate side ("-x": the smaller) is the
+                    model, cut exactly at the plane, and the other half is its mirror image -- exactly symmetric, and closed where the mesh was.
+                    The model is only as symmetric as the half you give it: the mesh does not have to be
 
-        Millimetres in every format that has no unit; the ones that state their unit (3MF, FBX, DXF) say millimetres (a glTF is in metres, Y up, as
-        glTF is).  Returns the path. '''
+        Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
+        (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path. '''
     path = os.fspath(path)
     ext = os.path.splitext(path)[1].lower()
     if ext not in meshfiles.MESH_WRITE_FORMATS:
         raise ValueError('export_mesh({!r}): the mesh formats are {}'.format(path, ', '.join(meshfiles.MESH_WRITE_FORMATS)))
+    units, up = _conventions(ext, units, up)
+    half = _half_of(symmetric)
+    if max_triangles is not None and int(max_triangles) < 4:
+        raise ValueError('export_mesh: max_triangles={!r} -- a closed surface has at least four'.format(max_triangles))
+    from fieldes.stdlib.fields import _shape_bounds
     parts = list(part) if isinstance(part, (list, tuple)) else [part]
-    xyz, tri = array('f'), array('I')
-    for p in parts:
-        body = _body_of(p, 'export_mesh')
-        x, t = _surface_arrays(body, bounds, resolution)
-        base = len(xyz) // 3
-        xyz.extend(x)
-        tri.extend(base + i for i in t)
+    bodies = [_body_of(p, 'export_mesh') for p in parts]
+    resolutions = [_default_resolution(*_shape_bounds(body, bounds), resolution) for body in bodies]
+    if max_triangles is None:
+        xyz, tri = _meshes(bodies, bounds, resolutions, 1.0, half)
+    else:
+        xyz, tri = _within_budget(bodies, bounds, resolutions, half, max_triangles)
+    xyz = _convert(xyz, units, up)
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
-    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii)
+    note = '%s%s' % (_UNIT_NAMES[units], ', Y up' if up == 'y' else '')
+    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note)
     return path
 
 
