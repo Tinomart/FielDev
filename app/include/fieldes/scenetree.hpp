@@ -571,8 +571,6 @@ protected:
 
     /*  Actions (all become script edits)  */
     void toggleVisible(const QJsonObject& it);
-    /*  Shows (or hides) all these models in one edit of the script  */
-    void setVisibleAll(const QList<QJsonObject>& models, bool show);
     void reimport(const QJsonObject& it);
     void importMenu(const QJsonObject& it, const QPoint& global);
     /*  The edit raising the import call's rev= (false if it cannot be found)  */

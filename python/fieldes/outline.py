@@ -42,7 +42,7 @@ _ERROR = {}
 
 # The facts of a model that a run gives, and that are laid over the row the text gives (the rest of a row is the text's)
 _FACT_KEYS = ('exact_bounds', 'colored', 'model', 'failed', 'error', 'result', 'type', 'shown', 'no_gizmo', 'cls', 'bounds', 'can_handles',
-              'handle_count', 'handle_cap', 'ends_only', 'is_list', 'is_pair', 'custom_used', 'surface_selection', 'displayable_known', 'properties', 'exports', 'linked', 'symmetry_image')
+              'handle_count', 'handle_cap', 'ends_only', 'is_list', 'is_pair', 'custom_used', 'surface_selection', 'displayable_known', 'exports', 'linked', 'symmetry_image')
 # What a call to the same function is taken to make again, when the statement was edited (its text is not what ran)
 _KIND_KEYS = ('model', 'result', 'type', 'shown', 'no_gizmo', 'cls', 'is_list', 'is_pair', 'surface_selection')
 
@@ -197,21 +197,6 @@ def facts_of(v):
     return f
 
 
-def _property_text(v):
-    ''' How a property of a result is shown in the property drawer (its kind and a short text), or None when it is not one to offer:
-        numbers, vectors and short lists of numbers, flags, short texts '''
-    import math
-    if isinstance(v, bool):
-        return 'flag', 'yes' if v else 'no'
-    if isinstance(v, (int, float)):
-        return ('number', '%.4g' % v) if math.isfinite(v) else None
-    if isinstance(v, (tuple, list)) and 2 <= len(v) <= 8 and all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in v):
-        return 'number', '(' + ', '.join('%.4g' % x for x in v) + ')'
-    if isinstance(v, str) and 0 < len(v) <= 28 and '\n' not in v:
-        return 'text', v
-    return None
-
-
 def exports_of(value):
     ''' What can be exported of a result (see fieldes.stdlib.exporting): "mesh" when it has a body '''
     out = []
@@ -222,42 +207,6 @@ def exports_of(value):
             out.append('mesh')
         except Exception:
             pass
-    except Exception:
-        pass
-    return out
-
-
-def properties_of(value):
-    ''' What a result offers to be taken out of it, for the property drawer of the model tree: [{name, kind, text}] -- the fields it calculated
-        (`result.fields`, each also an attribute by its name: `height = result.height`) first, then its numbers, flags and short texts (an
-        attribute of the result: `peak = result.max_height`) '''
-    out, seen = [], set()
-    try:
-        fields = value.fields
-    except Exception:
-        fields = {}
-    if isinstance(fields, dict):
-        for name in fields:
-            if isinstance(name, str) and not name.startswith('_'):
-                out.append({'name': name, 'kind': 'field', 'text': ''})
-                seen.add(name)
-    try:
-        attrs = list(vars(value).items())
-    except TypeError:
-        attrs = []
-    for name, v in attrs:
-        if name.startswith('_') or name in seen:
-            continue
-        got = _property_text(v)
-        if got:
-            out.append({'name': name, 'kind': got[0], 'text': got[1]})
-            seen.add(name)
-    try:
-        from fieldes.stdlib.exporting import _COMPUTED_NUMBERS
-        for name in _COMPUTED_NUMBERS:
-            got = _property_text(getattr(value, name, None))
-            if got and name not in seen:
-                out.append({'name': name, 'kind': got[0], 'text': got[1]})
     except Exception:
         pass
     return out
@@ -351,7 +300,6 @@ def finish(source, gs, out):
                         A._FIELD_SOURCES.append((t.id, v, t.id in shown_names))
                     if facts.get('result') and not facts.get('failed'):
                         try:
-                            facts['properties'] = properties_of(v)
                             facts['exports'] = exports_of(v)
                         except Exception:
                             pass
@@ -1240,8 +1188,6 @@ def outline_json(arg):
                     if failed:
                         item['error'] = facts.get('error') or error.get('message')
                     if exact:
-                        if facts.get('properties'):
-                            item['properties'] = facts['properties']
                         if facts.get('exports'):
                             item['exports'] = facts['exports']
                         if facts.get('bounds'):

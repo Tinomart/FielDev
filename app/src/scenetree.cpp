@@ -3738,37 +3738,6 @@ void ScenePanel::showCached()
     updateMultiNote();
 }
 
-void ScenePanel::setVisibleAll(const QList<QJsonObject>& models, bool show)
-{
-    if (deferItems(models, T("showing or hiding them"), [this, show](const QList<QJsonObject>& f) { setVisibleAll(f, show); })) return;
-    QList<TextEdit> edits;
-    QStringList names;
-    QList<QJsonObject> changed;
-    m_lineMismatch.clear();
-    for (const auto& m : models)
-    {
-        if (visibilityEdit(m, show, edits))
-        {
-            names << m["var"].toString();
-            changed << m;
-        }
-    }
-    // (the points a profile or a line is made of are shown and hidden with it: after the models, so that a point that is one of them is not written twice)
-    for (const auto& m : models) addPointsVisibility(m, show, edits, &changed);
-    // (a line that is not the one the rows say: nothing is written, not even for the models whose lines are right)
-    if (!m_lineMismatch.isEmpty()) { refuseOutOfDate(); return; }
-    if (edits.isEmpty()) return;
-    m_prepareAgain = true;          // (a model that is shown now is made ready to be dragged once the script has run)
-    editFollowed(edits, (show ? T("Show %1") : T("Hide %1")).arg(names.join(", ")),
-                 [changed, show](QJsonObject& scene, const QVector<int>& moved) {
-        for (const auto& item : changed)
-        {
-            const int line = moved.value(item["line"].toInt() - 1, -1) + 1;
-            if (line > 0) patchAt(scene, line, item["var"].toString(), [show](QJsonObject& o) { patchVisible(o, show); });
-        }
-    });
-}
-
 void ScenePanel::toggleVisible(const QJsonObject& it)
 {
     if (deferItems({it}, T("showing or hiding it"), [this](const QList<QJsonObject>& f) { toggleVisible(f[0]); })) return;

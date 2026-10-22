@@ -329,37 +329,12 @@ public:
      */
     void setColorField(const libfive::Tree& field, float lo, float hi, bool autoRange,
                        const QString& label, const QString& colormap);
-    /*
-     *  The symbols of boundary conditions drawn over the model by the viewport (see boundary_conditions.py): arrows and
-     *  pads at points of the surface, and the texts beside them.  `kind` is the category of the colour map "bc"
-     *  (1 fixed support, 2 sliding support, 3 force, 4 gravity)
-     */
-    struct BcGlyph
-    {
-        int kind = 0;
-        bool tip = false;           // the point is the arrow's tip (it pushes in), else its tail
-        QVector3D pos, dir;
-        float size = 1;
-    };
-    struct BcLabel
-    {
-        int kind = 0;
-        QString text;
-        QVector3D pos;
-    };
-    void setBoundarySymbols(std::vector<BcGlyph> glyphs, std::vector<BcLabel> labels);
-    const std::vector<BcGlyph>& boundaryGlyphs() const { return bc_glyphs; }
-    const std::vector<BcLabel>& boundaryLabels() const { return bc_labels; }
-
     bool hasColorField() const { return has_color; }
 
     /*  A patch of a surface (fieldes.stdlib.selection): the shape is drawn only where its colour field is at
      *  most `cutoff` -- the surface beyond is not drawn -- in the colour at the top of the colour map, and a hair
      *  towards the eye so that it wins over the part it lies on  */
     void setColorCutoff(float cutoff) { has_cutoff = true; color_cutoff = cutoff; }
-    /*  Only the places where the colour field is at least `floor` are drawn (the places of boundary conditions: category 1 and up; the
-     *  rest of the body is not), in the colours of the map  */
-    void setColorFloor(float floor) { has_floor = true; color_floor = floor; }
     bool isSurfacePatch() const { return has_cutoff; }
     const libfive::Tree& colorFieldTree() const { return color_field; }
     QString colorLabel() const { return color_label; }
@@ -570,125 +545,10 @@ public:
      *  deformed, model); false without a colour field  */
     bool probe(const QVector3D& p, float& value);
 
-    /*
-     *  A structural result shown on the part: fields to colour it by (one
-     *  at a time, switchable), the displacements to deform it by (scaled),
-     *  and the analysis elements -- the tetrahedra (or hexahedra) the solver
-     *  used, each with its own value -- which can be shown instead of the
-     *  smooth part.
-     */
-    struct FieldChannel { QString name, label; libfive::Tree tree = libfive::Tree::invalid(); float lo = 0, hi = 1; };
-    struct ElementGrid
-    {
-        QVector3D lo;
-        float h = 1;
-        int dims[3] = {0, 0, 0};
-        std::vector<float> fraction;    // x fastest, 0 = no element
-        // What a cell is made of: six tetrahedra (the solver's subdivision: for
-        // each order of the axes, the corners 000, e_a, e_a + e_b, 111) or one
-        // hexahedron
-        bool tetrahedra = false;
-        QString text;                   // e.g. "241,203 tetrahedra (six in each of 40,201 cells)"
-        // Per channel: its value in every element, as the element has it -- the
-        // cells with a fraction > 0 in order, six values each for tetrahedra (or, for a
-        // mesh, one value per tetrahedron)
-        std::vector<std::vector<float>> values;
-        // A body-fitted tetrahedral mesh instead of a grid of cells: exactly what the
-        // solver used
-        bool isMesh = false;
-        std::vector<float> mverts;          // 3 per vertex
-        std::vector<int32_t> mtets;         // 4 per tetrahedron
-        std::vector<int32_t> mfaces;        // 3 per boundary triangle (normals out)
-        std::vector<int32_t> mfaceTet;      // the tetrahedron of each
-        std::vector<float> mdisp;           // the solved displacement at every vertex (3 each)
-        std::vector<int32_t> madj;          // per tetrahedron and face (opposite each vertex): the one across it, or -1
-    };
-    void setResult(std::vector<FieldChannel> channels, int current,
-                   const libfive::Tree& ux, const libfive::Tree& uy, const libfive::Tree& uz,
-                   float deformScale, float deformAuto, ElementGrid grid);
-    /*  How finely a result's colours are read: the render's triangles are split until no edge is longer
-     *  than this (mm, the solver's element; 0: as meshed)  */
-    void setColorDetail(float d) { color_detail = d; }
     /*  The key of its exact distance in the Python side's registry (empty: it has none, its own field is the distance): see FieldSource  */
     void setExactKey(const QString& key) { m_exactKey = key; }
     const QString& exactKey() const { return m_exactKey; }
-    /*  The key numbers of a result -- label, text, unit of each (fieldes.stdlib.exporting.key_results): the result card prints them  */
-    void setKeyResults(const QList<QStringList>& rows) { m_keyResults = rows; }
-    const QList<QStringList>& keyResults() const { return m_keyResults; }
-    /*  What the shown values are, said by the script (`_value_note` of the result's display; empty says nothing): for a result that is no solver's -- the card says
-     *  "nodal average" of the elements' values otherwise, which a map of what changed, or of where a rule is broken, is not  */
-    void setValueNote(const QString& note) { m_valueNote = note; m_hasValueNote = true; }
-    bool hasResult() const { return has_result; }
-    const std::vector<FieldChannel>& channels() const { return m_channels; }
-    int channel() const { return m_channel; }
-    void setChannel(int c);
-    bool hasDeformation() const { return has_deform; }
-    const libfive::Tree& deformTree(int axis) const { return deform_tree[axis]; }
-    QString channelLabel() const
-    { return m_channel >= 0 && size_t(m_channel) < m_channels.size() ? m_channels[size_t(m_channel)].label : QString(); }
-    float deformScale() const { return m_deform; }
-    float deformAuto() const { return m_deform_auto; }
-    void setDeformScale(float s);
-    bool hasElements() const;
-    bool showElements() const { return m_show_elements; }
-    void setShowElements(bool b);
-    QString elementText() const { return m_grid.text; }
-    /*  The colour range of what is shown: of the elements' own values while the
-     *  elements are shown, else of the smooth field  */
-    float displayLo() const;
-    float displayHi() const;
-    /*  What the shown values are (for the result card), and how a hover names
-     *  the value it reads  */
-    QString valueNote() const;          // a few words: what the shown values are
-    QString valueNoteHelp() const;      // the explanation behind it (a tooltip)
     QString probeLabel() const;
-    /*  The value of the element drawn at p (a point on the drawn elements)  */
-    bool probeElement(const QVector3D& p, float& value);
-    /*  The section plane, for whole-element display: with `whole`, the
-     *  elements on the kept side (by their centre) are shown entire
-     *  instead of being cut by the plane  */
-    void setElementSection(bool enabled, const QVector4D& plane, bool whole);
-    bool wholeElements() const { return m_show_elements && m_sec_enabled && m_sec_whole; }
-
-    /*
-     *  The steps of a result (fieldes: _color_steps): the slider of the result card walks through them,
-     *  play runs them in turn.  A step brings its own fields (the same names, other values: the flow at
-     *  another time, a fraction of the load), its own deformation, its own streamlines, or its own
-     *  geometry (the part after an iteration of an optimisation: meshed when the step is first shown,
-     *  then kept) -- what it does not bring is the result's own.
-     */
-    using FlowLine = std::vector<std::array<float, 5>>;     // x y z speed time, along the line
-    struct Step
-    {
-        QString label;
-        std::vector<FieldChannel> channels;                 // empty: the result's own
-        bool hasDeform = false;
-        libfive::Tree deform[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
-        bool hasLines = false;
-        std::vector<FlowLine> lines;
-        libfive::Tree tree = libfive::Tree::invalid();      // valid: the step's own geometry
-    };
-    void setSteps(std::vector<Step> steps, int current);
-    int stepCount() const { return int(m_steps.size()); }
-    int step() const { return m_step; }
-    QString stepLabel() const;
-    void setStep(int k);
-
-    /*
-     *  Streamlines through a flow (fieldes.stdlib.fluid): coloured by the speed over [lo, hi] (the speed
-     *  field's colour range), with particles moving along them.  The viewport draws them over every shape
-     *  (drawFlowLines, with the depth test off) once the shapes are drawn, so they are seen through the
-     *  fluid, which is drawn like any other result.
-     */
-    void setFlowLines(std::vector<FlowLine> lines, float lo, float hi);
-    bool hasFlowLines() const;
-    bool showFlowLines() const { return m_show_lines; }
-    void setShowFlowLines(bool b);
-    bool showsFlowLines() const { return hasFlowLines() && m_show_lines; }
-    void drawFlowLines(const QMatrix4x4& M);
-    /*  Moves the particles on by dt seconds of wall-clock time  */
-    void advanceFlow(float dt);
-
     /*
      *  Updates variables from another Shape
      *  (which must point to the same Tree)
@@ -869,9 +729,6 @@ protected:
     bool run_heavy = false;
     bool force_low = false;
     QString m_exactKey;
-    QList<QStringList> m_keyResults;
-    QString m_valueNote;
-    bool m_hasValueNote = false;
 
     libfive::Tree tree;                 // (what is meshed: the shown step's geometry, usually base_tree)
     libfive::Tree base_tree = libfive::Tree::invalid();     // the shape as the script made it (optimized)
@@ -958,7 +815,6 @@ protected:
     const static int MESH_DIV_ABORT=-2;
     const static int MESH_DIV_NEW_VARS=-3;
     const static int MESH_DIV_NEW_VARS_SMALL=-4;
-    const static int MESH_DIV_NEW_TREE=-5;      // the shown step's geometry changed: the evaluators are rebuilt
 
     int default_div=MESH_DIV_EMPTY;
     int target_div=MESH_DIV_EMPTY;
@@ -1069,7 +925,7 @@ protected:
     bool m_appShown = false;
 
     // The render cache (see setRenderCache)
-    enum CacheState { CACHE_OFF = 0, CACHE_KEPT, CACHE_READ, CACHE_NO_KEY, CACHE_RESULT, CACHE_FAILED };
+    enum CacheState { CACHE_OFF = 0, CACHE_KEPT, CACHE_READ, CACHE_NO_KEY, CACHE_FAILED };
     // On unless the script says render_cache(x, False).  A shape the script does not mention is kept only if
     // meshing it took a while (a sphere is not worth a file); one under an explicit render_cache(x) always is.
     std::atomic<bool> m_cache_on{true};
@@ -1103,9 +959,6 @@ protected:
     mutable bool m_deps_known = false;
     void buildDeps() const;
 
-    std::vector<BcGlyph> bc_glyphs;
-    std::vector<BcLabel> bc_labels;
-    QString bc_key;                                        // identifies them (shapes are only reused when it matches)
     std::vector<QVector3D> m_markers;                      // the dots of a set of points (see setMarkers)
     QString marker_key;
 
@@ -1113,8 +966,6 @@ protected:
     bool has_color=false;
     bool has_cutoff=false;                                 // (a patch of a surface: see setColorCutoff)
     float color_cutoff=0;
-    bool has_floor=false;                                  // (only the coloured places: see setColorFloor)
-    float color_floor=0;
     libfive::Tree color_field = libfive::Tree::invalid();
     bool color_auto=true;
     float color_lo=0, color_hi=1;
@@ -1124,91 +975,6 @@ protected:
     std::vector<std::unique_ptr<libfive::ArrayEvaluator>> color_evals;   // render thread (one per colouring thread)
     std::unique_ptr<libfive::ArrayEvaluator> probe_eval;   // GUI thread
 
-    // Structural result (see setResult)
-    bool has_result=false;
-    std::vector<FieldChannel> m_channels;
-    int m_channel=0;
-    std::vector<std::vector<float>> channel_values;        // every channel at the vertices
-    bool has_deform=false;
-    libfive::Tree deform_tree[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(),
-                                    libfive::Tree::invalid()};
-    float m_deform=0, m_deform_auto=1;
-    float color_detail = 0;                                // (see setColorDetail)
-    std::vector<Eigen::Vector3f> disp;                     // displacement at the vertices
-    std::vector<std::unique_ptr<libfive::ArrayEvaluator>> result_evals;   // render thread
-    std::vector<std::unique_ptr<libfive::ArrayEvaluator>> result_pool;    // render thread: the evaluators of the other threads that read the change colour (evalRangeThreaded); an evaluator of a result's formula is built from its tree once, not at every level of the drawing
-    std::unique_ptr<libfive::ArrayEvaluator> probe_disp[3];              // GUI thread
-    std::unique_ptr<libfive::ArrayEvaluator> probe_channel;              // GUI thread
-    int probe_channel_index=-1;
-    void applyChannel();
-
-    // Elements
-    ElementGrid m_grid;
-    bool m_show_elements=false;
-    bool m_sec_enabled=false, m_sec_whole=false;
-    QVector4D m_sec_plane;
-    bool elem_dirty=true;
-    int elem_tris=0, elem_lines=0;
-    std::vector<float> m_elem_lo, m_elem_hi;               // per channel: the range of the elements' values
-    struct ElemTri { QVector3D p[3]; float value; };
-    std::vector<ElemTri> elem_probe;                       // the triangles drawn, where drawn (for hovering)
-    std::vector<Eigen::Vector3f> node_disp;                // displacement at grid nodes
-    QOpenGLVertexArrayObject elem_vao, elem_line_vao;
-    QOpenGLBuffer elem_vbo, elem_line_vbo;
-    void buildElements();
-    void buildMeshElements();
-    void drawElements(const QMatrix4x4& M, bool monochrome, QColor color);
-
-    // Steps (see setSteps).  The result's own fields and deformation are kept apart from the shown
-    // step's (m_channels, deform_tree, has_deform are the shown step's); the render thread works on
-    // a copy taken when the render starts.
-    std::vector<Step> m_steps;
-    int m_step = -1;
-    const Step* currentStep() const
-    { return (m_step >= 0 && size_t(m_step) < m_steps.size()) ? &m_steps[size_t(m_step)] : nullptr; }
-    int geometryKey() const
-    { const Step* st = currentStep(); return (st && st->tree.is_valid()) ? m_step : -1; }
-    std::vector<FieldChannel> base_channels;
-    libfive::Tree base_deform[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
-    bool base_has_deform = false;
-    std::vector<FieldChannel> run_channels;                // what the render in progress evaluates
-    libfive::Tree run_deform[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
-    bool run_has_deform = false;
-    float run_color_detail = 0;
-    QString run_key;
-    int step_rendering = -1;                               // the geometry step the render in progress is of (-1: the result's own)
-    bool es_stale = false;                                 // the evaluators are of another geometry than `tree`
-    struct StepMesh
-    {
-        std::shared_ptr<libfive::Mesh> mesh;
-        libfive::Region<3> region;
-        std::vector<std::vector<float>> channels;
-        std::vector<Eigen::Vector3f> disp;
-    };
-    std::map<int, StepMesh> step_meshes;                   // geometry steps meshed so far (their finished mesh)
-    std::map<std::pair<int, int>, std::vector<float>> step_values;   // (step, channel): a step's own field at the vertices
-    std::map<int, std::vector<Eigen::Vector3f>> step_disp;            // step: a step's own displacement at the vertices
-    void applyStepState();
-    /*  The geometry of a step that has not been meshed yet, meshed in the background while another is shown, and kept (see stashStepMesh):
-     *  once the shown one is finished, every step is meshed one after the other, so that playing the steps back finds them all made.
-     *  Does nothing while a render runs (the next one is started by the end of that one)  */
-    void prefetchSteps();
-    void rebuildEvaluators();
-    void stashStepMesh();
-    const std::vector<Eigen::Vector3f>& dispNow();
-    const std::vector<FlowLine>* currentLines() const;
-
-    // Flow lines (see setFlowLines)
-    std::vector<FlowLine> flow_lines;
-    float flow_lo = 0, flow_hi = 1;
-    bool m_show_lines = true;
-    float flow_time = 0;                                   // where the particles are (seconds of flow)
-    float flow_period = 0;                                 // the longest line's time
-    bool lines_dirty = true;
-    QOpenGLVertexArrayObject line_vao, streak_vao;
-    QOpenGLBuffer line_vbo, streak_vbo;
-    int line_verts = 0;
-    void buildFlowLines();
 };
 
 } // namespace FielDes

@@ -4562,11 +4562,7 @@ FieldSource View::sourceOf(Shape* s) const
         src.lo = s->colorLo();
         src.hi = s->colorHi();
         src.map = s->colorMap();
-        src.label = s->hasResult() ? s->channelLabel() : s->colorLabel();
-    }
-    if (s->hasDeformation())
-    {
-        for (int a = 0; a < 3; ++a) src.disp[a] = s->deformTree(a);
+        src.label = s->colorLabel();
     }
     return src;
 }
@@ -4797,24 +4793,10 @@ void View::drawSlicePlane(const QMatrix4x4& m, Plane& plane, const SectionSettin
         return;
     }
 
-    // Elements shown whole: they are the section (the plane would cut
-    // through them)
-    for (auto s : shapes)
-    {
-        if (s->hasResult() && s->showElements() && at.wholeElements && plane.colorTex) return;
-    }
-
     // The plane rectangle at the CURRENT offset (the texture may lag a
     // few milliseconds behind while dragging the slider)
     const int a = at.axis;
     const int ua = FieldSlice::uAxis(a), va = FieldSlice::vAxis(a);
-    float deform = 0;
-    for (auto s : shapes)
-    {
-        if (s->hasDeformation()) { deform = s->deformScale(); break; }
-    }
-    const bool deformed = deform != 0 && !plane.slice.disp.isEmpty() &&
-                          plane.slice.disp.size() == plane.slice.gw * plane.slice.gh;
     auto corner = [&](float u, float v) {
         QVector3D p;
         p[a] = at.offset;
@@ -4842,41 +4824,8 @@ void View::drawSlicePlane(const QMatrix4x4& m, Plane& plane, const SectionSettin
     }
     plane.vao.bind();
     plane.vbo.bind();
-    if (deformed)
-    {
-        if (plane.gridGeneration != plane.slice.generation || plane.gridScale != deform ||
-            plane.gridOffset != at.offset || plane.gridVerts == 0)
-        {
-            // Each grid vertex moved by its (scaled) displacement
-            std::vector<GLfloat> grid;
-            grid.reserve(size_t(plane.slice.gw - 1) * (plane.slice.gh - 1) * 6 * 5);
-            auto vert = [&](int i, int j) {
-                const float s = float(i) / (plane.slice.gw - 1), t = float(j) / (plane.slice.gh - 1);
-                QVector3D p;
-                p[a] = at.offset;
-                p[ua] = plane.slice.min[ua] + s * (plane.slice.max[ua] - plane.slice.min[ua]);
-                p[va] = plane.slice.min[va] + t * (plane.slice.max[va] - plane.slice.min[va]);
-                p += deform * plane.slice.disp[j * plane.slice.gw + i];
-                grid.insert(grid.end(), {p.x(), p.y(), p.z(), s, t});
-            };
-            for (int j = 0; j + 1 < plane.slice.gh; ++j)
-                for (int i = 0; i + 1 < plane.slice.gw; ++i)
-                {
-                    vert(i, j); vert(i + 1, j); vert(i + 1, j + 1);
-                    vert(i, j); vert(i + 1, j + 1); vert(i, j + 1);
-                }
-            plane.vbo.allocate(grid.data(), int(grid.size() * sizeof(GLfloat)));
-            plane.gridVerts = int(grid.size() / 5);
-            plane.gridGeneration = plane.slice.generation;
-            plane.gridScale = deform;
-            plane.gridOffset = at.offset;
-        }
-    }
-    else
-    {
-        plane.gridVerts = 0;
-        plane.vbo.allocate(data, sizeof(data));
-    }
+    plane.gridVerts = 0;
+    plane.vbo.allocate(data, sizeof(data));
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), nullptr);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
                           (GLvoid*)(3 * sizeof(GLfloat)));
