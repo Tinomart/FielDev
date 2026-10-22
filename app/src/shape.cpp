@@ -54,7 +54,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "libfive/tree/data.hpp"
 #include "libfive/tree/content_key.hpp"
 #include "libfive/oracle/oracle_clause.hpp"
-#include "libfive/fea/tetfea.hpp"
 
 namespace FielDes {
 
@@ -205,44 +204,6 @@ bool Shape::exactCurrent() const
 std::unique_ptr<libfive::Mesh> Shape::exactMeshIn(const libfive::Region<3>& r) const
 {
     return exactMeshOf(*m_exact, m_exact_matrix, r);
-}
-
-Shape::StepSurface::StepSurface(std::shared_ptr<libfive::fea::TetProblem> p, double lvl, int n)
-    : problem(std::move(p)), level(lvl), count(n), m_made(size_t(std::max(0, n)))
-{
-}
-
-Shape::StepSurface::~StepSurface() {}
-
-std::shared_ptr<const Shape::ExactMesh> Shape::StepSurface::mesh(int k)
-{
-    if (k < 0 || k >= count || !problem) return nullptr;
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_made[size_t(k)]) return m_made[size_t(k)];
-    }
-    auto m = std::make_shared<ExactMesh>();
-    if (!problem->densitySurface(size_t(k), level, m->verts, m->tris) || m->tris.size() < 3) return nullptr;
-    m->key = "step:" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ":" + std::to_string(k);
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_made[size_t(k)])
-    {
-        m_bytes += m->verts.size() * sizeof(float) + m->tris.size() * sizeof(uint32_t);
-        m_made[size_t(k)] = m;
-    }
-    return m_made[size_t(k)];
-}
-
-void Shape::StepSurface::prepareAll()
-{
-    for (int k = 0; k < count; ++k)
-    {
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            if (m_bytes > (size_t(600) << 20)) return;      // (the rest is made when it is wanted)
-        }
-        mesh(k);
-    }
 }
 
 std::unique_ptr<libfive::Mesh> Shape::exactMeshOf(const ExactMesh& E, const double* A, const libfive::Region<3>& r)
@@ -2170,18 +2131,6 @@ void Shape::setSteps(std::vector<Step> steps, int current)
     step_disp.clear();
     m_step = m_steps.empty() ? -1 : std::max(0, std::min(int(m_steps.size()) - 1, current));
     applyStepState();
-    applyStepExact();
-    {
-        // The surfaces of the steps that have them are made ahead, by a thread of their own: stepping through the iterations then
-        // finds them made (the first one shown is made at once if it is wanted before)
-        std::set<StepSurface*> started;
-        for (const auto& st : m_steps)
-            if (st.surface && started.insert(st.surface.get()).second)
-            {
-                auto surface = st.surface;
-                std::thread([surface] { surface->prepareAll(); }).detach();
-            }
-    }
     // (a step with its own geometry shown first: the first render is of it)
     const Step* st = currentStep();
     const libfive::Tree want = (st && st->tree.is_valid()) ? st->tree : base_tree;
@@ -2191,12 +2140,6 @@ void Shape::setSteps(std::vector<Step> steps, int current)
         rebuildEvaluators();
     }
     applyChannel();
-}
-
-void Shape::applyStepExact()
-{
-    const Step* st = currentStep();
-    m_step_exact = (st && st->surface) ? st->surface->mesh(st->surfaceStep) : nullptr;
 }
 
 QString Shape::stepLabel() const
@@ -2224,7 +2167,6 @@ void Shape::setStep(int k)
     stashStepMesh();
     m_step = k;
     applyStepState();
-    applyStepExact();
     const Step& st = m_steps[size_t(k)];
     const libfive::Tree want = st.tree.is_valid() ? st.tree : base_tree;
     if (want.id() != tree.id())
@@ -3826,7 +3768,7 @@ void Shape::prefetchSteps()
     int k = -1;
     for (int i = 0; i < int(m_steps.size()); ++i)
     {
-        if (i != shown && m_steps[size_t(i)].tree.is_valid() && !m_steps[size_t(i)].surface && !step_meshes.count(i)) { k = i; break; }
+        if (i != shown && m_steps[size_t(i)].tree.is_valid() && !step_meshes.count(i)) { k = i; break; }
     }
     if (k < 0) return;
     ensureField();

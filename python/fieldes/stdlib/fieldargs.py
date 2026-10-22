@@ -2,7 +2,7 @@
 Numbers and fields in the same place.
 
 Anything the library takes as a number takes a FIELD as well (a Shape: a value at every point of space -- a distance, a ramp
-of one, a stress result, noise ...), as in nTop.  A function that can do arithmetic with what it is given needs nothing;
+of one, noise ...), as in nTop.  A function that can do arithmetic with what it is given needs nothing;
 the few places that must ask a question of a number (is it positive? is it zero?) use these.  A number stays a number, so
 nothing is slower for a plain value; a field is worked with as the tree it is.
 
@@ -88,7 +88,7 @@ def _origin_of(values):
             o = getattr(a, '_field_origin', None)
             if o is not None:
                 return o
-            if kind_of(a) in ('solid', 'profile', 'point', 'surface', 'lattice'):
+            if kind_of(a) in ('solid', 'profile', 'point', 'surface'):
                 return a
         elif isinstance(a, (tuple, list)) and a:
             if len(a) == 3 and all(isinstance(c, numbers.Number) for c in a):
@@ -120,19 +120,6 @@ def returns_field(fn):
             _set_origin(out, origin)
         return out
     g._makes = 'field'          # (what the model tree takes a statement that calls it to make, before it has run)
-    return g
-
-
-def returns_lattice(fn):
-    ''' A function that makes a LATTICE (a body filled with cells): what it returns is of the kind 'lattice', which the model tree shows with
-        a lattice's icon.  Used in another operation it is a body like any other (the kind is not kept by arithmetic on it) '''
-    @functools.wraps(fn)
-    def g(*args, **kwargs):
-        out = fn(*args, **kwargs)
-        if isinstance(out, Shape) and not any(out is a for a in list(args) + list(kwargs.values())):
-            out._kind = 'lattice'
-        return out
-    g._makes = 'lattice'
     return g
 
 

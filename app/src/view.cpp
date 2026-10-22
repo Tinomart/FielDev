@@ -132,120 +132,6 @@ View::View(QWidget* parent)
     m_overlay->setGeometry(rect());
     m_overlay->lower();
 
-    // Analysis results: which field, how much deformation, elements
-    m_resultPanel = new ResultPanel(this);
-    m_resultPanel->hide();
-    m_livePanel = new LivePanel(this);
-    m_livePanel->hide();
-    auto forResults = [this](auto fn, bool resample) {
-        for (auto s : shapes) if (s->hasResult() || s->stepCount() > 0) fn(s);
-        updateResultPanel();
-        if (resample && section.enabled) requestSlice();
-        pick_timer.start();
-        update();
-    };
-    connect(m_resultPanel, &ResultPanel::channelChanged, this, [=](int i) {
-        for (auto s : shapes)
-            if (s->hasResult() && i >= 0 && size_t(i) < s->channels().size()) { m_choiceChannel = s->channels()[size_t(i)].name; break; }
-        forResults([i](Shape* s) { s->setChannel(i); }, true);
-    });
-    connect(m_resultPanel, &ResultPanel::deformChanged, this, [=](float f) {
-        for (auto s : shapes)
-            if (s->hasResult() && s->hasDeformation() && s->deformAuto() > 0) { m_choiceDeform = f / s->deformAuto(); break; }
-        forResults([f](Shape* s) { s->setDeformScale(f); }, false);
-    });
-    connect(m_resultPanel, &ResultPanel::elementsToggled, this, [=](bool on) {
-        m_choiceElements = on ? 1 : 0;
-        forResults([on](Shape* s) { s->setShowElements(on); }, false);
-    });
-    connect(m_resultPanel, &ResultPanel::stepChanged, this, [=](int k) {
-        forResults([k](Shape* s) { s->setStep(k); }, true);
-    });
-    connect(m_resultPanel, &ResultPanel::flowToggled, this, [=](bool on) {
-        m_choiceLines = on ? 1 : 0;
-        forResults([on](Shape* s) { s->setShowFlowLines(on); }, false);
-    });
-    connect(m_resultPanel, &ResultPanel::opacityChanged, this, [=](float a) {
-        m_flowOpacity = a;
-        forResults([a](Shape* s) { if (s->hasFlowLines()) s->setOpacity(a); }, false);
-    });
-    connect(m_resultPanel, &ResultPanel::playToggled, this, [=](bool on) {
-        if (on)
-        {
-            // (once: playing again from the end starts over)
-            Shape* r = nullptr;
-            for (auto s : shapes) if (s->hasResult() && s->stepCount() > 0) { r = s; break; }
-            if (r && m_playMode == 2 && r->step() >= r->stepCount() - 1)
-                forResults([](Shape* s) { s->setStep(0); }, true);
-            m_playDir = 1;
-            m_stepTimer.start();
-        }
-        else m_stepTimer.stop();
-        updateResultPanel();
-    });
-    connect(m_resultPanel, &ResultPanel::playModeChanged, this, [=](int mode) {
-        m_playMode = mode;
-        m_playDir = 1;
-        updateResultPanel();
-    });
-    connect(m_resultPanel, &ResultPanel::playSpeedChanged, this, [=](float speed) {
-        m_playSpeed = std::max(0.1f, speed);
-        m_stepTimer.setInterval(int(100.0f / m_playSpeed));
-        updateResultPanel();
-    });
-    // Play: the next step ten times a second at speed 1 (a step with its own geometry waits until it is meshed);
-    // round and round, back and forth, or once to the end
-    m_stepTimer.setInterval(100);
-    connect(&m_stepTimer, &QTimer::timeout, this, [=]() {
-        Shape* r = nullptr;
-        for (auto s : shapes) if (s->hasResult() && s->stepCount() > 0) { r = s; break; }
-        if (!r)
-        {
-            m_stepTimer.stop();
-            updateResultPanel();
-            return;
-        }
-        // (every stepped shape must have finished meshing its step: a body and the fluid around it step together)
-        for (auto s : shapes) if (s->stepCount() > 0 && !s->done()) return;
-        const int n = r->stepCount();
-        int k = r->step();
-        if (m_playMode == 0) k = (k + 1) % n;
-        else if (m_playMode == 1)
-        {
-            if (n < 2) return;
-            if (k + m_playDir < 0 || k + m_playDir >= n) m_playDir = -m_playDir;
-            k += m_playDir;
-        }
-        else
-        {
-            if (k >= n - 1)
-            {
-                m_stepTimer.stop();
-                updateResultPanel();
-                return;
-            }
-            k += 1;
-        }
-        forResults([k](Shape* s) { s->setStep(k); }, true);
-    });
-    // The particles on the streamlines move at thirty frames a second
-    m_flowTimer.setInterval(33);
-    connect(&m_flowTimer, &QTimer::timeout, this, [=]() {
-        bool any = false;
-        for (auto s : shapes)
-            if (s->showsFlowLines())
-            {
-                s->advanceFlow(0.033f);
-                any = true;
-            }
-        if (any) update(); else m_flowTimer.stop();
-    });
-
-    // An optimisation that runs shows its design as it goes (a few times a second: the picture is only looked at when it is new)
-    m_liveTimer.setInterval(120);
-    connect(&m_liveTimer, &QTimer::timeout, this, &View::pollLive);
-    m_liveTimer.start();
-
     // Section field sampling: debounced, in a worker thread of its own (every field viewer has such a plane too: see initViewer)
     for (Plane* plane : {&m_sec})
     {
@@ -292,28 +178,8 @@ View::~View()
     doneCurrent();
 }
 
-// A new result shape looks as the one before it did: what was chosen on the result card is kept, run after run and picture after picture
-void View::applyViewerChoices(Shape* s) const
-{
-    if (s->hasFlowLines())
-    {
-        s->setOpacity(m_flowOpacity);
-        if (m_choiceLines >= 0) s->setShowFlowLines(m_choiceLines != 0);
-    }
-    if (!s->hasResult()) return;
-    if (!m_choiceChannel.isEmpty())
-    {
-        const auto& channels = s->channels();
-        for (size_t i = 0; i < channels.size(); ++i)
-            if (channels[i].name == m_choiceChannel) { s->setChannel(int(i)); break; }
-    }
-    if (m_choiceDeform >= 0 && s->hasDeformation() && s->deformAuto() > 0) s->setDeformScale(m_choiceDeform * s->deformAuto());
-    if (m_choiceElements >= 0 && s->hasElements()) s->setShowElements(m_choiceElements != 0);
-}
-
 void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
 {
-    for (auto s : new_shapes) applyViewerChoices(s);
     // We're going to co-optimize every single new and old tree together,
     // so that we can deduplicate them.  This could be expensive; if we
     // notice the main thread lagging, we could do the new_shapes half of this
@@ -399,7 +265,6 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
         {
             connect(s, &Shape::redraw, this, &View::update);
             connect(s, &Shape::gotMesh, this, &View::checkMeshes);
-            connect(s, &Shape::gotMesh, this, &View::updateResultPanel);
             connect(s, &Shape::cacheStateChanged, this, &View::cacheStatesChanged);
             connect(s, &Shape::gotMesh, &pick_timer,
                     QOverload<>::of(&QTimer::start));
@@ -435,8 +300,6 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
             std::fclose(f);
         }
     }
-    m_liveDrawn = false;
-    updateResultPanel();            // (shapes that went take their legend with them; new ones bring theirs when they have meshes)
     update();
     requestSlice();
     refreshSymmetry();              // (the symmetry model is another shape now)
@@ -728,7 +591,6 @@ void View::initializeGL()
     Shader::initializeGL();
 
     arrow.initializeGL();
-    glyphs.initializeGL();
     axes.initializeGL();
     background.initializeGL();
     bbox.initializeGL();
@@ -931,9 +793,8 @@ void View::paintGL()
         {
             if (s->is2D()) continue;                // (the 2D shapes are drawn last, over everything)
             if ((s->opacityValue() < 0.999f) != (pass >= 1)) continue;
-            // The boundary conditions are drawn on the part's own surface: pulled a hair towards the eye, they win over the part when both are shown
-            // (a patch of a surface is on the part's surface too)
-            const bool onTheSurface = !s->boundaryGlyphs().empty() || s->isSurfacePatch();
+            // A patch of a surface is drawn on the part's own surface: pulled a hair towards the eye, it wins over the part when both are shown
+            const bool onTheSurface = s->isSurfacePatch();
             if (onTheSurface)
             {
                 glEnable(GL_POLYGON_OFFSET_FILL);
@@ -963,33 +824,6 @@ void View::paintGL()
         FieldViewer* v = kv.second.get();
         if (v->open && v->shown) drawSlicePlane(m, v->plane, fieldPlane(*v));
     }
-
-    // The streamlines of a flow and the particles on them, over everything (seen through the fluid)
-    {
-        bool any = false;
-        for (auto& s : shapes) any = any || s->showsFlowLines();
-        if (any)
-        {
-            glDisable(GL_DEPTH_TEST);
-            for (auto& s : shapes)
-                if (s->showsFlowLines()) s->drawFlowLines(m);
-            glEnable(GL_DEPTH_TEST);
-        }
-    }
-
-    // The arrows and pads of boundary conditions, over the model they belong to
-    for (auto& s : shapes)
-        for (const auto& g : s->boundaryGlyphs())
-        {
-            float r = 0.8f, gr = 0.8f, b = 0.8f;
-            bcCategoryRGB(g.kind, r, gr, b);
-            const QColor color = QColor::fromRgbF(r, gr, b);
-            // (a pad lies on the surface: a support, a wall, a slip, a fixed temperature, a convection; the rest are arrows)
-            if (g.kind == 1 || g.kind == 2 || g.kind == 9 || g.kind == 10 || g.kind == 11 || g.kind == 12)
-                glyphs.drawPad(m, g.pos, g.size, g.dir, color);
-            else
-                glyphs.drawArrow(m, g.pos, g.size, g.dir, color, g.tip);
-        }
 
     if (show_axes)
     {
@@ -1100,7 +934,6 @@ void View::paintOverlay(QPainter& painter)
         painter.drawText(box, Qt::AlignCenter, section_readout);
     }
 
-    drawBoundaryLabels(painter);
     if (m_appMode) drawNameLabels(painter);
     legend_close.clear();
     bottom_items.clear();
@@ -1156,190 +989,6 @@ void View::paintOverlay(QPainter& painter)
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(Color::base1);
         painter.drawText(box, Qt::AlignCenter, text);
-    }
-}
-
-void View::pollLive()
-{
-    swapLive();                 // (a picture whose meshes came in between two looks)
-    const auto now = libfive::run_progress::liveView();
-    if (!now && !m_live) return;
-    if (now && m_live && now->serial == m_live->serial) return;
-    m_live = now;
-    if (!now)
-    {
-        // (the optimisation is over: what is shown stays until the run makes its result, which replaces it)
-        for (auto s : m_livePending) s->deleteLater();
-        m_livePending.clear();
-        m_liveWaiting = false;
-        m_livePanel->hide();
-        update();
-        return;
-    }
-    m_livePanel->setView(*now);
-    if (!m_livePanel->isVisible())
-    {
-        m_livePanel->show();
-        placeLivePanel();
-    }
-    // The picture is of the model the statement that runs makes: when that model is not shown (its eye is off) none of it is drawn, and its
-    // legend is not there -- only the card says how the optimisation is doing
-    const int running = libfive::run_progress::current().line;
-    if (m_scene && running > 0 && !m_scene->shownAtLine(running))
-    {
-        for (auto s : m_livePending) s->deleteLater();
-        m_livePending.clear();
-        m_liveWaiting = false;
-        if (m_liveDrawn)
-        {
-            // (it was shown until its eye was turned off)
-            for (auto s : shapes)
-            {
-                disconnect(s, &Shape::redraw, this, &View::update);
-                s->deleteLater();
-            }
-            shapes.clear();
-            m_liveDrawn = false;
-            updateResultPanel();
-        }
-        update();
-        return;
-    }
-    // A picture that is still being meshed is not thrown away for the newer one: a part whose picture takes longer to mesh than an iteration
-    // takes would never be shown at all.  It is shown when it is done, and the newest picture is meshed next
-    bool meshing = false;
-    for (auto s : m_livePending)
-        if (!s->done()) meshing = true;
-    if (meshing)
-    {
-        m_liveWaiting = true;
-        update();
-        return;
-    }
-    startLive();
-    update();
-}
-
-// The shapes of a picture of an optimisation, made as the shapes of a result are (see Interpreter::recordShape) and rendered as any:
-// they replace the ones shown (swapLive) when every one of them has its mesh
-void View::startLive()
-{
-    for (auto s : m_livePending) s->deleteLater();
-    m_livePending.clear();
-    // The render settings the script has given by now (it is still running: they are read from it), else those of the run before, over
-    // what the picture covers
-    Settings live = settings;
-    if (m_liveSettings)
-    {
-        const auto o = QJsonDocument::fromJson(m_liveSettings().toUtf8()).object();
-        const auto lo = o["min"].toArray(), hi = o["max"].toArray();
-        if (lo.size() == 3 && hi.size() == 3)
-        {
-            live.min = QVector3D(float(lo[0].toDouble()), float(lo[1].toDouble()), float(lo[2].toDouble()));
-            live.max = QVector3D(float(hi[0].toDouble()), float(hi[1].toDouble()), float(hi[2].toDouble()));
-        }
-        if (o["res"].isDouble()) live.res = float(o["res"].toDouble());
-        if (o["quality"].isDouble()) live.quality = float(o["quality"].toDouble());
-    }
-    m_liveMin = live.min;
-    m_liveMax = live.max;
-    // (the numbers of the script -- var() -- the trees may hold: those of the shapes shown)
-    std::map<libfive::Tree::Id, float> vars;
-    for (auto s : shapes)
-        for (const auto& kv : s->getVars()) vars.insert(kv);
-    for (const auto& ls : m_live->shapes)
-    {
-        auto* s = new Shape(ls.tree, vars);
-        s->settleField();
-        if (ls.surfaceTris.size() >= 3)
-        {
-            // (the surface of the design, drawn as it is: see LiveShape)
-            auto surface = std::make_shared<Shape::ExactMesh>();
-            surface->key = "live:" + std::to_string(m_live->serial);
-            surface->verts = ls.surfaceVerts;
-            surface->tris = ls.surfaceTris;
-            s->setSurfaceMesh(surface);
-        }
-        if (!ls.channels.empty())
-        {
-            std::vector<Shape::FieldChannel> channels;
-            for (const auto& c : ls.channels)
-            {
-                Shape::FieldChannel fc;
-                fc.name = QString::fromStdString(c.name);
-                fc.label = T(QString::fromStdString(c.label));
-                fc.tree = c.tree;
-                fc.lo = c.lo;
-                fc.hi = c.hi;
-                channels.push_back(fc);
-            }
-            const auto& first = channels.front();
-            s->setColorField(first.tree, first.lo, first.hi, false, first.label, "turbo");
-            if (!ls.lines.empty())
-            {
-                std::vector<Shape::FlowLine> lines;
-                for (const auto& l : ls.lines) lines.push_back(Shape::FlowLine(l.begin(), l.end()));
-                s->setFlowLines(std::move(lines), ls.linesLo, ls.linesHi);
-            }
-            s->setResult(channels, 0, libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid(), 0.0f, 1.0f,
-                         Shape::ElementGrid());
-            s->setColorDetail(ls.detail);
-        }
-        s->setParent(this);
-        applyViewerChoices(s);          // (a picture after every iteration: it looks as the one before it did)
-        connect(s, &Shape::gotMesh, this, &View::swapLive);
-        m_livePending.push_back(s);
-    }
-    for (auto s : m_livePending) s->startRender(live, alg);
-}
-
-void View::swapLive()
-{
-    if (m_livePending.isEmpty()) return;
-    for (auto s : m_livePending)
-        if (!s->done() || !s->getMesh()) return;
-    // The picture is meshed: it takes the place of what is shown
-    const bool framed = !shapes.isEmpty();
-    for (auto s : shapes)
-    {
-        if (s == drag_target)
-        {
-            drag_target->setGrabbed(false);
-            drag_target = nullptr;
-            emit(dragEnd());
-            mouse.state = mouse.RELEASED;
-        }
-        if (s == hover_target)
-        {
-            hover_target->setHover(false);
-            hover_target = nullptr;
-        }
-        disconnect(s, &Shape::redraw, this, &View::update);
-        s->deleteLater();
-    }
-    shapes.clear();
-    m_liveDrawn = true;
-    for (auto s : m_livePending)
-    {
-        disconnect(s, &Shape::gotMesh, this, &View::swapLive);
-        connect(s, &Shape::redraw, this, &View::update);
-        connect(s, &Shape::gotMesh, this, &View::checkMeshes);
-        connect(s, &Shape::gotMesh, this, &View::updateResultPanel);
-        connect(s, &Shape::gotMesh, &pick_timer, QOverload<>::of(&QTimer::start));
-        connect(this, &View::startRender, s, [=](Settings st) { s->startRender(st, this->alg); });
-        shapes.push_back(s);
-    }
-    m_livePending.clear();
-    // (the first picture of a run that had nothing shown: the camera looks at it)
-    if (!framed) camera.zoomTo(m_liveMin, m_liveMax);
-    updateResultPanel();
-    pick_timer.start();
-    update();
-    // (a newer picture came while this one was meshing: its turn)
-    if (m_liveWaiting && m_live)
-    {
-        m_liveWaiting = false;
-        startLive();
     }
 }
 
@@ -1475,31 +1124,6 @@ void View::drawScaleBar(QPainter& painter)
     painter.setRenderHint(QPainter::Antialiasing, true);
 }
 
-// The names and values beside the arrows and pads of boundary conditions: a small card in the colour of the symbol
-void View::drawBoundaryLabels(QPainter& painter)
-{
-    QFont font = painter.font();
-    font.setPointSizeF(9);
-    font.setBold(true);
-    painter.setFont(font);
-    const QFontMetrics fm(font);
-    for (auto& s : shapes)
-        for (const auto& l : s->boundaryLabels())
-        {
-            const QPointF at = toScreen(l.pos);
-            if (!(at.x() > -50 && at.y() > -50 && at.x() < width() + 50 && at.y() < height() + 50)) continue;
-            float r = 0.8f, g = 0.8f, b = 0.8f;
-            bcCategoryRGB(l.kind, r, g, b);
-            const QSizeF sz(fm.horizontalAdvance(l.text) + 14, fm.height() + 6);
-            const QRectF box(at.x() - sz.width() / 2, at.y() - sz.height() / 2, sz.width(), sz.height());
-            painter.setPen(QPen(QColor::fromRgbF(r, g, b), 1.5));
-            painter.setBrush(QColor(22, 76, 94, 225));
-            painter.drawRoundedRect(box, 4, 4);
-            painter.setPen(QColor(0xee, 0xe8, 0xd5));
-            painter.drawText(box, Qt::AlignCenter, l.text);
-        }
-}
-
 void View::drawLegends(QPainter& painter)
 {
     // The boundary conditions: a key of the colours the pictures use ("bc:1,3" is categories 1 and 3)
@@ -1518,9 +1142,8 @@ void View::drawLegends(QPainter& painter)
     QVector<Bar> bars;
     for (auto s : shapes)
     {
-        // (analysis results have their own card; the shading of a fit that is off -- an imported part lit up from grey to red -- is its
-        // colour alone: no bar of percentages, and nothing read under the cursor; the supports of a print are amber, and a line of the legend of the result: see ResultPanel)
-        if (!s->hasColorField() || !s->hasMesh() || s->hasResult() || s->colorMap() == "bc" || s->colorMap() == "fit" || s->colorMap() == "support") continue;
+        // (the shading of a fit that is off -- an imported part lit up from grey to red -- is its colour alone: no bar of percentages, and nothing read under the cursor)
+        if (!s->hasColorField() || !s->hasMesh() || s->colorMap() == "bc" || s->colorMap() == "fit") continue;
         Bar b{s->colorLabel(), s->colorMap(), s->colorLo(), s->colorHi()};
         bool dup = false;
         for (auto& o : bars)
@@ -1543,8 +1166,7 @@ void View::drawLegends(QPainter& painter)
     const QFontMetrics fm(font);
     const int barH = std::min(220, std::max(90, height() / 3));
     const int barW = 14;
-    // (to the left of the result card, which has the bottom-right corner)
-    int right = (m_resultPanel && m_resultPanel->isVisible()) ? m_resultPanel->geometry().left() - 10 : width() - 14;
+    int right = width() - 14;
 
     // (only selected surfaces shown: the key is called so)
     const QString bcTitle = (bcCategories.size() == 1 && bcCategories.contains(6)) ? "Selection" : "Boundary conditions";     // (the key of the legend: shown through T())
@@ -1639,124 +1261,11 @@ void View::drawLegends(QPainter& painter)
 
 void View::resizeGL(int width, int height)
 {
-    QTimer::singleShot(0, this, [this] { placeLivePanel(); });
     camera.size = {width, height};
     pick_timer.start();
     if (m_overlay)
     {
         m_overlay->setGeometry(rect());
-    }
-    placeResultPanel();
-}
-
-void View::placeLivePanel()
-{
-    if (!m_livePanel || !m_livePanel->isVisible()) return;
-    // (a card the user sized keeps its size, and one the user moved keeps its place: see CardController)
-    if (!CardController::sized(m_livePanel))
-        m_livePanel->resize(std::max(260, std::min(m_livePanel->textWidth(), width() - 40)), m_livePanel->sizeHint().height() + 24);
-    if (!CardController::moved(m_livePanel))
-        m_livePanel->move((width() - m_livePanel->width()) / 2, 10);
-    m_livePanel->raise();
-}
-
-void View::placeResultPanel()
-{
-    if (!m_resultPanel || !m_resultPanel->isVisible()) return;
-    // (a card the user sized keeps its size, and one the user moved keeps its place: see CardController)
-    if (!CardController::sized(m_resultPanel))
-    {
-        const int h = std::min(m_resultPanel->sizeHint().height(), std::max(160, height() - 180));
-        m_resultPanel->resize(std::max(240, std::min(m_resultPanel->labelsWidth(), width() / 2)), h);
-    }
-    if (!CardController::moved(m_resultPanel))
-        m_resultPanel->move(width() - m_resultPanel->width() - 12, height() - m_resultPanel->height() - 44);
-}
-
-void View::updateResultPanel()
-{
-    // The legend of a result is there when the result is: a shape that has its mesh (what is drawn), not one that is still being meshed or
-    // one that has gone
-    Shape* r = nullptr;
-    for (auto s : shapes) if (s->hasResult() && s->getMesh()) { r = s; break; }
-    if (!r)
-    {
-        m_resultPanel->hide();
-        m_stepTimer.stop();
-        m_flowTimer.stop();
-        return;
-    }
-    ResultPanel::State st;
-    for (const auto& c : r->channels()) st.labels << c.label;
-    st.current = r->channel();
-    st.lo = r->displayLo();
-    st.hi = r->displayHi();
-    st.map = r->colorMap();
-    st.note = r->valueNote();
-    st.noteHelp = r->valueNoteHelp();
-    st.elementInfo = r->hasElements() ? r->elementText() : QString();
-    st.hasDeform = r->hasDeformation();
-    st.scale = r->deformScale();
-    st.autoScale = r->deformAuto();
-    st.hasElements = r->hasElements();
-    st.showElements = r->showElements();
-    st.steps = r->stepCount();
-    st.step = r->step();
-    st.stepLabel = r->stepLabel();
-    st.playing = m_stepTimer.isActive();
-    st.playMode = m_playMode;
-    st.playSpeed = m_playSpeed;
-    st.hasFlow = r->hasFlowLines();
-    st.showFlow = r->showFlowLines();
-    st.opacity = r->opacityValue();
-    st.keyResults = r->keyResults();
-    // (the supports of a print are a body of the scene in amber: one more line of the legend of the geometry change, and no card of their own)
-    // (its mesh, and not hasMesh(): that is true once the mesh is on the graphics card, at the next paint, and this runs when the mesh arrives)
-    for (auto s : shapes) if (s->hasColorField() && s->getMesh() && s->colorMap() == "support") st.supports = true;
-    bool flowing = false;
-    for (auto s : shapes) if (s->showsFlowLines()) flowing = true;
-    if (flowing && !m_flowTimer.isActive()) m_flowTimer.start();
-    if (!flowing) m_flowTimer.stop();
-    m_resultPanel->setState(st);
-    m_resultPanel->show();
-    m_resultPanel->raise();
-    placeResultPanel();
-    // The section's whole-element display follows the shapes
-    for (auto s : shapes)
-    {
-        if (s->hasElements())
-            s->setElementSection(section.enabled && section.clip, section.clipPlane(), section.wholeElements);
-    }
-    updateSectionElements();
-}
-
-void View::updateSectionElements()
-{
-    bool cuts = false;
-    if (section.enabled && section.clip)
-    {
-        const QVector4D plane = section.clipPlane();
-        for (auto s : shapes)
-        {
-            if (!s->hasResult() || !s->hasElements() || !s->showElements() || !s->hasMesh()) continue;
-            // the plane a x + b y + c z + d = 0 cuts the part's box when the plane function takes both signs on it
-            const auto& b = s->getMeshBounds();
-            const double lo[3] = {b.lower.x(), b.lower.y(), b.lower.z()};
-            const double hi[3] = {b.upper.x(), b.upper.y(), b.upper.z()};
-            const double n[3] = {plane.x(), plane.y(), plane.z()};
-            double least = plane.w(), most = plane.w();
-            for (int k = 0; k < 3; ++k)
-            {
-                least += std::min(n[k] * lo[k], n[k] * hi[k]);
-                most += std::max(n[k] * lo[k], n[k] * hi[k]);
-            }
-            if (least <= 0 && most >= 0) { cuts = true; break; }
-        }
-    }
-    if (cuts != m_sectionElements)
-    {
-        m_sectionElements = cuts;
-        emit sectionCutsElements(cuts);
     }
 }
 
@@ -3695,26 +3204,7 @@ void View::loadMenuCatalog()
     if (!m_catalog.isEmpty() || !m_catalogSource) return;
     m_catalog = QJsonDocument::fromJson(m_catalogSource().toUtf8()).object();
     TypeIcons::setKinds(m_catalog["kinds"].toObject());
-    TypeIcons::setDomains(m_catalog["domains"].toObject());
 }
-
-namespace {
-
-// What the simulation menu holds besides the analyses: the groups of primitives that are about a simulation (a material, a
-// fluid, the supports and loads and the thermal and flow conditions an analysis is given), and the operation that makes
-// the boundary conditions of a model
-bool isSimulationPrimitive(const QString& group)
-{
-    return group == "Materials" || group == "Fluids" || group == "Supports and loads" ||
-           group == "Thermal conditions" || group == "Flow conditions" || group == "Manufacturing constraints";
-}
-
-bool isSimulationOperation(const QString& group)
-{
-    return group == "Simulations" || group == "Conditions";
-}
-
-}   // anonymous namespace
 
 void View::addBodyFromField(QMenu* menu, int line, const QVector3D& point, double scale)
 {
@@ -3726,104 +3216,14 @@ void View::addBodyFromField(QMenu* menu, int line, const QVector3D& point, doubl
 }
 
 // Greys out a new model of a menu that does not fit what the menu is about.  On a model: whatever the model(s) are, the library says whether the entry fits (a thing made by
-// number is a placement: it always does); in the menu of empty space only a condition made of the models selected is checked
-void View::checkPrimitive(QAction* action, const QString& name, bool withBodies, int atLine) const
+// number is a placement: it always does); in the menu of empty space everything fits
+void View::checkPrimitive(QAction* action, const QString& name) const
 {
-    if (!m_scene) return;
-    if (m_menuModelLine >= 0)
-    {
-        if (m_scene->entryAllowed("primitive", name, m_menuModelLine)) return;
-        action->setEnabled(false);
-        const QString own = action->toolTip();
-        action->setToolTip(own.isEmpty() || own == action->text() ? T("Does not fit what is selected") : T("Does not fit what is selected") + "\n" + own);
-        return;
-    }
-    if (withBodies && !m_scene->entryAllowed("primitive", name, atLine)) action->setEnabled(false);
-}
-
-void View::fillSimulationPrimitives(QMenu* menu, const QVector3D& point, double scale, int atLine, const QString& domain)
-{
-    // New material, New fluid, New support or load, New thermal condition, New flow condition: each a menu of its own, in the
-    // order the catalog has them
-    static const QHash<QString, QString> titles = {
-        {"Materials", T("New material")}, {"Fluids", T("New fluid")}, {"Supports and loads", T("New support or load")},
-        {"Thermal conditions", T("New thermal condition")}, {"Flow conditions", T("New flow condition")},
-        {"Manufacturing constraints", T("New manufacturing constraint")}};
-    static const QStringList order = {"Materials", "Fluids", "Supports and loads", "Thermal conditions", "Flow conditions", "Manufacturing constraints"};
-    QHash<QString, QList<QJsonObject>> groups;
-    for (const auto v : m_catalog["primitives"].toArray())
-    {
-        const auto p = v.toObject();
-        const QString g = p["group"].toString();
-        if (isSimulationPrimitive(g) && p["domain"].toString() == domain) groups[g] << p;
-    }
-    for (const QString& g : order)
-    {
-        if (!groups.contains(g)) continue;
-        const auto& entries = groups[g];
-        const QString type = entries.first()["type"].toString("conditions");
-        auto sub = menu->addMenu(TypeIcons::icon(type, false, domain), titles.value(g, T(g)));
-        sub->setToolTipsVisible(true);
-        for (const auto& p : entries)
-        {
-            const QString name = p["name"].toString();
-            auto action = sub->addAction(TypeIcons::icon(p["type"].toString(type), false, domain), name,
-                                         this, [=]{ emit(createRequested("primitive", name, point, scale, atLine, -1)); });
-            if (p["with_bodies"].toBool())
-            {
-                action->setToolTip(T("With several models selected: the first is the body, the others are where it acts (bodies, fields, "
-                                   "selected surfaces) -- written with the surface of the body there.  With one model, or none: a placeholder for "
-                                   "where it acts, to drop a body, a field or a surface on."));
-            }
-            // (made of the models selected, or something to give a simulation: not offered when the selection has no use for it)
-            checkPrimitive(action, name, p["with_bodies"].toBool(), atLine);
-        }
-    }
-}
-
-void View::fillLatticeMenu(QMenu* menu, const QVector3D& point, double scale, int line, const QString& section)
-{
-    const int generation = m_scene ? m_scene->generation() : -1;
-    // The operations that fill a model with a lattice, and the points a foam is made around (random_points, then voronoi_lattice).  With no model to work on -- an empty script, or
-    // nothing selected that fits -- they are there like every other operation and write a placeholder (`...`) where the model goes
-    int shown = 0;
-    for (const auto v : m_catalog["operations"].toArray())
-    {
-        const auto o = v.toObject();
-        if (o["section"].toString() != section) continue;
-        const QString name = o["name"].toString();
-        auto action = menu->addAction(TypeIcons::icon(o["type"].toString("lattice")), name, this,
-                                      [=]{ emit(createRequested("operation", name, point, scale, line, generation)); });
-        if (!o["hint"].toString().isEmpty()) action->setToolTip(o["hint"].toString());
-        if (m_scene && !m_scene->entryAllowed("operation", name, line)) action->setEnabled(false);
-        ++shown;
-    }
-    if (shown) menu->addSeparator();
-    // The cells: a menu for each family, in the order the catalog lists them
-    QStringList order;
-    QHash<QString, QList<QJsonObject>> groups;
-    for (const auto v : m_catalog["primitives"].toArray())
-    {
-        const auto p = v.toObject();
-        if (p["section"].toString() != section) continue;
-        const QString g = p["group"].toString();
-        if (!groups.contains(g)) order << g;
-        groups[g] << p;
-    }
-    for (const QString& g : order)
-    {
-        auto sub = menu->addMenu(TypeIcons::icon("cell"), T(g));
-        sub->setToolTipsVisible(true);
-        for (const auto& p : groups[g])
-        {
-            const QString name = p["name"].toString();
-            const QString label = p["label"].toString(name);
-            auto action = sub->addAction(TypeIcons::icon("cell"), label, this,
-                                         [=]{ emit(createRequested("primitive", name, point, scale, line, -1)); });
-            action->setToolTip(T("A new cell: %1 -- a lattice operation takes it as its cell").arg(name));
-            checkPrimitive(action, name, false, line);
-        }
-    }
+    if (!m_scene || m_menuModelLine < 0) return;
+    if (m_scene->entryAllowed("primitive", name, m_menuModelLine)) return;
+    action->setEnabled(false);
+    const QString own = action->toolTip();
+    action->setToolTip(own.isEmpty() || own == action->text() ? T("Does not fit what is selected") : T("Does not fit what is selected") + "\n" + own);
 }
 
 void View::fillPythonMenu(QMenu* menu, const QVector3D& point, double scale, int line)
@@ -3840,16 +3240,12 @@ void View::fillPythonMenu(QMenu* menu, const QVector3D& point, double scale, int
     }
 }
 
-void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double scale, bool simulations, const QString& domain)
+void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double scale)
 {
     QJsonArray ops;
     for (const auto v : m_catalog["operations"].toArray())
     {
         if (v.toObject()["quick"].toBool()) continue;          // (in the first menu: see addQuickOperations)
-        if (!v.toObject()["section"].toString().isEmpty()) continue;      // (the entries that have a section have a category of their own: see fillLatticeMenu)
-        if (isSimulationOperation(v.toObject()["group"].toString()) != simulations) continue;
-        // (a category of the Engineering menu: its analyses; the domain "-" is what has no domain, what works over an analysis of any -- it is in the menu itself)
-        if (simulations && !domain.isEmpty() && (domain == "-" ? !v.toObject()["domain"].toString().isEmpty() : v.toObject()["domain"].toString() != domain)) continue;
         ops.append(v);
     }
     if (ops.isEmpty())
@@ -3866,14 +3262,7 @@ void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double 
     for (const auto v : ops)
     {
         const auto o = v.toObject();
-        if (simulations)
-        {
-            // (the boundary conditions and the analyses are the entries of the simulation menu, apart by a line)
-            if (sub && o["group"].toString() != group) menu->addSeparator();
-            group = o["group"].toString();
-            sub = menu;
-        }
-        else if (!sub || o["group"].toString() != group)
+        if (!sub || o["group"].toString() != group)
         {
             group = o["group"].toString();
             sub = group == "Custom blocks" ? menu->addMenu(TypeIcons::icon("block"), T(group)) : menu->addMenu(T(group));
@@ -3882,14 +3271,11 @@ void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double 
         const QString name = o["name"].toString();
         auto action = sub->addAction(name, this, [=]{ emit(createRequested("operation", name, point, scale, line, generation)); });
         if (o["type"].toString() == "block") action->setIcon(TypeIcons::icon("block"));
-        if (simulations)
-            action->setIcon(o["domain"].toString().isEmpty() && group != "Conditions" ? TypeIcons::icon("engineering")
-                                                                                      : TypeIcons::icon(group == "Conditions" ? "conditions" : "simulation", false, o["domain"].toString()));
         if (!o["doc"].toString().isEmpty()) action->setToolTip(o["doc"].toString());
         else if (o["other"].toBool() && !o["needs_other"].toBool(true))
         {
-            action->setToolTip(T("With several models selected: the first is the one this is made for, the others are what it uses -- where it "
-                               "acts, its conditions, its material.  With one model: a first version to change in the script."));
+            action->setToolTip(T("With several models selected: the first is the one this is made for, the others are what it uses.  "
+                               "With one model: a first version to change in the script."));
         }
         if (o["needs_other"].toBool(o["other"].toBool()) && !haveOther)
         {
@@ -3898,8 +3284,7 @@ void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double 
             const QString say = T("There is no second model yet: a placeholder (...) stands where it goes");
             action->setToolTip(own.isEmpty() || own == action->text() ? say : own + "\n" + say);
         }
-        // (what is selected cannot make it: the library refuses the call for this selection -- a part with supports and loads for a set of
-        // conditions, conditions with no part for a simulation ...)
+        // (what is selected cannot make it: the library refuses the call for this selection)
         if (m_scene && action->isEnabled() && !m_scene->entryAllowed("operation", name, line)) action->setEnabled(false);
     }
 }
@@ -3908,11 +3293,9 @@ void View::addExportMenu(QMenu* menu, int line)
 {
     if (!m_scene) return;
     const QString type = m_scene->typeAtLine(line);
-    const QStringList exports = m_scene->exportsAtLine(line);
-    const bool shape = type == "solid" || type == "profile" || type == "surface" || type == "lattice";
-    const bool simulation = type == "simulation";
+    const bool shape = type == "solid" || type == "profile" || type == "surface";
     const bool field = type == "field";
-    if (!shape && !simulation && !field) return;
+    if (!shape && !field) return;
     const bool named = !m_scene->varAtLine(line).isEmpty();
     auto sub = menu->addMenu(T("Export"));
     sub->setToolTipsVisible(true);
@@ -3923,7 +3306,7 @@ void View::addExportMenu(QMenu* menu, int line)
         else if (!enabled) a->setToolTip(why);
         return a;
     };
-    if (shape || (simulation && exports.contains("mesh")))
+    if (shape)
     {
         auto mesh = sub->addMenu(T("Mesh"));
         mesh->setToolTipsVisible(true);
@@ -3940,22 +3323,6 @@ void View::addExportMenu(QMenu* menu, int line)
         grid->setToolTip(T("The field sampled on a regular grid at the resolution of the scene, for other programs"));
         add(grid, T("VTK image data (.vti)"), "field", ".vti", true, QString());
         add(grid, T("CSV table (.csv)"), "field", ".csv", true, QString());
-    }
-    if (simulation)
-    {
-        const QString staticOnly = T("Only for a static analysis: the others do not keep a mesh to write");
-        auto model = sub->addMenu(T("Finite-element model"));
-        model->setToolTipsVisible(true);
-        model->setToolTip(T("The mesh the analysis was solved on, with its material, supports and loads, for another solver"));
-        add(model, T("Abaqus / CalculiX (.inp)"), "fea", ".inp", exports.contains("fea"), staticOnly);
-        add(model, T("Nastran (.bdf)"), "fea", ".bdf", exports.contains("fea"), staticOnly);
-        add(model, T("Gmsh (.msh)"), "fea", ".msh", exports.contains("fea"), staticOnly);
-        auto results = sub->addMenu(T("Results"));
-        results->setToolTipsVisible(true);
-        add(results, T("VTK mesh with every field (.vtu)"), "results", ".vtu", exports.contains("results"), staticOnly);
-        add(results, T("CSV tables (.csv)"), "results", ".csv", exports.contains("results"), staticOnly);
-        add(results, T("Key numbers as text (.txt)"), "results", ".txt", exports.contains("summary"),
-            T("This result has no key numbers to write"));
     }
 }
 
@@ -4053,7 +3420,7 @@ void View::showEmptyMenu(QPoint globalPos, QPoint pos, int atLine)
     const QVector3D flat = placementFlat(pos, flatScale);
     const QVector3D exact = placementExact(pos);
     // The basic things -- a 3D shape, a 2D shape, a line, a point, a surface, a field: the primitives -- are in a menu of their own, the more complicated shapes made with
-    // parameters in another, what is done to a model -- the operations, Lattice -- under Operations, and what is worked out about it -- the analyses -- under Engineering
+    // parameters in another, and what is done to a model under Operations
     auto primitives = menu->addMenu(TypeIcons::icon("solid"), T("Primitives"));
     primitives->setToolTipsVisible(true);
     addCreateEntries(primitives, point, exact, flat, scale, flatScale, atLine, true);
@@ -4062,10 +3429,7 @@ void View::showEmptyMenu(QPoint globalPos, QPoint pos, int atLine)
     addCreateEntries(shapes, point, exact, flat, scale, flatScale, atLine, false);
     auto ops = menu->addMenu(TypeIcons::icon("operation"), T("Operations"));
     ops->setToolTipsVisible(true);
-    fillOperationsMenu(ops, -1, point, scale, atLine);
-    auto engineering = menu->addMenu(TypeIcons::icon("engineering"), T("Engineering"));
-    engineering->setToolTipsVisible(true);
-    fillEngineeringMenu(engineering, -1, point, scale, atLine);
+    fillOperationsMenu(ops, -1, point, scale);
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
     python->setToolTipsVisible(true);
     fillPythonMenu(python, point, scale, atLine);
@@ -4075,58 +3439,26 @@ void View::showEmptyMenu(QPoint globalPos, QPoint pos, int atLine)
     else menu->deleteLater();
 }
 
-// What the Operations menu holds, on a model (`line` >= 0) or on empty space: the operations -- offsets and walls, rounding, moving ... -- on the model that is selected, and a
-// category for each kind of lattice -- periodic and non-periodic ones -- with what it makes and what it is made of
-void View::fillOperationsMenu(QMenu* ops, int line, const QVector3D& point, double scale, int atLine)
+// What the Operations menu holds, on a model (`line` >= 0) or on empty space: the operations -- offsets and walls, rounding, moving ... -- on the model that is selected
+void View::fillOperationsMenu(QMenu* ops, int line, const QVector3D& point, double scale)
 {
     // Nothing is left out of it for want of a model: an operation with no model to work on -- the script has none, or nothing selected fits -- is written with a placeholder
-    // (`...`) where the model goes, as the analyses of the Engineering menu are.  What has no meaning without a model -- center and bounding_box, which measure one -- is
-    // in the menu of empty space only when the script has one
+    // (`...`) where the model goes.  What has no meaning without a model -- center and bounding_box, which measure one -- is in the menu of empty space only when the
+    // script has one
     if (line < 0 && (!m_scene || m_scene->hasModel())) addQuickOperations(ops, -1, point, scale);
     fillOperations(ops, line, point, scale);
-    // (a category for each kind of lattice -- the catalog lists them in the order they are shown: the label is in the language already, it comes from the library)
-    for (const auto s : m_catalog["sections"].toArray())
-    {
-        const auto section = s.toObject();
-        auto lattices = ops->addMenu(TypeIcons::icon(section["type"].toString("lattice")), section["label"].toString());
-        lattices->setToolTipsVisible(true);
-        fillLatticeMenu(lattices, point, scale, line < 0 ? atLine : line, section["name"].toString());
-    }
-}
-
-// What the Engineering menu holds: a category for each domain -- Structural, Thermal, Fluid -- each with the icon and the colour of its domain, each with what an analysis of it is
-// given (a support or a load, a thermal or a flow condition: a model of its own, no other model is needed for it) and the analyses and optimisations of it (they work on what is
-// selected -- a part, its conditions, a material -- and write a placeholder for what is not: they are always there); then the materials, which an analysis of any domain takes
-void View::fillEngineeringMenu(QMenu* menu, int line, const QVector3D& point, double scale, int atLine)
-{
-    static const QList<QPair<QString, QString>> categories = {
-        {"structural", T("Structural")}, {"thermal", T("Thermal")}, {"fluid", T("Fluid")}, {"manufacturing", T("Manufacturing")}};
-    const int at = line < 0 ? atLine : line;
-    for (const auto& c : categories)
-    {
-        auto sub = menu->addMenu(TypeIcons::icon("simulation", false, c.first), c.second);
-        sub->setToolTipsVisible(true);
-        fillSimulationPrimitives(sub, point, scale, at, c.first);
-        sub->addSeparator();
-        fillOperations(sub, line, point, scale, true, c.first);
-    }
-    menu->addSeparator();
-    fillSimulationPrimitives(menu, point, scale, at, QString());
-    menu->addSeparator();
-    fillOperations(menu, line, point, scale, true, "-");       // (what works over an analysis of any domain)
 }
 
 // The Import model... entry: a model can be brought in from a file whatever the menu is
 void View::addImportEntry(QMenu* menu)
 {
     auto imp = menu->addAction(T("Import model..."), this, [=]{ emit(importRequested()); });
-    imp->setToolTip(T("A STEP file or a mesh (STL, OBJ, PLY, 3MF, glTF): each part is reconstructed or tessellated, "
-                    "whichever suits it."));
+    imp->setToolTip(T("A mesh (STL, OBJ, PLY, 3MF, glTF, FBX): it becomes a field, the distance to its triangles."));
 }
 
 // What can be made, a menu for each kind of thing, each with its own icon: 3D shapes, 2D shapes, a point, surfaces, fields, and the custom blocks that need no model.
-// (A kind with one entry is that entry.)  `basic`: the primitives -- the most basic representation of each kind -- or all the rest.  What a simulation is made of -- materials,
-// fluids, supports and loads, thermal and flow conditions -- is in the simulation menu, not here.  `point` is where a shape is made, inside what is drawn; a POINT is made
+// (A kind with one entry is that entry.)  `basic`: the primitives -- the most basic representation of each kind -- or all the rest.  `point` is where a shape is made, inside
+// what is drawn; a POINT is made
 // exactly at `exact`, where the cursor is -- a dot is drawn wherever it is
 void View::addCreateEntries(QMenu* menu, const QVector3D& point, const QVector3D& exact, const QVector3D& flat, double scale, double flatScale, int atLine, bool basic)
 {
@@ -4142,7 +3474,6 @@ void View::addCreateEntries(QMenu* menu, const QVector3D& point, const QVector3D
         {
             const auto p = v.toObject();
             const QString g = p["group"].toString();
-            if (isSimulationPrimitive(g) || !p["section"].toString().isEmpty()) continue;      // (their own menus: Engineering, the lattice categories)
             if (p["primitive"].toBool() != basic) continue;
             if (!groups.contains(g)) order << g;
             groups[g] << p;
@@ -4160,7 +3491,7 @@ void View::addCreateEntries(QMenu* menu, const QVector3D& point, const QVector3D
                 auto action = into->addAction(TypeIcons::icon(p["type"].toString(type)), p["label"].toString(name),
                                               this, [=]{ emit(createRequested("primitive", name, at, size, atLine, -1)); });
                 if (p.contains("doc") && !p["doc"].toString().isEmpty()) action->setToolTip(p["doc"].toString());
-                checkPrimitive(action, name, false, atLine);
+                checkPrimitive(action, name);
                 return action;
             };
             if (entries.size() == 1 && g != "Custom blocks")
@@ -4206,8 +3537,7 @@ void View::showSurfaceMenu(QPoint globalPos, int line, const QVector3D& point, d
     // was clicked, a point exactly there), from its row in the model tree or from a line of the text editor (made at the middle of the model).  A menu has the
     // same categories wherever it comes from; what depends on the model is which of their entries are valid -- the selection decides that (a surface selected
     // makes `profile` the outline of that surface), not the way the menu was reached.  The primitives are in a menu of their own, the more complicated shapes made with
-    // parameters in another, what is done to the model -- the operations on it and the lattice menu -- under Operations, and what is worked out about it -- the analyses --
-    // under Engineering; the quick ones (center, bounding_box) are below them
+    // parameters in another, what is done to the model under Operations; the quick ones (center, bounding_box) are below them
     auto primitives = menu->addMenu(TypeIcons::icon("solid"), T("Primitives"));
     primitives->setToolTipsVisible(true);
     addCreateEntries(primitives, point, point, point, scale, scale, -1, true);
@@ -4216,10 +3546,7 @@ void View::showSurfaceMenu(QPoint globalPos, int line, const QVector3D& point, d
     addCreateEntries(shapes, point, point, point, scale, scale, -1, false);
     auto ops = menu->addMenu(TypeIcons::icon("operation"), T("Operations"));
     ops->setToolTipsVisible(true);
-    fillOperationsMenu(ops, line, point, scale, -1);
-    auto engineering = menu->addMenu(TypeIcons::icon("engineering"), T("Engineering"));
-    engineering->setToolTipsVisible(true);
-    fillEngineeringMenu(engineering, line, point, scale, -1);
+    fillOperationsMenu(ops, line, point, scale);
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
     python->setToolTipsVisible(true);
     fillPythonMenu(python, point, scale, -1);
@@ -4812,12 +4139,9 @@ void View::checkHoverTarget(QPoint pos)
 
     // Probe a field-coloured model at the surface point
     const bool had_probe = probe_valid;
-    // (a model coloured by a field is probed while its legend is shown: closing the legend ends
-    // the probing; an analysis result has its own card and is always probed)
-    const bool legend_on = target && (target->hasResult() ||
-                                      (show_legends && !hidden_legends.contains(target->colorLabel())));
-    // (the supports of a print are one class and carry no number to read: their card says what they are)
-    probe_valid = target && target->hasColorField() && target->colorMap() != "bc" && target->colorMap() != "fit" && target->colorMap() != "support" && legend_on &&
+    // (a model coloured by a field is probed while its legend is shown: closing the legend ends the probing)
+    const bool legend_on = target && show_legends && !hidden_legends.contains(target->colorLabel());
+    probe_valid = target && target->hasColorField() && target->colorMap() != "bc" && target->colorMap() != "fit" && legend_on &&
                   target->probe(cursor_pos, probe_value);
     if (probe_valid)
     {
@@ -4841,12 +4165,6 @@ void View::setSection(SectionSettings s)
          s.offset != section.offset || s.range != section.range ||
          s.spacing != section.spacing);
     section = s;
-    for (auto shape : shapes)
-    {
-        if (shape->hasElements())
-            shape->setElementSection(s.enabled && s.clip, s.clipPlane(), s.wholeElements);
-    }
-    updateSectionElements();
     if (resample)
     {
         requestSlice();

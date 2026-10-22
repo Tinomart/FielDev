@@ -98,7 +98,7 @@ class Shape:
         elif isinstance(t, cls):
             return t
         elif getattr(type(t), '_as_field', None) is not None:
-            return cls.wrap(t._as_field())          # (a result of an analysis or an optimisation: its field -- see fea.FieldResult)
+            return cls.wrap(t._as_field())          # (a result that stands for a field: its field)
         else:
             raise RuntimeError("Cannot convert {} into a Shape".format(t))
 
@@ -338,7 +338,7 @@ class Shape:
         Options are the same as in save_stl(). `algorithm` selects the
         meshing algorithm: 'dc' (dual contouring, default, fastest),
         'simplex', or 'hybrid'. The latter two are slower but more
-        robust for STEP-imported oracle shapes, where dual contouring
+        robust for oracle shapes (an imported mesh's distance), where dual contouring
         has been found to fragment meshes even when the underlying
         field is provably correct at every queried point.
 
@@ -392,7 +392,3 @@ for (_name, _f) in _transforms.__dict__.items():
 import fieldes.stdlib.csg as _csg
 for _name in ['union', 'intersection', 'difference', 'offset']:
     setattr(Shape, _name, getattr(_csg, _name))
-
-# What those functions do with a shape that has an excluded region (see fieldes.stdlib.excluded)
-from fieldes.stdlib import excluded as _excluded
-_excluded.install_methods()

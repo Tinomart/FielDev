@@ -15,7 +15,7 @@ that is big and plain is drawn coarser than the scene.
 The body is meshed on its own, over a cube round it, at that resolution; the number is the resolution, not a scale of the scene's,
 so it stays what it is when the scene's resolution is changed.  Nothing is drawn outside the region of the scene (view.set_bounds), as
 for every shape: a body that reaches out of it is drawn at its own resolution inside it.  It changes how the body is DRAWN, not what it
-is: an analysis, a boolean or an export of it is the same.
+is: a boolean or an export of it is the same.
 
 The finest a body can be drawn is 2000 samples along its longest side (a longer one would be hundreds of millions of cells): a
 resolution above that is not an error, the body is drawn at the finest there is, and the model tree's row says what is used

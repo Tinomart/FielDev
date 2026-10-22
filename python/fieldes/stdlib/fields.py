@@ -4,15 +4,14 @@ as solids) and the operations that turn them into geometry.
 
 Every Shape is a field -- a number at every point in space.  A
 solid is the region where its field is negative; any other field (a
-distance, a ramp, an analysis result, a regression of measured data) can
-drive a parameter such as a lattice thickness or an offset:
+distance, a ramp, noise, a regression of measured data) can drive a
+parameter such as a shell's thickness or an offset:
 
     from fieldes import *
 
     part  = sphere(30)
-    depth = depth_below(part)                        # 0 at the surface, 30 at the centre
-    t     = ramp(depth, (0, 30), (2.0, 0.6))         # 2 mm walls at the skin -> 0.6 mm inside
-    lat   = lattice(part, cell_periodic('gyroid'), cell_size=8, thickness=t, skin=1.5)
+    up    = ramp(z_field(), (-30, 30), (0.5, 3.0))   # 0.5 mm at the bottom -> 3 mm at the top
+    skin  = shell_inside(part, up)
 
 Groups:
     coordinates        x_field(), y_field(), z_field(), radial_field(),
@@ -31,9 +30,8 @@ Groups:
                        mass_properties
     exact distances    exact_distance, offset_exact, shell_exact,
                        round_edges, fillet
-    analysis           normal_field, gradient_field, gradient_magnitude,
-                       overhang_angle, overhang_mask, wall_thickness,
-                       curvature_field
+    of the surface     normal_field, gradient_field, gradient_magnitude,
+                       curvature_field, colored
     data               field_from_points, field_from_csv, noise_field
     surface texture    texture
 
@@ -71,8 +69,7 @@ __all__ = [
     'twist_z', 'bend_z',
     'evaluate', 'sample_grid', 'field_range', 'volume_of', 'mass_properties',
     'exact_distance', 'offset_exact', 'shell_exact', 'round_edges', 'fillet', 'smooth',
-    'gradient_field', 'gradient_magnitude', 'normal_field', 'overhang_angle',
-    'overhang_mask', 'wall_thickness', 'curvature_field',
+    'gradient_field', 'gradient_magnitude', 'normal_field', 'curvature_field', 'colored',
     'field_from_points', 'field_from_csv', 'noise_field', 'texture',
 ]
 
@@ -84,12 +81,24 @@ def _s(v):
     return Shape.wrap(v)
 
 
+def _log(msg):
+    ''' A line to FielDes's log (the process's stderr): never an error -- the embedded interpreter of the
+        application has no sys.stderr while a script runs '''
+    for out in (sys.stderr, sys.__stderr__):
+        if out is not None:
+            try:
+                out.write(msg)
+                out.flush()
+                return
+            except Exception:
+                pass
+
+
 def _dist(v):
-    ''' A Shape for the operations that need a DISTANCE (offsets, shells, thickening). The field of a part imported
-        from STEP is exact in sign but outside and inside it is only a lower bound of the distance to the part (the
-        distance to the infinite surfaces its faces lie on, and the cells it is built from end in places where there
-        is no face): an offset or a shell of it grows blocks and fins, and a thickening has stray walls inside. So an
-        imported part is replaced by its exact distance (exact_distance(): the distance read from its own field, by walking along the gradient to the surface -- nothing is meshed), which is
+    ''' A Shape for the operations that need a DISTANCE (offsets, shells, thickening). A field that is exact in sign but
+        only a lower bound of the distance to the part (the boxy mitres of a CSG field) grows blocks and fins under an
+        offset or a shell, and a thickening of it has stray walls inside. So a part that carries its exact distance
+        (`_distance_of`) is replaced by it (exact_distance(): the distance read from its own field, by walking along the gradient to the surface -- nothing is meshed), which is
         what these operations mean. A part that was moved, turned or scaled (gizmo(), transforms in the
         script) has the same placement on its distance; one whose faces are dragged (handles()) has the distance of
         its numbers when the script was run, and what dragging changes since. Set FIELDES_NO_EXACT_OFFSETS to use
@@ -100,7 +109,6 @@ def _dist(v):
         try:
             return get()
         except Exception as e:
-            from fieldes.stdlib.result_cache import _log
             _log("fieldes: the exact distance of this part could not be made (%s); its own field is used\n" % e)
     return s
 
@@ -473,8 +481,8 @@ def field_from_body(body):
         and still be a valid field.  (A body itself always keeps its true scale: it is a distance, which a factor would
         break.  Selecting the field shows it in the section viewer.) '''
     s = _s(body)
-    # (the field of a part imported from a STEP file is exact in sign only -- outside it is the distance to the infinite surfaces of its
-    # faces, the boxy mitres of a CSG field -- so the field is its exact distance: what "its distance to its surface" says)
+    # (a field that is exact in sign only -- the boxy mitres of a CSG field -- is replaced by its exact distance where the part carries
+    # one: what "its distance to its surface" says)
     out = Shape(lib.libfive_tree_copy(_dist(s).ptr))
     out._kind = 'field'
     out._field_origin = s._field_origin if s._field_origin is not None else s       # (the viewer starts at the body)
@@ -484,7 +492,7 @@ def field_from_body(body):
 def body_from_field(field, level=0.0):
     ''' A BODY from a field: what is inside where the field is below `level` (0 by default), its surface where the field
         equals `level` -- the other way of field_from_body().  The result is drawn and is a part like any other (it can be
-        offset, shelled, filled with a lattice, analysed, exported).
+        offset, shelled, textured, exported).
 
             noise = noise_field(12, 3)                                  # a field: not drawn
             lumps = body_from_field(noise, 0.2)                         # the places where it is below 0.2: a body
@@ -564,7 +572,7 @@ def low_level_field(logic):
         Write the math with + - * / **, the methods .sqrt() .square() .abs() .sin() .cos() .tan() .exp() .log(), a.max(b) and
         a.min(b) (or maximum(a, b, c) and minimum(a, b, c)); a number is a constant field.  What you get is a field like any
         other: it is not drawn (display it: its icon opens the field viewer), it goes wherever a number goes (`offset(part,
-        waves)`), a lattice's cell size, a load's profile.  low_level_body() is the same for a body; body_from_field() makes a
+        waves)`), a shell's thickness.  low_level_body() is the same for a body; body_from_field() makes a
         body of a field.  In FielDes: right-click, Parametric shapes, New field, low_level_field, writes the function and the call for you. '''
     return _from_logic(logic, 'low_level_field', 'field')
 
@@ -613,7 +621,7 @@ def shell_centered(shape, thickness):
 
 def offset_by(shape, distance):
     ''' Offsets a shape by a distance -- which may be a field, e.g. grow a
-        part by 0.02 mm per MPa of stress: offset_by(part, 0.02 * stress) '''
+        part by up to 2 mm with noise: offset_by(part, 2 * noise_field(10, 3)) '''
     return _dist(shape) - distance
 
 
@@ -818,7 +826,7 @@ def volume_of(shape, lower=None, upper=None, resolution=None):
 def mass_properties(shape, density=1.0, lower=None, upper=None, resolution=None):
     ''' Volume, mass (density in g/cm^3 -> grams), centroid and bounding box
         of a solid, by grid sampling.  Returns a dict.  The density is a number or a field (a material that is
-        denser here than there: a lattice graded by its density, a result): the mass adds it up over the solid, and the
+        denser here than there): the mass adds it up over the solid, and the
         dict has the centre of mass as well as the centroid. '''
     lo, hi = _bounds_of(shape, lower, upper)
     size = [hi[i] - lo[i] for i in range(3)]
@@ -1058,8 +1066,8 @@ def smooth(shape, radius, steps=1):
         radii (6 copies for one step, 19 for two, 44 for three, 85 for four; more steps than four are four at a
         larger radius, which smooths as far), so nothing is measured or meshed here: the surface is found when it
         is drawn, and the cost is that of the field times the copies.  The body's field should be about a
-        distance (the primitives and what is made of them are; a part imported from STEP is replaced by its exact
-        distance, as offset() does), because a field that rises faster smooths by as much more. '''
+        distance (the primitives and what is made of them are; a part that carries its exact distance is replaced by
+        it, as offset() does), because a field that rises faster smooths by as much more. '''
     r = number_or_field(radius, 'the radius')
     n = int(steps)
     if not positive(r):
@@ -1091,11 +1099,11 @@ def smooth(shape, radius, steps=1):
 
 
 ################################################################################
-# Analysis fields: normals, overhangs, wall thickness, curvature
+# Fields of a shape's surface: normals, curvature; a shape shown coloured by a field
 
 def _need_fields():
     if getattr(lib, 'libfive_field_gradient', None) is None:
-        raise RuntimeError('this FielDes library is too old for analysis fields')
+        raise RuntimeError('this FielDes library is too old for these fields')
 
 
 def gradient_field(shape):
@@ -1120,37 +1128,6 @@ def normal_field(shape):
     return tuple(Shape(lib.libfive_field_gradient(s.ptr, a)) for a in range(3))
 
 
-def overhang_angle(shape, build_direction=(0, 0, 1)):
-    ''' For additive manufacturing: the angle (degrees) between each surface
-        and the horizontal build plate, for surfaces facing down -- 0 for a
-        ceiling facing straight down (the worst overhang), 90 for a vertical
-        wall; surfaces facing up read 90 too.  Colour a part by it to see
-        where supports are needed (typically below 45 degrees). '''
-    b = _vec(build_direction)
-    L = math.sqrt(sum(c * c for c in b))
-    b = tuple(c / L for c in b)
-    nx, ny, nz = normal_field(shape)
-    down = -(nx * b[0] + ny * b[1] + nz * b[2])       # 1 facing straight down
-    # a surface is tilted from horizontal by the angle between its normal
-    # and straight down (upward-facing surfaces clamp to 90: no overhang)
-    ang = down.max(-1).min(1).acos() * (180.0 / math.pi)
-    return ang.max(0).min(90)
-
-
-def overhang_mask(shape, limit=45.0, build_direction=(0, 0, 1)):
-    ''' 1 where a surface overhangs more than `limit` degrees (needs support),
-        0 elsewhere '''
-    return (Shape.wrap(float(limit)).compare(overhang_angle(shape, build_direction)) + 1) / 2
-
-
-def wall_thickness(shape, max_thickness=20.0):
-    ''' Local wall thickness (mm): the length of the chord through the
-        material along the surface normal.  Colour a part by it to find walls
-        that are too thin (or too thick) to make.  Capped at max_thickness. '''
-    _need_fields()
-    return Shape(lib.libfive_field_thickness(_s(shape).ptr, float(max_thickness)))
-
-
 def curvature_field(shape, step=None):
     ''' Mean curvature (1/mm; positive where convex, e.g. 1/r on a sphere of
         radius r).  step: finite-difference step in mm (default 0.05) '''
@@ -1158,12 +1135,41 @@ def curvature_field(shape, step=None):
     return Shape(lib.libfive_field_curvature(_s(shape).ptr, float(step or 0.05)))
 
 
+class _ColoredShape(Shape):
+    ''' A Shape displayed coloured by a field (see colored) '''
+
+
+def colored(shape, field, range=None, label=None, colormap='turbo'):
+    ''' `shape`, displayed in FielDes coloured by `field` (another Shape: a
+        distance, noise, a curvature) with a colour map; hovering the model shows the
+        value.  range=(lo, hi) fixes the colour scale (default: the field's
+        range on the part).  Anywhere else it is simply `shape`. '''
+    if not isinstance(shape, Shape) or not isinstance(field, Shape):
+        raise TypeError('colored(shape, field): both must be Shapes')
+    out = _ColoredShape(lib.libfive_tree_copy(shape.ptr))
+    out._color_field = field
+    out._color_range = tuple(float(v) for v in range) if range is not None else None
+    out._color_label = label or ''
+    out._color_map = colormap
+    b = getattr(shape, '_bounds', None)
+    if b:
+        out._bounds = b
+    # (the same geometry: a part drawn from its own triangles, or meshed at its own resolution, is drawn so coloured too)
+    for name in ('_display_mesh', '_render_hint', '_display_field'):
+        v = getattr(shape, name, None)
+        if v is not None:
+            setattr(out, name, v)
+    if getattr(shape, '_display_field', None) is not None:
+        out._distance_of = lambda: shape          # (what is meshed is the shape's own field; the distance a field viewer shows is the shape's)
+    return out
+
+
 ################################################################################
 # Fields from data and noise
 
 def field_from_points(points, values=None, neighbours=8, power=2.0):
-    ''' A field through scattered samples -- measured data, or results
-        exported from another simulation: at every point, the
+    ''' A field through scattered samples -- measured data, or values
+        exported from another program: at every point, the
         inverse-distance-weighted average (weights 1 / distance^power) of the
         nearest `neighbours` samples.  Handles hundreds of thousands of
         samples.  points: [(x, y, z), ...] with values [v, ...], or
@@ -1186,8 +1192,8 @@ def field_from_points(points, values=None, neighbours=8, power=2.0):
 
 def field_from_csv(path, x='x', y='y', z='z', value='value', neighbours=8, power=2.0,
                    delimiter=None, scale=1.0):
-    ''' A field from a CSV file of samples (e.g. exported stresses,
-        temperatures or pressures): columns by header name or index.
+    ''' A field from a CSV file of samples (e.g. heights, densities or
+        colours measured or exported elsewhere): columns by header name or index.
         scale multiplies the coordinates (e.g. 1000 for metres -> mm). '''
     import csv
     with open(path, newline='', encoding='utf-8-sig') as f:
@@ -1380,8 +1386,7 @@ for _name in ('x_field', 'y_field', 'z_field', 'radial_field', 'angle_field', 'p
               'distance_to_points', 'distance_to_line', 'distance_to_segment', 'distance_to_polyline',
               'distance_to_plane', 'distance_to_surface', 'depth_below', 'clamp', 'ramp', 'remap_field', 'normalize',
               'lerp', 'mix', 'smoothstep', 'step_field', 'attractor', 'wave', 'sum_fields', 'noise_field',
-              'gradient_field', 'gradient_magnitude', 'normal_field', 'curvature_field', 'overhang_angle',
-              'overhang_mask', 'wall_thickness', 'field_from_points', 'field_from_csv',
+              'gradient_field', 'gradient_magnitude', 'normal_field', 'curvature_field', 'field_from_points', 'field_from_csv',
               'add_fields', 'subtract_fields', 'multiply_fields', 'divide_fields', 'power_field', 'min_fields', 'max_fields',
               'abs_field', 'negate_field', 'sqrt_field', 'square_field'):
     globals()[_name] = returns_field(globals()[_name])

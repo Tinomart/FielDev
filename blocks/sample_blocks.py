@@ -20,10 +20,9 @@ def rounded(body, radius=1.0):
     return smooth(body, radius, 2)
 
 
-def light_core(body, wall=2.0, cell_size=8.0, thickness=0.9):
-    ''' A body hollowed to a wall, with a gyroid lattice filling its core '''
-    core = lattice(body, cell_periodic('gyroid'), cell_size=cell_size, thickness=thickness)
-    return union(shell_inside(body, wall), core)
+def hollow(body, wall=2.0):
+    ''' A body hollowed to a wall of the given thickness, empty inside '''
+    return shell_inside(body, wall)
 
 
 def bracket(width=40.0, height=30.0, thickness=4.0, depth=20.0):

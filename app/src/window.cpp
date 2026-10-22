@@ -76,7 +76,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QUrl>
 #include <memory>
 
-#include "libfive/step/step_progress.hpp"
 
 #include "fieldes/fileassoc.hpp"
 #include "fieldes/i18n.hpp"
@@ -1525,7 +1524,6 @@ Window::Window(Arguments args)
             return editor->callSupport(function, arg, error);
         });
         view->setMenuCatalogSource([this]{ return editor->callSupport("menu_catalog", QString(), nullptr); });
-        view->setLiveSettings([this]{ return editor->callSupport("live_settings", QString(), nullptr); });
         view->setExactResolver([this](const QString& key) -> libfive::Tree {
             const QString text = editor->callSupport("exact_view_tree", key, nullptr);
             const auto address = text.toULongLong();

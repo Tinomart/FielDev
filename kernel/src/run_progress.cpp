@@ -96,28 +96,9 @@ State current()
     return s;
 }
 
-namespace {
-std::shared_ptr<const LiveView> g_live;
-uint64_t g_liveSerial = 0;
-}
-
-void publishLive(std::shared_ptr<LiveView> view)
-{
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (view) view->serial = ++g_liveSerial;
-    g_live = view;
-}
-
-std::shared_ptr<const LiveView> liveView()
-{
-    std::lock_guard<std::mutex> lock(g_mutex);
-    return g_live;
-}
-
 void beginScript(int steps)
 {
     std::lock_guard<std::mutex> lock(g_mutex);
-    g_live.reset();                 // (the picture of an earlier run's optimisation)
     g_state = State();
     g_state.step = 0;
     g_state.steps = steps;
@@ -144,7 +125,6 @@ void endScript()
 {
     while (!t_stack.empty()) t_stack.pop_back();    // (left open by an error in the script; innermost first)
     std::lock_guard<std::mutex> lock(g_mutex);
-    g_live.reset();
     g_state = State();
 }
 

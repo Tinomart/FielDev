@@ -20,7 +20,7 @@ outline.  `smooth=` of the profile says which a point is that does not say itsel
 that point -- FielDes toggles it when you double-click the point.  The ROTATION of a spline point -- its gizmo's rotate numbers, which a point has no other use
 for -- turns the direction in which the outline leaves it.
 
-A profile is drawn from the numbers its points have, natively, while you drag them.  Its field (for `extrude`, `offset`, analyses ...) is plain math, made
+A profile is drawn from the numbers its points have, natively, while you drag them.  Its field (for `extrude`, `offset` ...) is plain math, made
 when the script runs: the signed distance to the outline -- the distance to the nearest edge, with the side taken from that nearest edge or corner alone, so
 the renderer drops the edges that are far from where it looks.
 

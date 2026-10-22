@@ -430,7 +430,7 @@ def stop_after_statement():
 
 def _publish_partial(out, lines, running_line=-1):
     ''' The viewport draws what the statements so far have shown (their values and the lines they are on) before a long statement runs: a part
-        hidden or shown, a number edited, is seen at once, whatever the analysis after it takes. (Only inside the application.) '''
+        hidden or shown, a number edited, is seen at once, whatever the statements after it take. (Only inside the application.) '''
     try:
         import _fieldes_host as host
         publish = getattr(host, 'partial_shapes', None)
@@ -473,7 +473,7 @@ class _PartialScenes:
                     pass
             n = st['i']
             if self.shown != n < len(st['body']) and time.time() - st['t0'] >= self.SHOW_AFTER:
-                # a statement takes long (an analysis, an optimisation, an import ...): what the statements before it have shown is drawn
+                # a statement takes long (an import, a big texture ...): what the statements before it have shown is drawn
                 # now, and an edit meanwhile -- a model shown or hidden -- is seen at once, not when the statement is over
                 self.shown = n
                 try:

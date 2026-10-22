@@ -3,16 +3,16 @@ Regressions: turn measured data into fields.
 
 A regression is fitted to (x, y) data and can then be applied to numbers or
 to any field -- typically a distance field -- to get a field that drives an
-operation (a lattice thickness, an offset, a blend):
+operation (a shell's thickness, an offset, a blend):
 
     from fieldes import *
 
     ball = sphere(30)
-    # wall thickness measured / required at several depths below the skin
-    t_of_depth = fit([(0, 2.0), (5, 1.4), (15, 0.9), (30, 0.6)], model='poly', degree=2)
-    print(t_of_depth)                  # equation and goodness of fit (R^2)
-    thickness = t_of_depth(depth_below(ball))      # a field
-    lat = lattice(ball, cell_periodic('gyroid'), cell_size=8, thickness=thickness, skin=1.5)
+    # how far the surface swells at several heights
+    swell_of_z = fit([(-30, 0.0), (-10, 1.5), (10, 2.5), (30, 0.5)], model='poly', degree=2)
+    print(swell_of_z)                  # equation and goodness of fit (R^2)
+    swell = swell_of_z(z_field())      # a field
+    pear = offset_by(ball, swell)
 
 Models (fit(..., model=...)):
     'linear'        a + b x

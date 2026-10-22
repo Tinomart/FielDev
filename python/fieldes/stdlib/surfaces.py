@@ -2,8 +2,8 @@
 Closed-form surfaces: cheap primitives beyond planes, spheres and cylinders.
 
 Each is a handful of arithmetic operations, so it meshes as fast as any
-other shape.  The general forms are what the STEP importer fits to B-spline
-faces (see reconstruct); the named ones are for modeling:
+other shape.  The general forms take coefficients; the named ones are for
+modeling:
 
     quadric(coefficients, center, scale)        any surface of degree 2
     extruded_curve(coefficients, direction, origin, scale)
@@ -158,8 +158,7 @@ def helical_curve(coefficients, lead, axis=(0, 0, 1), origin=(0, 0, 0), offset=(
     ''' A cubic curve g(u, v) = 0 in the plane across the axis (through
         `origin`), turning as it advances along the axis -- one full turn per
         `lead` (a negative lead turns the other way): the flank of a helical
-        gear or a worm, a thread, a coil.  The form the STEP importer fits to
-        such faces; u, v are measured from `offset` in the turned plane.
+        gear or a worm, a thread, a coil.  u, v are measured from `offset` in the turned plane.
     '''
     e1, e2, a = _frame(axis)
     w = _local(origin, scale)

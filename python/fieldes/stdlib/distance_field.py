@@ -25,7 +25,7 @@ is the nearest to where it began (`_ball_walk`); where it ends short of the ball
 meet nowhere a ball could be -- the ball does not fit, and says so.
 
 Each is made in a band round the surface -- `reach` -- and is the shape's own field outside it: there the walk is not made, and a mesher that asks the field
-over a cell outside the band skips the walk (the same limit by min and max as the remedies of manufacturing.py use).
+over a cell outside the band skips the walk (a limit by min and max).
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -46,7 +46,7 @@ def partials(f):
     ''' The partial derivatives of the field (fx, fy, fz) as fields of their own -- the symbolic derivative, by the rules of calculus (Shape.partial) -- or None where the field has a native
         field in it (a mesh's distance, noise: no formula).  Made once for a field and kept on it.  They replace the differences of calls that a gradient used to be read by: an interval over
         a cell of the mesher's is as many times too wide as the cell is wider than the step of a difference (a thousandth of the part: 12 times at res 3), every bound made from it was loose
-        and the mesher refined the whole band round the surface (an L of 20 mm took 8 GB; the remedies of manufacturing.py drew 4 times slower); the derivative's intervals are the
+        and the mesher refined the whole band round the surface (an L of 20 mm took 8 GB); the derivative's intervals are the
         derivative's own -- one number over a flat face '''
     cached = getattr(f, '_partials_cache', False)
     if cached is not False:

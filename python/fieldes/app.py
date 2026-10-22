@@ -7,11 +7,11 @@ artist or a designer opens the app, fills in the form and presses Run.  The scri
 
     from fieldes import *
 
-    app.title('Bracket maker', 'Makes the bracket for a pipe and saves it as a mesh')
-    radius = app.number('Radius', 5, min=1, max=20, unit='mm')
-    material = app.choice('Material', ['steel', 'aluminium'])
-    model = app.file('Model', filter='STEP files (*.step *.stp)')
-    target = app.save_as('Export path', 'bracket.stl')
+    app.title('Rock maker', 'Roughens a model into a rock and saves it as a mesh')
+    roughness = app.number('Roughness', 2, min=0, max=10, unit='mm')
+    look = app.choice('Look', ['smooth', 'jagged'])
+    model = app.file('Model', filter='Meshes (*.obj *.stl *.glb)')
+    target = app.save_as('Export path', 'rock.glb')
 
     part = import_model(model)
     ...
@@ -114,8 +114,7 @@ def running():
         long, and what writes files, under it:
 
             if app.running():
-                result = static_analysis(part, ...)
-                export_results(result, target) '''
+                export_mesh(part, target) '''
     return bool(_state['running'])
 
 
@@ -286,9 +285,9 @@ def choice(name, options, default=None, help=''):
 def file(name, default='', filter='', help=''):
     ''' A file the person picks (it must exist when the app runs), returned as its full path:
 
-            model = app.file('Model', filter='STEP files (*.step *.stp);;All files (*)')
+            model = app.file('Model', filter='Meshes (*.obj *.stl *.glb);;All files (*)')
 
-        `default` can be a file that comes with the app, `app.asset('step/bracket.step')`.  The runner can run the app again by itself
+        `default` can be a file that comes with the app, `app.asset('models/rock.obj')`.  The runner can run the app again by itself
         when this file changes (Watch). '''
     return _declare('file', (name, default, filter, help), {})
 
@@ -313,7 +312,7 @@ def title(text, description='', version=''):
 
 
 def asset(path):
-    ''' A file that is bundled into the app: `model = import_model(app.asset('step/bracket.step'))`.  A relative path is read from
+    ''' A file that is bundled into the app: `model = import_model(app.asset('models/rock.obj'))`.  A relative path is read from
         the folder of the script (and is the same inside the app); File > Export as app... copies the file in.  Returns the full path. '''
     assets = _state['assets']
     if _state['values'] is not None:
@@ -396,9 +395,8 @@ def viewport(models=None, *more, labels=True):
 
             app.viewport({'Bracket': part, 'Load point': pull}, support, load)
 
-        `models` is a dict of name -> model (the name is drawn over the model, in the style of the labels of boundary conditions), or a list of
-        models (no names); the models after it (`more`) are shown without a name.  A condition (`force(...)`, `fixed(...)`) is a model: it is
-        drawn on the body as in the editor.  Whatever a model has numbers to drag -- `gizmo()`, `handles()`, `var()` -- the person can drag,
+        `models` is a dict of name -> model (the name is drawn over the model), or a list of
+        models (no names); the models after it (`more`) are shown without a name.  Whatever a model has numbers to drag -- `gizmo()`, `handles()`, `var()` -- the person can drag,
         unless it is `lock()`ed: click a model to select it and its gizmo shows; there is no model tree and no menu.  A model that is dragged
         writes its new numbers into the script the app runs, which runs again for the picture (with app.running() False), and the numbers are
         there when Run is pressed.  A point is its dot: always drawn, click it to select it.  A **field** among them has an icon (with its name over it) at the place of the object it

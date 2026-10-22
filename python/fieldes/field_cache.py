@@ -2,7 +2,7 @@
 One cache for every field a script builds.
 
 A script runs again whenever it is opened or edited.  Most statements are quick, but a few build a field at real cost (a
-lattice laid out on a part, a thickness field, an offset of an imported body).  Instead of caching each such function one by one,
+texture laid over a part, a smoothing, an offset of an imported body).  Instead of caching each such function one by one,
 the script runner asks this module about EVERY statement of the form
 
     name = <expression>

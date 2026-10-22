@@ -13,19 +13,14 @@ surface may turn at most `angle` degrees within 10 mm of the walk -- a limit on 
 a gently rounded skin is followed, a tight bend (the toe of a shoe, a small round) or a sharp edge stops it.  `radius` stops
 it that far from the seed.
 
-It is made from the part's FIELD alone -- its value and its gradient, which is the surface normal -- the way the
-conformal lattice is: a step is carried onto the surface where the field is zero, and the angle is the angle of the
-gradients.  No mesh of the part is made or read, so it does the same on any shape however it was made (a
-reconstructed STEP part, a tessellated one, a mesh, a CSG model), and a thin wall is no harder than a thick one: the walk
+It is made from the part's FIELD alone -- its value and its gradient, which is the surface normal: a step is carried
+onto the surface where the field is zero, and the angle is the angle of the gradients.  No mesh of the part is made or
+read, so it does the same on any shape however it was made (a mesh, a CSG model), and a thin wall is no harder than a thick one: the walk
 follows the surface, not the space, and finds no surface to step onto past an edge.
 
 What comes back is a SURFACE -- the patch of the part's surface, nothing thicker -- as a field, like everything else here.
-It is a region you can give to `fixed()` and `force()`, show on the part, combine with other shapes, or hand to
-`lattice_surface_conform()` as the surface to put a lattice on:
-
-    base = fixed(select_surface(part, (0, 0, 0)))
-    push = force(top, (0, -100, 0))
-    result = static_analysis(part, supports=[base], loads=[push], material=aluminium)
+It is a region you can show on the part, combine with other shapes, or give to an operation that works on a part of a
+surface (`texture(part, region=top)`).
 
 In FielDes, right-click a surface in the viewport: the menu holds the mode, the angle and the radius, and
 writes the `select_surface(...)` line into the script under the part, like everything else the program does.
@@ -36,7 +31,7 @@ bodies that follow.
     plate_holes = surface_from_bodies(plate, bolt_1, bolt_2)      # the walls of the holes the two bolts sit in
     skin = surface_from_bodies(plate)                             # no other body: the whole surface of the plate
 
-It is a surface like the one `select_surface` makes -- a region for `fixed()` and `force()`, a surface to lay a lattice on --
+It is a surface like the one `select_surface` makes -- a region of a surface --
 and it too is made from the fields alone: the first body's surface is where its field is zero, and "meets" is a number, the
 distance of that surface from the other bodies (their field), so no mesh is made and a body that is dragged or has var()
 numbers moves the selection with it.  In FielDes: select several models in the model tree (Ctrl or Shift click), right-click
@@ -56,7 +51,7 @@ from fieldes.stdlib.fields import _s, _shape_bounds, _script_vars, _vars_key
 __all__ = ['select_surface', 'surface_from_bodies', 'SurfaceSelection']
 
 MODES = {'flat': 0, 'smooth': 1}
-SELECTION_CATEGORY = 6          # (its colour in the application's colour map "bc", which has this many categories:)
+SELECTION_CATEGORY = 6          # (its colour in the application's colour map of categories "bc", which has this many:)
 BC_CATEGORIES = 13
 
 # How far from a sample of the walk the surface of the patch can be, as a share of the spacing of the samples (the walk
@@ -82,7 +77,7 @@ class SurfaceSelection(Shape):
             drawn as it is, it comes out as a few disconnected fragments at the resolution of the viewport.)  A
             vertex belongs to the patch when the nearest point of the surface is in it, that is, when its distance
             to the patch equals its distance to the whole surface (to within the cover of the samples). '''
-        from fieldes.stdlib.fea import colored
+        from fieldes.stdlib.fields import colored
         value = self.patch - self.whole                 # (<= 0 on the patch)
         shown = colored(self.shape, value, range=(0.0, float(BC_CATEGORIES)),
                         label='bc:{}'.format(SELECTION_CATEGORY), colormap='bc')
@@ -109,7 +104,7 @@ def _patch(shape, seed, angle, mode, radius, spacing, lo, hi, script_vars):
     else:
         patch = lib.libfive_surface_select(shape.ptr, None, None, 0, lo3, hi3, seed3, angle, MODES[mode], radius, spacing)
     if not patch:
-        raise ValueError('select_surface: ' + lib.libfive_lattice_last_error().decode('utf-8', 'replace'))
+        raise ValueError('select_surface: ' + lib.libfive_surface_last_error().decode('utf-8', 'replace'))
     try:
         p = patch.contents
         count = int(p.count)
@@ -118,13 +113,13 @@ def _patch(shape, seed, angle, mode, radius, spacing, lo, hi, script_vars):
         box = (tuple(min(xyz[3 * i + k] for i in range(count)) for k in range(3)),
                tuple(max(xyz[3 * i + k] for i in range(count)) for k in range(3)))
         field = lib.libfive_points_distance(p.points, count)
-        # (the surface the samples make, with their normals: the field a lattice on the selection is laid out on)
+        # (the surface the samples make, with their normals)
         surface = lib.libfive_points_surface(p.points, p.normals, count, float(p.spacing))
         distance, used, stopped = float(p.seed_distance), float(p.spacing), bool(p.stopped)
     finally:
         lib.libfive_surface_patch_delete(patch)
     if not field or not surface:
-        raise ValueError('select_surface: ' + lib.libfive_lattice_last_error().decode('utf-8', 'replace'))
+        raise ValueError('select_surface: ' + lib.libfive_surface_last_error().decode('utf-8', 'replace'))
     return Shape(field), Shape(surface), count, distance, box, used, stopped, xyz, normals
 
 
@@ -144,7 +139,7 @@ def select_surface(shape, seed, angle=15.0, mode='flat', radius=None, resolution
         bounds      ((x0, y0, z0), (x1, y1, z1)) of the shape, if it cannot be found
 
         Returns a SurfaceSelection: a shape (so it is shown, hidden, deleted like any), usable as a region:
-        fixed(selection), force(selection, ...), lattice_surface_conform(selection, ...). '''
+        texture(part, region=selection). '''
     shape = _s(shape)
     if mode not in MODES:
         raise ValueError("select_surface: mode is 'flat' or 'smooth'")
@@ -176,8 +171,8 @@ def select_surface(shape, seed, angle=15.0, mode='flat', radius=None, resolution
     # patch is made from, see `profile`)
     out.sample_points, out.sample_normals = sample_xyz, sample_normals
     out.patch = field - cover
-    # the surface itself, as a field: the height above the patch along its normal (zero on it, positive on the side it faces) -- what a
-    # lattice laid on the selection is laid out on.  Nothing of the shape it was picked on is in it
+    # the surface itself, as a field: the height above the patch along its normal (zero on it, positive on the side it faces).
+    # Nothing of the shape it was picked on is in it
     out.surface = surface
     out.whole = shape.abs()
     out._bounds = (tuple(box[0][i] - t for i in range(3)), tuple(box[1][i] + t for i in range(3)))
@@ -238,8 +233,7 @@ def surface_from_bodies(body, *others, tolerance=None, bounds=None):
         the selection.  The selection is a thin layer along the surface, a hundredth of the body thick at most -- not a setting: a
         surface has no thickness -- the way select_surface makes it.  The patch is cut by the others the way a box cuts
         it: where one ends, the selection ends (it follows no face to its edges).  What comes back is a surface, shown
-        lit up on the body, and a region for `fixed()` and `force()` (and the other conditions), or
-        `lattice_surface_conform()`.  If the bodies do not meet, nothing is selected (a note says so when their boxes do not
+        lit up on the body, and a region (`texture(part, region=selection)`).  If the bodies do not meet, nothing is selected (a note says so when their boxes do not
         even touch). '''
     first = _s(body)
     rest = _flat(others)
@@ -264,7 +258,7 @@ def surface_from_bodies(body, *others, tolerance=None, bounds=None):
     out.seed, out.angle, out.mode, out.samples = None, 0.0, 'bodies', 0
     out.spacing, out.cover = size / 150.0, cover
     out.patch = patch
-    out.surface = first                           # (the field a lattice on the selection is laid out on: zero on the surface, positive outside)
+    out.surface = first                           # (the surface as a field: zero on it, positive outside)
     out.whole = whole
     # the box the selection lies in: the first body's, cut down to where the others are (and a layer round it)
     box_lo, box_hi = list(lo), list(hi)

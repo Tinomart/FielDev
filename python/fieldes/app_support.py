@@ -315,10 +315,7 @@ MAX_ITEMS = 400
 
 def _types():
     from fieldes.shape import Shape
-    try:
-        from fieldes.stdlib.cad_import import FailedPart
-    except ImportError:
-        FailedPart = ()
+    from fieldes.stdlib.import_log import FailedPart
     return Shape, FailedPart
 
 
@@ -428,10 +425,7 @@ def _const_index(sub):
 
 
 def _import_log_entry(path):
-    try:
-        from fieldes.stdlib.cad_import import _import_log
-    except ImportError:
-        return None
+    from fieldes.stdlib.import_log import _import_log
     return _import_log.get(os.path.normcase(os.path.abspath(path)))
 
 
@@ -499,7 +493,7 @@ def _search_extent(s, deadline):
     known = _var_values() if hasattr(lib, 'libfive_tree_bounds_vars') else None
     # A search that is cut short while it refines returns the coarser box it had got to -- a 500 mm box round a part of 30 mm, when the
     # machine is busy.  It is searched again inside the box that was found (the shape is in it), as long as that makes the box
-    # smaller and there is time, so that the extent -- and what is sized by it: the element size of a simulation, the framing -- is
+    # smaller and there is time, so that the extent -- and what is sized by it: the framing -- is
     # right whatever the load.  When there is no time for that look the coarse box is not an extent: nothing is returned (it is
     # measured when the script has run again), for the render region would grow round it
     if time.time() > deadline:
@@ -929,8 +923,6 @@ def handles_text(name):
     # the shape it was made from, whose definition the numbers of its surfaces go under)
     while getattr(shape, '_gizmo', None) is not None and isinstance(getattr(shape, '_placed_from', None), Shape):
         shape = shape._placed_from
-    if getattr(shape, '_locks', None):
-        raise ValueError('%s has an excluded part: dragging its surfaces would move that too (use the gizmo)' % name)
     values = handle_values(shape)
     if not values:
         raise ValueError('%s has no numbers that place its surfaces to make handles of' % name)
@@ -948,7 +940,7 @@ def _handle_count(shape):
         from fieldes.stdlib.handles import _handle_count
         while getattr(shape, '_gizmo', None) is not None and isinstance(getattr(shape, '_placed_from', None), Shape):
             shape = shape._placed_from
-        if getattr(shape, '_locks', None) or getattr(shape, '_kind', None) in ('point', 'field', 'const') or getattr(shape, '_editable', False):
+        if getattr(shape, '_kind', None) in ('point', 'field', 'const') or getattr(shape, '_editable', False):
             return 0                # (a point is moved by its gizmo, not by pulling the surface of its ball; a field has no
                                     # surface to pull: its numbers are written in the script, or moved by its gizmo)
         return int(_handle_count(shape))
@@ -1232,28 +1224,6 @@ def _inputs_of(value, gs, by_name, own=None):
     return found, variadic, _numbers_of(value, gs)
 
 
-def _region_args_of(call, src):
-    ''' The arguments of a condition's call that are its regions -- the leading positional ones that are not numbers, tuples of numbers or
-        keywords -- as [{span, text}] '''
-    out = []
-    for a in call.args:
-        literal = isinstance(a, (ast.Constant, ast.Tuple)) or (isinstance(a, ast.UnaryOp) and isinstance(a.operand, ast.Constant))
-        if literal or isinstance(a, ast.Starred):
-            break
-        out.append({'span': _span(a), 'text': src.segment(a)})
-    return out
-
-
-def _condition_role(value):
-    ''' What a condition is, for a drop on the call that takes it: the name of the input of an analysis it goes in -- `supports`, `loads`,
-        `fixed_temperatures`, `inlets` ... (every kind of condition has an input of its own); '' for anything else '''
-    try:
-        from fieldes.stdlib.fea import _slot_of
-        return _slot_of(value) or ''
-    except Exception:
-        return ''
-
-
 def _min_inputs(callee):
     ''' How many models a call of this function needs at the least, from its signature (nothing is listed by hand, so a new function is known
         too): the positional parameters it cannot do without -- `difference(a, b, *rest)` needs two, `union(a, *rest)` one -- and at least one
@@ -1273,7 +1243,7 @@ def _min_inputs(callee):
 def _call_slots(value, gs, src):
     ''' What a call is given, argument by argument, and what it could be given: {params: [the names of the callee's
         parameters], args: {parameter: {span, text, list (a list written in the call: its `last` element's span, or none
-        when it is empty)}}, last: the span of the call's last argument} -- for the model tree: a material or a condition
+        when it is empty)}}, last: the span of the call's last argument} -- for the model tree: a model
         dropped on the call goes in place of the argument it has, or becomes the one it has not '''
     if not isinstance(value, ast.Call):
         return {}
@@ -1321,8 +1291,8 @@ def _call_slots(value, gs, src):
 
 
 def export_model(arg):
-    ''' A one-off export asked for by a menu: JSON {kind, var, path, ...} -> JSON {path, text}.  `kind` is "mesh" (a body as a mesh file), "fea" (the
-        finite-element model of a static analysis), "results" (what an analysis found) or "field" (a field on a grid): the model is the
+    ''' A one-off export asked for by a menu: JSON {kind, var, path, ...} -> JSON {path, text}.  `kind` is "mesh" (a body as a mesh file)
+        or "field" (a field on a grid): the model is the
         variable `var` of the script that ran last, and the file is written by fieldes.stdlib.exporting -- the same functions a script calls '''
     import os
     from fieldes import runner
@@ -1343,10 +1313,6 @@ def export_model(arg):
                 if host is None or 'extent' not in str(e):
                     raise
                 E.export_mesh(value, path, bounds=host)
-        elif kind == 'fea':
-            E.export_fea(value, path)
-        elif kind == 'results':
-            E.export_results(value, path)
         elif kind == 'field':
             host = E._host('__bounds', None)
             E.export_field(value, path, bounds=host)
@@ -1563,25 +1529,6 @@ def seed_known(arg):
     from fieldes import outline
     outline.seed(arg)
     return '1'
-
-
-def live_settings(arg):
-    ''' The render settings the running script has given so far (view.set_bounds, set_resolution, set_quality), as JSON: what it has not
-        given yet is left out.  The viewport renders the picture of an optimisation that is running with them '''
-    try:
-        import _fieldes_host as host
-    except ImportError:
-        return '{}'
-    out = {}
-    bounds = getattr(host, '__bounds', None)
-    if bounds:
-        out['min'], out['max'] = [float(c) for c in bounds[0]], [float(c) for c in bounds[1]]
-    for key, name in (('res', '__resolution'), ('quality', '__quality')):
-        v = getattr(host, name, None)
-        if v is not None:
-            out[key] = float(v)
-    import json
-    return json.dumps(out)
 
 
 # ---------------------------------------------------------------------------

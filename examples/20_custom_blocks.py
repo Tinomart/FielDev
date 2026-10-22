@@ -4,10 +4,10 @@
 #
 #     perforate(body, hole_radius, spacing)    a grid of round holes right through a body
 #     rounded(body, radius)                    smooths every edge and bump smaller than the radius
-#     light_core(body, wall, cell_size, ...)   a hollow body with a gyroid in its core
+#     hollow(body, wall)                       a body hollowed to a wall, empty inside
 #     bracket(width, height, thickness, depth) an L-shaped bracket with a rounded inside corner
 #
-# There is nothing to import: they are used like sphere() or lattice(), with call tips, completion (Ctrl+Space) and the
+# There is nothing to import: they are used like sphere() or smooth(), with call tips, completion (Ctrl+Space) and the
 # right-click menus (Operations > Custom blocks).  Ctrl+click a block's name to read it; edit it, save the file, and this
 # script runs again.  Settings > Blocks folder... chooses another folder, for blocks of your own.
 #

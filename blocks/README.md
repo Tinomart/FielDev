@@ -30,4 +30,4 @@ drilled
 - **The folder** is this one by default (next to FielDes); *Settings > Blocks folder...* chooses another, for instance one
   you keep in a shared place. A file that cannot be read is named in the script's output with the reason.
 
-`sample_blocks.py` has four to start from: `perforate`, `rounded`, `light_core`, `bracket`.
+`sample_blocks.py` has four to start from: `perforate`, `rounded`, `hollow`, `bracket`.

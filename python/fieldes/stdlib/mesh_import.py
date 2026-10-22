@@ -33,7 +33,7 @@ from array import array
 
 from fieldes.ffi import lib, libfive_mesh_import_info_t
 from fieldes.shape import Shape
-from fieldes.stdlib import cad_import as _cad
+from fieldes.stdlib import import_log as _cad
 from fieldes.stdlib import fbx as _fbx
 from fieldes.stdlib import meshfiles as _meshfiles
 from fieldes.stdlib.content_cache import cache_for
@@ -480,7 +480,7 @@ def _import_mesh(path, units='mm', file_units=None, rev=None):
     path = os.fspath(path)
     ext = os.path.splitext(path)[1].lower()
     if ext not in _NATIVE + _PYTHON:
-        raise ValueError('import_model({!r}): unsupported file type {!r}; use a STEP file or '
+        raise ValueError('import_model({!r}): unsupported file type {!r}; use '
                          'an .stl, .obj, .ply, .3mf, .glb, .gltf, .fbx, .off or .dxf mesh'.format(path, ext))
 
     # The same file (by its path, size and modification time), read with the same units, is the same shape:

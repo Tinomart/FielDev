@@ -28,11 +28,11 @@ import tokenize
 
 # What the menus call each kind of model: the group of the Primitives menu a primitive of that kind is in
 GROUP_OF_TYPE = {'solid': '3D', 'profile': '2D', 'curve': '1D', 'point': 'Points', 'surface': 'Surfaces', 'field': 'Fields', 'symmetry': 'Symmetry',
-                 'lattice': '3D', 'import': '3D', 'points': 'Points'}
+                 'import': '3D', 'points': 'Points'}
 
-# The section of the manager (the kind of the list) a model of each type of the model tree belongs to: a lattice or an imported part is a 3D shape, a set of points are points.  A type this
-# does not know (a simulation, a material ...) is a 3D shape as well, so that what was made a primitive of the user's own is in a list, and can be found and renamed there
-KIND_OF_TYPE = {'solid': 'solid', 'lattice': 'solid', 'import': 'solid', 'profile': 'profile', 'curve': 'curve', 'point': 'point', 'points': 'point', 'surface': 'surface', 'field': 'field',
+# The section of the manager (the kind of the list) a model of each type of the model tree belongs to: an imported part is a 3D shape, a set of points are points.  A type this
+# does not know is a 3D shape as well, so that what was made a primitive of the user's own is in a list, and can be found and renamed there
+KIND_OF_TYPE = {'solid': 'solid', 'import': 'solid', 'profile': 'profile', 'curve': 'curve', 'point': 'point', 'points': 'point', 'surface': 'surface', 'field': 'field',
                 'symmetry': 'symmetry'}
 
 
@@ -328,12 +328,10 @@ def _entries(M, typ):
         kind = M.GROUP_KINDS.get(g, 'solid')
         if typ and kind != typ:
             continue
-        if g in ('Supports and loads', 'Thermal conditions', 'Flow conditions', 'Manufacturing constraints', 'Materials', 'Fluids') or g.endswith('cells'):
-            continue
-        out.append({'name': n, 'label': given.get(n) or M.LABELS.get(n, n.replace('_', ' ')), 'renamed': n in given, 'group': g, 'type': kind, 'on': n in on, 'custom': False,
+        out.append({'name': n, 'label': given.get(n) or n.replace('_', ' '), 'renamed': n in given, 'group': g, 'type': kind, 'on': n in on, 'custom': False,
                     'builtin': n in M.BASIC})
     for c in catalog_entries():
-        # (the section a primitive of the user's own is in is the kind of its type: a lattice or an imported part is among the 3D shapes)
+        # (the section a primitive of the user's own is in is the kind of its type: an imported part is among the 3D shapes)
         if typ and kind_of(c['type']) != typ:
             continue
         out.append({'name': c['name'], 'label': c['label'], 'renamed': False, 'group': c['group'], 'type': kind_of(c['type']), 'on': True, 'custom': True, 'builtin': False})

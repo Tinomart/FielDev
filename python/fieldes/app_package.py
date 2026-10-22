@@ -8,8 +8,8 @@ A `.fieldesapp` is a zip file:
     manifest.json     the title, the inputs (the form), the version of FielDes that made it, which files came along
     app.py            the script
     blocks/*.py       the custom blocks the script uses (only those)
-    files/...         the files the script reads, in the places it reads them from (`app.asset('step/bracket.step')`,
-                      "step/bracket.step", a module next to the script): the app runs with `files` as its working folder
+    files/...         the files the script reads, in the places it reads them from (`app.asset('models/rock.obj')`,
+                      "models/rock.obj", a module next to the script): the app runs with `files` as its working folder
 
 It is unpacked into the user's cache folder, once per version of the file, and run from there.
 
@@ -178,7 +178,7 @@ def _used_names(source):
 
 
 def _literals_that_are_files(source, script_dir):
-    ''' The relative paths the script writes as texts that name a file next to it (read as "step/bracket.step") '''
+    ''' The relative paths the script writes as texts that name a file next to it (read as "models/rock.obj") '''
     found = []
     try:
         tree = ast.parse(source)

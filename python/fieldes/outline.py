@@ -41,17 +41,17 @@ _DISPLAYS = {}
 _ERROR = {}
 
 # The facts of a model that a run gives, and that are laid over the row the text gives (the rest of a row is the text's)
-_FACT_KEYS = ('exact_bounds', 'colored', 'model', 'failed', 'error', 'result', 'type', 'shown', 'no_gizmo', 'condition_role', 'domain', 'cls', 'bounds', 'can_handles',
+_FACT_KEYS = ('exact_bounds', 'colored', 'model', 'failed', 'error', 'result', 'type', 'shown', 'no_gizmo', 'cls', 'bounds', 'can_handles',
               'handle_count', 'handle_cap', 'ends_only', 'is_list', 'is_pair', 'custom_used', 'surface_selection', 'displayable_known', 'properties', 'exports', 'linked', 'symmetry_image')
 # What a call to the same function is taken to make again, when the statement was edited (its text is not what ran)
-_KIND_KEYS = ('model', 'result', 'type', 'shown', 'no_gizmo', 'condition_role', 'domain', 'cls', 'is_list', 'is_pair', 'surface_selection')
+_KIND_KEYS = ('model', 'result', 'type', 'shown', 'no_gizmo', 'cls', 'is_list', 'is_pair', 'surface_selection')
 
 # Calls that make nothing a model (a statement that is only such a call is not a displayed model)
 _NOT_MODELS = {
     'print', 'len', 'range', 'int', 'float', 'str', 'list', 'dict', 'tuple', 'set', 'sum', 'min', 'max', 'abs', 'round', 'sorted',
     'enumerate', 'zip', 'open', 'map', 'filter', 'any', 'all', 'bool', 'type', 'isinstance', 'input', 'var', 'roi', 'roi_resolution',
     'progress', 'handles', 'gizmo', 'lock', 'render_cache', 'custom_resolution', 'export_stl', 'export_mesh', 'export_step',
-    'export_fea', 'export_results', 'export_field', 'result_summary',
+    'export_field',
     'mass_properties', 'volume_of', 'field_range', 'find_extent', 'evaluate', 'sample_grid',
 }
 
@@ -59,18 +59,11 @@ _NOT_MODELS = {
 # the menus are known from them (menu_catalog), the ones that make fields from what they declare (`_makes`, see fieldargs); these
 # patterns are for the rest
 _MAKES = (
-    ('simulation', ('*_analysis', '*_optimization', 'analyse', 'analyze')),
-    ('conditions', ('fixed', 'force', 'gravity', 'thermal_expansion', 'fixed_temperature', 'heat_input',
-                    'heat_generation', 'convection', 'inlet', 'outlet', 'wall', 'slip')),
-    ('material', ('Material', 'Fluid')),
     ('surface', ('select_surface', 'surface_from_bodies', 'surface_*')),
     ('point', ('point', 'center')),
-    ('cell', ('cell_*',)),
-    ('points', ('random_points',)),
-    ('lattice', ('lattice', 'lattice_surface_conform', 'surface_lattice')),
     ('field', ('fit', 'fit_csv', 'fit_field', 'interpolate_field', 'X', 'Y', 'Z')),
 )
-_GEOMETRIC = ('solid', 'profile', 'curve', 'field', 'surface', 'lattice')
+_GEOMETRIC = ('solid', 'profile', 'curve', 'field', 'surface')
 _FUNCTION_KINDS = {}
 
 
@@ -84,12 +77,6 @@ def _function_kinds():
             for n, g, _t, _o in M.OPERATIONS:
                 if g == 'Field math':
                     _FUNCTION_KINDS[n] = 'solid' if n == 'body_from_field' else 'field'
-                elif g == 'Simulations':
-                    _FUNCTION_KINDS[n] = 'simulation'
-                elif g == 'Conditions':
-                    _FUNCTION_KINDS[n] = 'conditions'
-                elif g in ('Periodic lattices', 'Non-periodic lattices'):
-                    _FUNCTION_KINDS[n] = M.OPERATION_KINDS.get(n, 'lattice')
                 elif g == 'Importing':
                     _FUNCTION_KINDS[n] = 'solid'
                 elif g == 'Surfaces':
@@ -97,17 +84,6 @@ def _function_kinds():
         except Exception:
             pass
     return _FUNCTION_KINDS
-
-
-_ROLE_OF = {'fixed': 'supports', 'force': 'loads', 'gravity': 'loads', 'thermal_expansion': 'loads',
-            'fixed_temperature': 'fixed_temperatures', 'heat_input': 'heat_inputs', 'heat_generation': 'heat_generations',
-            'convection': 'convections', 'inlet': 'inlets', 'outlet': 'outlets', 'wall': 'boundaries', 'slip': 'boundaries', 'symmetry': 'boundaries',
-            'manufacturing_constraint': 'constraints', 'fff_constraint': 'constraints', 'cnc_constraint': 'constraints', 'molding_constraint': 'constraints'}
-
-
-def _guess_role(callee):
-    ''' What a condition that never ran probably is: the input of an analysis it goes in (`supports`, `loads`, `inlets` ...) '''
-    return _ROLE_OF.get(callee or '', '')
 
 
 def _guess_type(callee, inputs, by_name, ns=None):
@@ -156,7 +132,7 @@ def _slot_kinds(callee, k):
         if signatures:
             needs = signatures[0][1]
             return sorted(needs[k]) if k < len(needs) else None
-        # (a geometric operation works on the first model it is given: what a model is -- a solid, a 2D shape, a curve, a field ... -- but not a condition or a material)
+        # (a geometric operation works on the first model it is given: what a model is -- a solid, a 2D shape, a curve, a field ...)
         if k == 0 and any(n == callee for n, g, _, _ in M.OPERATIONS):
             return sorted(M._SHAPES)
     except Exception:
@@ -168,27 +144,26 @@ def _hole_info(value, span):
     ''' Which argument of which call a placeholder at `span` stands for: {callee, param} (what a call is written with is not known to the
         tree: the library says), and `accepts`, the kinds of model the place takes when the library says (a model of another kind is not put there) '''
     from fieldes import completion
-    from fieldes.stdlib.fea import _SLOTS
     for call in ast.walk(value):
         if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name):
             continue
         for k, a in enumerate(call.args):
             if isinstance(a, ast.Constant) and a.value is Ellipsis and A._span(a) == span:
                 param = completion.parameter_at(call.func.id, k)
-                info = {'callee': call.func.id, 'param': param, 'list': param in _SLOTS}
-                accepts = None if param in _SLOTS else _slot_kinds(call.func.id, k)
+                info = {'callee': call.func.id, 'param': param, 'list': False}
+                accepts = _slot_kinds(call.func.id, k)
                 if accepts:
                     info['accepts'] = accepts
                 return info
         for kw in call.keywords:
             if kw.arg and isinstance(kw.value, ast.Constant) and kw.value.value is Ellipsis and A._span(kw.value) == span:
-                return {'callee': call.func.id, 'param': kw.arg, 'list': kw.arg in _SLOTS}
+                return {'callee': call.func.id, 'param': kw.arg, 'list': False}
     return {}
 
 
 def facts_of(v):
     ''' What a value says about the model a statement made: the facts a run gives the tree '''
-    from fieldes.kinds import kind_of, domain_of_value
+    from fieldes.kinds import kind_of
     Shape, FailedPart = A._types()
     failed = bool(FailedPart) and isinstance(v, FailedPart)
     shape = isinstance(v, Shape)
@@ -200,13 +175,7 @@ def facts_of(v):
          'is_list': isinstance(v, list), 'is_pair': isinstance(v, tuple) and len(v) == 2}
     if failed:
         f['error'] = v.error
-    if mkind == 'conditions':
-        f['condition_role'] = A._condition_role(v)
-    if mkind in ('conditions', 'simulation'):
-        domain = domain_of_value(v)         # (the colour and the icon of its engineering domain)
-        if domain:
-            f['domain'] = domain
-    if mkind in ('conditions', 'material', 'surface'):
+    if mkind == 'surface':
         f['cls'] = type(v).__name__
     if getattr(v, '_is_viewport', False):
         f['viewport'] = True            # (app.viewport(...): a setting of an app, not a model: no row)
@@ -244,17 +213,10 @@ def _property_text(v):
 
 
 def exports_of(value):
-    ''' What can be exported of a result (see fieldes.stdlib.exporting): "fea" and "results" for the tetrahedral static analysis, "summary" (its key
-        numbers as text) for any result that has some, "mesh" when it has a body '''
+    ''' What can be exported of a result (see fieldes.stdlib.exporting): "mesh" when it has a body '''
     out = []
     try:
         from fieldes.stdlib import exporting as E
-        from fieldes.stdlib import fea
-        if isinstance(value, fea.TetResult):
-            # (the finite-element model is what was solved: a 10-node analysis has none that another solver could read yet)
-            out += ['results'] if getattr(value, 'element', 'tet') == 'tet10' else ['fea', 'results']
-        if E.result_summary(value):
-            out.append('summary')
         try:
             E._body_of(value, 'exports')
             out.append('mesh')
@@ -267,8 +229,8 @@ def exports_of(value):
 
 def properties_of(value):
     ''' What a result offers to be taken out of it, for the property drawer of the model tree: [{name, kind, text}] -- the fields it calculated
-        (`result.fields`, each also an attribute by its name: `stress = result.von_mises`) first, then its numbers, flags and short texts (an
-        attribute of the result: `peak = result.max_von_mises`) '''
+        (`result.fields`, each also an attribute by its name: `height = result.height`) first, then its numbers, flags and short texts (an
+        attribute of the result: `peak = result.max_height`) '''
     out, seen = [], set()
     try:
         fields = value.fields
@@ -302,7 +264,7 @@ def properties_of(value):
 
 
 def _display_shapes(v):
-    ''' The shapes a value displays: itself, what an analysis result shows (its _display()), the shapes of a list '''
+    ''' The shapes a value displays: itself, what a result shows (its _display()), the shapes of a list '''
     Shape, _ = A._types()
     if isinstance(v, Shape):
         return [v]
@@ -425,7 +387,7 @@ def finish(source, gs, out):
         for _, name, text, shapes, view, facts in sorted(measure, key=lambda m: m[0]):
             # (only a body has an extent to search for: a field has none -- its viewer's bounds are the box of its origin --, a point or a line has no inside, and a 2D shape goes on
             # for ever along its normal: a search for any of them cannot end well, and costs the time it is given, at every run)
-            if 'bounds' not in facts and facts.get('type') in (None, 'solid', 'lattice') and _time.time() < deadline:
+            if 'bounds' not in facts and facts.get('type') in (None, 'solid') and _time.time() < deadline:
                 b = A._estimate_bounds(shapes, deadline)
                 if b:
                     facts['bounds'] = b
@@ -461,7 +423,7 @@ def seed(items_json):
                 continue
             facts = {'model': True, 'failed': bool(it.get('failed')), 'result': bool(it.get('result')), 'type': it.get('type'),
                      'shown': it.get('displayable') is not False, 'no_gizmo': bool(it.get('no_gizmo'))}
-            for k in ('error', 'condition_role', 'domain', 'cls', 'bounds', 'can_handles', 'handle_count', 'handle_cap', 'ends_only'):
+            for k in ('error', 'cls', 'bounds', 'can_handles', 'handle_count', 'handle_cap', 'ends_only'):
                 if k in it:
                     facts[k] = it[k]
             _LATEST.setdefault(var, (None, it.get('callee', ''), facts))
@@ -1043,7 +1005,7 @@ def outline_json(arg):
     except SyntaxError as e:
         # (a line that is being typed: the tree stays as it was, and says nothing -- the editor says what is wrong)
         return json.dumps({'syntax_error': '%s (line %s)' % (e.msg, e.lineno), 'source_md5': md5})
-    from fieldes.kinds import describe as describe_kinds, describe_domains, domain_of
+    from fieldes.kinds import describe as describe_kinds
     ns = _namespace()
     blocks = A._block_names()
     src = A._Source(source)
@@ -1238,10 +1200,10 @@ def outline_json(arg):
                     deps = sorted(n for n in A._names_in(stmt.value) if n in by_name and n != t.id)
                     inputs, variadic, numbers = A._inputs_of(stmt.value, ns, by_name, t.id)
                     mkind = None if failed else (facts.get('type') or _guess_type(callee, inputs, by_name, ns))
-                    shown = facts.get('shown', mkind not in ('field', 'material', 'cell'))      # (a condition shows itself: it has an eye)
+                    shown = facts.get('shown', mkind != 'field')
                     item = {'kind': 'failed' if failed else 'shape', 'line': line, 'end_line': end, 'var': t.id, 'label': t.id,
-                            'result': bool(facts.get('result', mkind == 'simulation')),     # (what an analysis makes is a result, before it has run too)
-                            'no_gizmo': facts.get('no_gizmo', not shown or mkind in ('simulation', 'conditions', 'field')
+                            'result': bool(facts.get('result', False)),
+                            'no_gizmo': facts.get('no_gizmo', not shown or mkind == 'field'
                                                   or bool(getattr(ns.get(callee), '_makes_no_gizmo', False))),
                             'text': A._short(src.segment(stmt.value), 70), 'deps': deps}
                     if mkind:
@@ -1253,26 +1215,18 @@ def outline_json(arg):
                         item['min_inputs'] = A._min_inputs(ns.get(callee))
                     item['slots'] = A._call_slots(stmt.value, ns, src)
                     item['args'] = A._args_of(stmt.value, ns, by_name, src)
-                    # `x = result.von_mises`: a property taken out of a model (the property drawer writes them).  It is made of the model, but does not
+                    # `x = result.height`: a property taken out of a model (the property drawer writes them).  It is made of the model, but does not
                     # own it: the model stays where it is, and the property row holds a reference to it
                     node = stmt.value
                     while isinstance(node, ast.Attribute):
                         node = node.value
                     if isinstance(stmt.value, ast.Attribute) and isinstance(node, ast.Name) and node.id in by_name and node.id != t.id:
                         item['attribute_of'] = node.id
-                    if mkind == 'conditions':
-                        item['condition_role'] = facts.get('condition_role') or _guess_role(callee)
-                    if mkind in ('conditions', 'simulation'):
-                        domain = facts.get('domain') or domain_of(callee)
-                        if domain:
-                            item['domain'] = domain
                     if mkind == 'surface' and (facts.get('surface_selection') or callee == 'select_surface'):
                         first = [i for i in inputs if i.get('index') == 0 and not i.get('in_list') and 'keyword' not in i]
                         if first:
                             item['part_name'] = first[0]['name']
-                    if mkind == 'conditions' and isinstance(stmt.value, ast.Call):
-                        item['region_args'] = A._region_args_of(stmt.value, src)
-                    if mkind in ('conditions', 'material', 'surface') and facts.get('cls'):
+                    if mkind == 'surface' and facts.get('cls'):
                         item['cls'] = facts['cls']
                     item['points'] = A._points_of(stmt.value, ns) if isinstance(stmt.value, ast.Call) else []
                     item['callee'] = callee
@@ -1351,10 +1305,6 @@ def outline_json(arg):
             mkind = facts.get('type') or _guess_type(A._callee_name(stmt.value), [], by_name, ns)
             if mkind:
                 item['type'] = mkind
-            if mkind in ('conditions', 'simulation'):
-                domain = facts.get('domain') or domain_of(A._callee_name(stmt.value))
-                if domain:
-                    item['domain'] = domain
             item['inputs'], item['variadic'], item['numbers'] = A._inputs_of(stmt.value, ns, by_name)
             if item['variadic']:
                 item['min_inputs'] = A._min_inputs(ns.get(A._callee_name(stmt.value)))
@@ -1517,7 +1467,7 @@ def outline_json(arg):
         if v is not None:
             settings.setdefault(k, {})['value'] = v
 
-    return json.dumps({'items': items, 'settings': settings, 'kinds': describe_kinds(), 'domains': describe_domains(), 'truncated': truncated,
+    return json.dumps({'items': items, 'settings': settings, 'kinds': describe_kinds(), 'truncated': truncated,
                        'sections': sections, 'python': py_blocks,
                        'errored': bool(error), 'run_done': bool(req.get('run_done')),
                        'done_line': tree.body[-1].end_lineno if tree.body else 0, 'source_md5': md5,

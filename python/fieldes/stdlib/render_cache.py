@@ -19,15 +19,14 @@ made.  The line is the whole setting: it is saved with the script and nothing el
 changes.  The shape itself is not touched.
 
 A shape is kept when everything it is made of can be recognised from one run to the next: nodes,
-numbers, var()s, imported meshes and parts, lattices, fields.  A shape that is shown with the fields of
-an analysis (a result coloured by stress) is not -- the analysis has caches of its own.
+numbers, var()s, imported meshes and parts, fields.
 
 The kept meshes are deleted oldest first when they fill more than 4 GB (the environment variable
 FIELDES_RENDER_CACHE_MB sets that); Settings > Clear the caches deletes them all (and the files of the field cache).
 
 Every field a script builds with `name = <expression>` is kept the same way -- by the statement's text, the exact
-content of what it reads, the var() numbers and the code that builds it -- so a lattice laid out on a part is not laid
-out again when the script is run again, also after FielDes was closed (when every part of the field can be saved).
+content of what it reads, the var() numbers and the code that builds it -- so a texture laid over a part is not laid
+over again when the script is run again, also after FielDes was closed (when every part of the field can be saved).
 FIELDES_FIELD_CACHE_DIR moves the files; the details are in caching-and-performance.md.
 
 This Source Code Form is subject to the terms of the Mozilla Public
@@ -69,7 +68,7 @@ def render_cache_key(shape):
     ''' The key the render cache keeps `shape`'s mesh by, as text -- the same in every run of the program for the
         same math, another one when anything about the math changes (an operation, a number, a var() with the
         value it has now, an imported file) -- or None when the shape cannot be kept: it depends on something no
-        other run could recognise (a solved analysis).  (The region, resolution and quality it is meshed at are
+        other run could recognise.  (The region, resolution and quality it is meshed at are
         part of the key the application uses, which is made of this and them.) '''
     import ctypes
     from fieldes.stdlib.fields import _script_vars

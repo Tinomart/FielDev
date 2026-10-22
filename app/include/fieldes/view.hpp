@@ -47,8 +47,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "fieldes/symmetry.hpp"
 #include "fieldes/workplane.hpp"
 #include "fieldes/result.hpp"
-#include "fieldes/result_panel.hpp"
-#include "fieldes/live_panel.hpp"
 #include "fieldes/settings.hpp"
 #include "libfive/run_progress.hpp"
 
@@ -559,7 +557,6 @@ protected:
 
     /*  Background items to render  */
     Arrow arrow;
-    Glyphs glyphs;                      // the arrows and pins of boundary conditions
     Axes axes;
     Background background;
     BBox bbox;
@@ -572,46 +569,35 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
     /*  A right-click (not a pan) on a shape, or on its row in the model tree or a line of the text editor (`onSurface` false: no place on the surface was
-     *  clicked): Primitives, Parametric shapes, Operations (the operations on that shape, Lattice, Simulation -- the same as the menu of empty space has), the quick
+     *  clicked): Primitives, Parametric shapes, Operations (the operations on that shape -- the same as the menu of empty space has), the quick
      *  operations (center, bounding_box), Import model... and Select Surface, which opens the menu of the surface selection (it needs the place that was clicked)  */
     void showSurfaceMenu(QPoint globalPos, int line, const QVector3D& point, double scale, bool onSurface = true);
     void showSelectMenu(QPoint globalPos, int line, const QVector3D& point);
     /*  A right-click (not a pan) on empty space: Primitives (a 3D shape, a 2D shape, a line, a point, a surface, a field: the most basic of each), Parametric shapes (the
-     *  more complicated ones, made with parameters), Operations (the operations and Lattice), Engineering (a category for each domain -- Structural, Thermal, Fluid -- with
-     *  what its analyses are given and the analyses, and the materials) and Import model...  `atLine` (from the text editor): what is made is written under that line  */
+     *  more complicated ones, made with parameters), Operations and Import model...  `atLine` (from the text editor): what is made is written under that line  */
     void showEmptyMenu(QPoint globalPos, QPoint pos, int atLine = -1);
-    /*  What the Operations menu holds, on the model at `line` or on empty space (-1): the operations and Lattice  */
-    void fillOperationsMenu(QMenu* ops, int line, const QVector3D& point, double scale, int atLine);
-    /*  What the Engineering menu holds: a category for each domain (Structural, Thermal, Fluid, each with the icon and the colour of its domain), each with what an analysis of
-     *  it is given and its analyses and optimisations; then the materials, which an analysis of any domain takes  */
-    void fillEngineeringMenu(QMenu* menu, int line, const QVector3D& point, double scale, int atLine);
+    /*  What the Operations menu holds, on the model at `line` or on empty space (-1): the operations  */
+    void fillOperationsMenu(QMenu* ops, int line, const QVector3D& point, double scale);
     void addImportEntry(QMenu* menu);
     /*  The "New ..." entries of the menus of empty space and of a model: `basic` the primitives, else the Parametric shapes (all the rest).  `point` is where a shape is made, `exact` where a point is
      *  (under the cursor, as it is)  */
     void addCreateEntries(QMenu* menu, const QVector3D& point, const QVector3D& exact, const QVector3D& flat, double scale, double flatScale, int atLine, bool basic);
     /*  The menu that is being built: the line of the model it is about (-1: the menu of empty space).  On a model, a new model of the menu is greyed out when it does not fit the model
-     *  (a line is made of points, a material is something a simulation takes ...: the library says -- see ScenePanel::entryAllowed); a thing made by number is placed anywhere  */
+     *  (a line is made of points ...: the library says -- see ScenePanel::entryAllowed); a thing made by number is placed anywhere  */
     int m_menuModelLine = -1;
-    void checkPrimitive(QAction* action, const QString& name, bool withBodies, int atLine) const;
+    void checkPrimitive(QAction* action, const QString& name) const;
     QVector3D placementExact(QPoint pos) const;
     /*  Where a 2D shape that is written with an x and a y only (it lies in the plane z = 0) is made by a click: where the ray under the cursor meets that plane, whichever way the view
         looks (on the work plane, while its view is open)  */
     QVector3D placementFlat(QPoint pos, double& scale) const;
     bool flatPrimitive(const QString& name) const;
-    /*  The operations as a menu's entries (the combining ones greyed when there is no second model); the analyses are
-     *  in the Engineering menu: `simulations` says which of the two is listed, and `domain` (structural, thermal, fluid) which analyses of them  */
-    void fillOperations(QMenu* menu, int line, const QVector3D& point, double scale, bool simulations = false, const QString& domain = QString());
-    /*  The lattice section of a menu: the operations that fill a model with a lattice (and make points for it), then a menu for each family of
-     *  cells -- struts, TPMS, planar patterns, non-periodic, custom -- each entry making that cell at once (no model is needed)  */
-    void fillLatticeMenu(QMenu* menu, const QVector3D& point, double scale, int line, const QString& section);
+    /*  The operations as a menu's entries (the combining ones greyed when there is no second model)  */
+    void fillOperations(QMenu* menu, int line, const QVector3D& point, double scale);
     /*  The Python menu: the most basic features of the language -- a variable, if, loops, a function, a class ... -- as blocks of plain code written at the insertion point of the
      *  model tree (the catalog's `python` list; no model is made of them)  */
     void fillPythonMenu(QMenu* menu, const QVector3D& point, double scale, int line);
     /*  The entry that makes a body from the field of the model at `line` (-1: the selected field the viewer shows)  */
     void addBodyFromField(QMenu* menu, int line, const QVector3D& point, double scale);
-    /*  New material, New fluid, New support or load, New thermal condition and New flow condition, as the menus of the Engineering
-     *  menu: what an analysis is given, made at a place like any new model.  `domain`: the ones of that domain (empty: those of no domain, the materials)  */
-    void fillSimulationPrimitives(QMenu* menu, const QVector3D& point, double scale, int atLine, const QString& domain);
     /*  Where a primitive goes: the point of the ray under a widget position that is closest to the origin  */
     QVector3D placeOnRay(QPoint pos) const;
     /*  The work plane's state and its pieces in the viewport  */
@@ -764,60 +750,21 @@ protected:
 
     /*  Colour bars of the models shown coloured by a field  */
     void drawLegends(QPainter& p);
-    void drawBoundaryLabels(QPainter& p);
     /*  A ruler for the scale at the middle of the view  */
     void drawScaleBar(QPainter& p);
 
-    /*  The card for a model shown with an analysis result  */
-    ResultPanel* m_resultPanel=nullptr;
-    void updateResultPanel();
-    void placeResultPanel();
-    QTimer m_stepTimer;                 // play: the next step of the results
-    QTimer m_flowTimer;                 // the particles on the streamlines of a flow move
-    /*  An optimisation that is running: the kernel puts a picture of the design after every iteration (run_progress::liveView) -- the
-     *  shapes its result is made of (the part cut from the density, the fluid and the body ...) -- and the view shows them as it shows
-     *  the result: they are made into shapes, rendered like any others, and put in place of the ones shown when they have their
-     *  meshes (what is shown stays until then).  A card says how it goes: the iteration, the objective (is it falling?), the material
-     *  against what is asked for, and how much the design still moves.  What the run makes replaces them when it is done  */
-    QTimer m_liveTimer;
-    std::shared_ptr<const libfive::run_progress::LiveView> m_live;
-    QList<Shape*> m_livePending;                // the shapes of the picture being meshed
-    bool m_liveDrawn = false;                   // (the shapes shown are the live picture's)
-    bool m_liveWaiting = false;                 // a newer picture has been published while those were meshing: it is next
-    QVector3D m_liveMin, m_liveMax;             // the region they are rendered over
-    std::function<QString()> m_liveSettings;    // the render settings the script has given so far (JSON), asked for while it runs
     std::function<libfive::Tree(const QString&)> m_exactResolver;
     std::shared_ptr<QMutex> m_exactMutex = std::make_shared<QMutex>();
     std::shared_ptr<QHash<QString, libfive::Tree>> m_exactTrees = std::make_shared<QHash<QString, libfive::Tree>>();
-    void pollLive();
-    void startLive();
-    void swapLive();
-    LivePanel* m_livePanel = nullptr;           // (the card of the optimisation that runs: a card like the others)
-    void placeLivePanel();
     /*  The entries of the first menu of a body that are used all the time -- center, bounding_box: not under a group  */
     void addQuickOperations(QMenu* menu, int line, const QVector3D& point, double scale);
-    /*  The Export submenu of the menu of a model: its mesh in every mesh format, a field on a grid, an analysis as a finite-element model and as results
-     *  -- what the model can be exported as; the window asks where the file goes  */
+    /*  The Export submenu of the menu of a model: its mesh in every mesh format, a field on a grid -- what the model can be exported as; the window asks
+     *  where the file goes  */
     void addExportMenu(QMenu* menu, int line);
 public:
-    void setLiveSettings(std::function<QString()> probe) { m_liveSettings = std::move(probe); }
     /*  Where a field viewer gets the exact distance of an imported part (asked for by FieldSource::exactKey, from the sampling's own thread)  */
     void setExactResolver(std::function<libfive::Tree(const QString&)> resolver) { m_exactResolver = std::move(resolver); }
 private:
-    int m_playMode = 0;                 // 0 loop, 1 back and forth, 2 once (stop at the end)
-    float m_playSpeed = 1.0f;           // steps per second = 10 x this
-    float m_flowOpacity = 1.0f;         // how opaque a flow is drawn (the result card's slider): the body in it shows through a lower one
-    int m_playDir = 1;                  // (back and forth: which way)
-    /*  What was chosen on the result card, kept by the view and not by the shapes: every new result shape -- the result of the next run,
-     *  and every picture of an optimisation that runs (a new one after every iteration) -- is made to look as the one before it did, so that
-     *  what you set (the field shown, the magnification, the opacity of a flow, the elements, the streamlines) stays while the design
-     *  changes.  -1: not chosen (the shape's own)  */
-    QString m_choiceChannel;            // the name of the field (not its position: another result has other fields)
-    float m_choiceDeform = -1.0f;       // the magnification, as a multiple of the result's own automatic one
-    int m_choiceElements = -1;
-    int m_choiceLines = -1;
-    void applyViewerChoices(Shape* s) const;
-
     /*  For click-to-select: where the press happened and what it hit  */
     QPoint press_pos;
     Shape* press_target=nullptr;

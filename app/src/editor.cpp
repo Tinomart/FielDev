@@ -47,7 +47,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QTextBlock>
 #include <QToolButton>
 
-#include "libfive/step/step_progress.hpp"
 #include "libfive/run_progress.hpp"
 
 #include "fieldes/i18n.hpp"
@@ -514,44 +513,20 @@ void Editor::onSpinner()
         // statement at its next line.  A step that cannot be interrupted finishes first
         const QString text = T("Terminating the script...");
         m_runLabel->setText(m_runLabel->fontMetrics().elidedText(text, Qt::ElideRight, std::max(60, m_runLabel->width())));
-        m_runLabel->setToolTip(T("The script stops at the next point where it can. A step that cannot be interrupted (an import, a lattice layout, a meshing) finishes first."));
+        m_runLabel->setToolTip(T("The script stops at the next point where it can. A step that cannot be interrupted (an import, a meshing) finishes first."));
         return;
     }
     const double e = m_runClock.elapsed() / 1000.0;
     const auto r = libfive::run_progress::current();
-    const auto p = libfive::step::importProgress();
 
     const std::pair<int, int> op{r.step, r.operation};
     if (op != m_runOperation)
     {
         m_runOperation = op;
         m_runShown = 0.0;
-        m_runImportStage = -1;
     }
     double f = r.fraction;
     QString what = progressText(QString::fromStdString(r.detail));
-    if (p.fraction >= 0)
-    {
-        if (r.fraction < 0)
-        {
-            // An import of its own: each of its stages (reading the file,
-            // resolving its faces, rebuilding its solids) has its own bar
-            if (p.stage != m_runImportStage)
-            {
-                m_runImportStage = p.stage;
-                m_runShown = 0.0;
-            }
-            f = p.fraction;
-        }
-        else
-        {
-            // inside an operation (a loop's item): its rebuilding counts
-            // within the share that operation gave it
-            f = std::max(f, r.spanLo + (r.spanHi - r.spanLo) * (p.stage == 2 ? p.fraction : 0.0));
-        }
-        const QString t = progressText(QString::fromStdString(p.text));
-        what = what.isEmpty() ? t : what + QString(" %1 ").arg(QChar(0x00b7)) + t;
-    }
     if (f >= 0) m_runShown = std::max(m_runShown, std::min(1.0, f));
 
     // "2/7 . <the statement> . <what the operation does>": when it doesn't
@@ -593,8 +568,7 @@ void Editor::onSpinner()
     if (qEnvironmentVariableIsSet("FIELDES_TIMING"))
     {
         std::cerr << "[bar-script] " << std::fixed << QDateTime::currentMSecsSinceEpoch() / 1000.0 << " "
-                  << e << " s: step " << r.step << "/" << r.steps << " op " << r.operation
-                  << "." << (p.fraction >= 0 ? p.stage : m_runImportStage) << " "
+                  << e << " s: step " << r.step << "/" << r.steps << " op " << r.operation << " "
                   << int(100 * m_runShown) << " %, " << text.toStdString() << "\n";
     }
 }

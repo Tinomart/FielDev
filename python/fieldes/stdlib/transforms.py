@@ -528,9 +528,8 @@ def move(shape, v):
 move.__doc__ = _move_prev.__doc__
 
 ################################################################################
-# Hand-written: what a shape carries that the rigid and scaling transforms take along: an imported STEP part's exact
-# distance and its STEP source (see fieldes.stdlib.cad_import.exclude's exact surface), and the locked fields and regions
-# of an excluded shape (fieldes.stdlib.excluded), which move with it so that it is never torn apart
+# Hand-written: what a shape carries that the rigid and scaling transforms take along: an imported part's exact
+# distance and the triangles it is drawn from, which move with it
 def _lazy_once(fn):
     ''' A function that works its result out on the first call only '''
     cell = []
@@ -541,12 +540,12 @@ def _lazy_once(fn):
     return get
 
 
-# The transforms as they were made, by name: a STEP part's source replays them on its exact surface
+# The transforms as they were made, by name
 RAW = {}
 
 
 def _placed_display(display, prev, args, kwargs):
-    ''' The triangles a tessellated part is drawn from (see tessellated_import), placed as the transform `prev(shape, *args)`
+    ''' The triangles a tessellated part is drawn from (see importing.tessellate), placed as the transform `prev(shape, *args)`
         -- one of the affine ones: move, rotate, scale, reflect -- places the part.  A transform makes the field `shape`
         composed with its inverse G, so applied to the coordinate fields it hands back G itself, worked out here from
         G at four points (with the numbers the script has for its var()s); the triangles' matrix is then G^-1 after
@@ -595,14 +594,6 @@ def _exact_follows(name):
             moved = _placed_display(display, prev, args, kwargs)
             if moved is not None:
                 out._display_mesh = moved
-        if hasattr(t, '_exact_source') or hasattr(t, '_exact_sources'):
-            from fieldes.stdlib import cad_import
-            cad_import._carry_exact(out, t, (name, args, kwargs))
-        if getattr(t, '_locks', None):
-            from fieldes.stdlib import excluded
-            out._locks = excluded.moved(prev, t, args, kwargs)
-            if getattr(t, '_free', None) is not None:
-                out._free = prev(t._free, *args, **kwargs)
         return out
     f.__doc__ = prev.__doc__
     f.__name__ = name

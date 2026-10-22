@@ -45,7 +45,7 @@ MAX_COPIES = 24                                  # (a 'turn' symmetry: how many 
 _PERMUTATIONS = ((0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0))
 
 # What an image has of the original: what the original IS and is called, not where it is (its gizmo, its outline, its box, its lines of points are placed by the symmetry)
-_TAKEN = ('_step_metrics', '_part_name', '_step_ref', '_kind', '_smooth', '_radius', 'size')
+_TAKEN = ('_part_name', '_kind', '_smooth', '_radius', 'size')
 
 
 # ---- small matrices of plain numbers
@@ -633,7 +633,7 @@ def symmetry_images(shape, symmetry, only=None, distinct=False):
         out._display = lambda: []
     elif hasattr(shape, 'xyz'):
         # A point: its images are a set of points, where they are now (each is drawn as a point of its own: it follows the point as it is dragged)
-        from fieldes.stdlib.lattices import PointSet
+        from fieldes.stdlib.points import PointSet
         places = [tuple(float(c) for c in im._point_pos) for im in images]
         nearest = min([math.dist(a, b) for i, a in enumerate(places) for b in places[i + 1:]] or [1.0])
         out = PointSet(places, nearest if nearest > 0 else 1.0)

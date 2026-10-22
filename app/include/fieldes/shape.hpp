@@ -56,7 +56,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "fieldes/symmetry.hpp"
 
 namespace libfive { class Tape; /*  forward declaration */ }
-namespace libfive { namespace fea { class TetProblem; } }
 
 namespace FielDes {
 
@@ -658,24 +657,6 @@ public:
      *  geometry (the part after an iteration of an optimisation: meshed when the step is first shown,
      *  then kept) -- what it does not bring is the result's own.
      */
-    /*  The steps of an optimisation of tetrahedra (topology_optimization) bring their geometry as triangles too: the surface of the
-     *  design after each iteration, made from the optimisation's own densities in a few tens of milliseconds, so that stepping through the
-     *  iterations meshes no field.  A step's triangles are made the first time they are wanted -- or ahead of that, by a thread that goes
-     *  through them all (setSteps) -- and kept.  The surface holds the optimisation: it lives as long as the steps are drawn  */
-    struct StepSurface
-    {
-        StepSurface(std::shared_ptr<libfive::fea::TetProblem> problem, double level, int count);
-        ~StepSurface();
-        std::shared_ptr<const ExactMesh> mesh(int k);       // (from any thread; null when the step has no surface to draw)
-        void prepareAll();                                  // all that are not made yet, as far as memory allows
-        std::shared_ptr<libfive::fea::TetProblem> problem;
-        double level;
-        int count;
-    private:
-        std::mutex m_mutex;
-        std::vector<std::shared_ptr<const ExactMesh>> m_made;
-        size_t m_bytes = 0;
-    };
     using FlowLine = std::vector<std::array<float, 5>>;     // x y z speed time, along the line
     struct Step
     {
@@ -686,8 +667,6 @@ public:
         bool hasLines = false;
         std::vector<FlowLine> lines;
         libfive::Tree tree = libfive::Tree::invalid();      // valid: the step's own geometry
-        std::shared_ptr<StepSurface> surface;               // set: the step is drawn from the triangles surface->mesh(surfaceStep)
-        int surfaceStep = 0;
     };
     void setSteps(std::vector<Step> steps, int current);
     int stepCount() const { return int(m_steps.size()); }
@@ -1062,7 +1041,6 @@ protected:
     // The shown step's own triangles (a step of an optimisation), else none; and the ones the render in progress draws from
     std::shared_ptr<const ExactMesh> m_step_exact;
     std::shared_ptr<const ExactMesh> run_step_exact;
-    void applyStepExact();
     static std::unique_ptr<libfive::Mesh> exactMeshOf(const ExactMesh& E, const double* matrix, const libfive::Region<3>& r);
     std::unique_ptr<libfive::Mesh> exactMeshIn(const libfive::Region<3>& r) const;
     std::shared_ptr<const ExactMesh> m_exact;

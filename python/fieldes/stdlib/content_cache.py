@@ -4,7 +4,7 @@ Content-keyed caches for the constructions that cost real time.
 A script runs again on every edit.  Most of what it builds is a lazy expression
 that costs nothing until it is evaluated, but a few constructions do real work
 when they are called: meshing a shape and building the search structure of an
-exact distance field, importing a mesh file, building a graph lattice, measuring
+exact distance field, importing a mesh file, measuring
 a volume.  Their results are remembered by *what they were built from* -- the
 shape's expression (not its identity), the numbers, the file's path, size and
 modification time -- so running the script again, or moving a slider that does
@@ -170,7 +170,7 @@ def value_key(v):
 
 
 def problem_key(kind, **parts):
-    ''' A key of a whole problem -- a static analysis, a thermal analysis: what it is made of, each part by its
+    ''' A key of a whole problem -- a computation made of several inputs: what it is made of, each part by its
         content -- or None when some part has no content key (then nothing is remembered) '''
     try:
         return (kind,) + tuple((k, value_key(x)) for k, x in sorted(parts.items()))

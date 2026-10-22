@@ -2,8 +2,7 @@
 A script run's progress, for FielDes's progress bar (see run_progress.hpp).
 
 The runner (runner.py) says which top-level statement runs; the operations
-inside one count how far they are: FEA solves and optimisations (in C++),
-STEP imports (their own count), top-level loops (the runner counts their
+inside one count how far they are: top-level loops (the runner counts their
 items), loading a cached import (its tree files), and progress() for your
 own long computations.
 

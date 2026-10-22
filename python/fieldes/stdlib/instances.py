@@ -40,8 +40,8 @@ def instance(shape):
         surfaces are pulled by, so dragging a surface of the copy or of the original moves both.  FielDes writes it with Ctrl+D, holding the original as a reference (`# shadow: original`: the original keeps its own row in the model tree,
         locked or not).  A copy that has a shape of its own is a copy of the statements instead (Shift+D) '''
     if not isinstance(shape, Shape):
-        raise TypeError('instance(): only a shape can be linked (a body, a 2D shape, a surface, a point ...), not %s -- a number, a material or the result of an '
-                        'analysis has no shape to follow' % type(shape).__name__)
+        raise TypeError('instance(): only a shape can be linked (a body, a 2D shape, a surface, a point ...), not %s -- a number or a result '
+                        'has no shape to follow' % type(shape).__name__)
     if getattr(shape, '_ctrl_pos', None):
         raise TypeError('instance(): a profile or a curve is made of its points, which are the models to place -- link the points, or copy the profile with its '
                         'statements (Shift+D)')

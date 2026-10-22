@@ -5,9 +5,9 @@ A script starts with
 
     from fieldes import *
 
-which brings in everything the library offers (shapes, CSG, transforms, STEP and
-mesh import, fields and regressions, lattices, analysis, FEA and thermal solvers,
-topology optimisation, ...) and `view`, the viewport settings of the application
+which brings in everything the library offers (shapes, CSG, transforms, mesh
+import and export, fields and regressions, points, profiles and sweeps, symmetry,
+textures, ...) and `view`, the viewport settings of the application
 (view.set_bounds, view.set_resolution, view.set_quality), and `app`, the inputs of a script that is run as an app
 (app.number, app.file, app.save_as, ...; see fieldes.app).
 

@@ -22,7 +22,7 @@
 
       handles      the handles on the shape's own surfaces: hover a surface of the shape and drag it.  They are always
                    there, whatever the mode of the gizmo.  Any shape with `var()` numbers has them; for a shape written
-                   with plain numbers -- a primitive, or a part imported from a STEP file, which is made of primitives --
+                   with plain numbers -- a primitive, or a shape made of primitives --
                    `handles()` makes the numbers that place its surfaces variables:
 
                        part = handles(part, [var(6), var(40)])
@@ -52,10 +52,9 @@ __all__ = ['gizmo', 'handles', 'lock']
 MODES = ('click', 'never', 'always')
 
 # What an imported part carries that a transformed copy must keep: its
-# features and name (roi_resolution, the model tree).  (Its own resolution is
-# not copied: roi_resolution sets it later, on the part, and FielDes reads it
-# from the part a placed shape was placed from.)
-_CARRIED = ('_step_metrics', '_part_name', '_step_ref', '_kind', 'xyz', '_point_pos', 'size', '_smooth', '_radius', '_linked', '_instance_of', '_no_handles', '_symmetry_def', '_drawn_key')
+# name (the model tree) and what it is.  (Its own resolution is not copied:
+# FielDes reads it from the part a placed shape was placed from.)
+_CARRIED = ('_part_name', '_kind', 'xyz', '_point_pos', 'size', '_smooth', '_radius', '_linked', '_instance_of', '_no_handles', '_symmetry_def', '_drawn_key')
 
 
 def _is_number(v):
@@ -219,12 +218,12 @@ def gizmo(shape, move=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1), about=None, 
                              'Leave scale= out; a copy that has a shape of its own is a copy of the statements (Shift+D in FielDes)')
         scale = (1, 1, 1)
     if not isinstance(shape, Shape) and callable(getattr(shape, '_display', None)):
-        # The result of an analysis or an optimisation is not a shape: it has no surface of its own to place (what it shows is made from
+        # A result that is not a shape has no surface of its own to place (what it shows is made from
         # its part).  Placed by nothing it is the result itself; placed by something, there is nothing it could mean
         nums = _var_numbers(list(move) + list(rotate) + list(scale))
         if nums is not None and all(n == 0 for n in nums[:6]) and all(n == 1 for n in nums[6:]):
             return shape
-        raise TypeError('gizmo(): a %s is the result of an analysis, not a shape: it has no surface of its own to move, rotate or scale. '
+        raise TypeError('gizmo(): a %s is a result, not a shape: it has no surface of its own to move, rotate or scale. '
                         'Place the part it was made from (gizmo() on that part) -- the result follows it.' % type(shape).__name__)
     # The pivot: where `about` says, else the middle of the shape as it was made (see _centre_of): plain numbers that no handle changes, so a side that is pulled moves that side
     # only, whatever the scale of the gizmo, and nothing jumps when the script is run again.  (It was an expression of the handle numbers once, so that the gizmo stayed at the middle of
@@ -291,7 +290,7 @@ def gizmo(shape, move=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1), about=None, 
         _carry_prism(out, shape, guard, still)
     # (the box of a part follows the numbers it is placed by: plain numbers, or the numbers the var()s have in the script being
     # run.  A placed part that lost its box would have to be searched for its extent by whatever is made from it -- a surface
-    # selected on it, a lattice on that -- and that search fails on a mesh)
+    # selected on it, a texture on that -- and that search fails on a mesh)
     b = getattr(shape, '_bounds', None)
     loose = bool(getattr(shape, '_bounds_loose', False))
     if not b and not hasattr(shape, 'xyz') and getattr(shape, '_point_pos', None) is None:
@@ -346,9 +345,9 @@ def lock(shape):
 
             part = lock(part)
 
-        (FielDes's model tree has a lock button on every model -- shapes, results, conditions, materials, points -- and the key R toggles it.) '''
+        (FielDes's model tree has a lock button on every model -- shapes, results, points -- and the key R toggles it.) '''
     if not isinstance(shape, Shape):
-        # Any other block -- the result of an analysis, a condition, a material, a point, a lattice cell -- is locked the same way: it is
+        # Any other block -- a result, a point -- is locked the same way: it is
         # itself in every way, and the model tree does not let it be dragged (the lock is the line: `result = lock(result)`)
         import copy
         try:
@@ -494,7 +493,7 @@ def handles(shape, values=None, **removed):
         moves and neither turns nor takes the rest of the part along.
 
         With the shape's own numbers the result is the very same shape.  If the
-        shape has a different number of them (the part was changed in the STEP
+        shape has a different number of them (the part was changed in its
         file) it raises ValueError: reimport the part.
 
         (This is what expose() was called.  The gizmo -- the arrows, rings and knobs
@@ -542,15 +541,14 @@ def handles(shape, values=None, **removed):
     get = getattr(shape, '_distance_of', None)
     if get is not None:
         out._distance_of = _lazy_once(lambda: _handle_distance(shape, out, values, get))
-    # (what the importer, roi() and the viewport read off a part: its box, its colouring, its exact regions)
-    from fieldes.stdlib import cad_import
-    for name in ('_bounds', '_render_hint') + tuple(cad_import._CARRIED):
+    # (what the importer, roi() and the viewport read off a part: its box, its colouring)
+    from fieldes.stdlib import import_log
+    for name in ('_bounds', '_render_hint') + tuple(import_log._CARRIED):
         if hasattr(shape, name):
             try:
                 setattr(out, name, getattr(shape, name))
             except AttributeError:
                 pass
-    cad_import._carry_exact(out, shape)
     from fieldes.kinds import keep_kind
     keep_kind(out, shape)
     _widen_box(out, shape, values)

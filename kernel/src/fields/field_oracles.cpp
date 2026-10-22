@@ -296,11 +296,6 @@ Tree gradientField(const Tree& t, int mode)
     return Tree(std::make_unique<FieldClause>(t, GRADIENT, std::max(0, std::min(6, mode)), 0.0));
 }
 
-Tree thicknessField(const Tree& t, double maxThickness)
-{
-    return Tree(std::make_unique<FieldClause>(t, THICKNESS, 0, std::max(1e-6, maxThickness)));
-}
-
 Tree curvatureField(const Tree& t, double h)
 {
     return Tree(std::make_unique<FieldClause>(t, CURVATURE, 0, std::max(1e-9, h)));

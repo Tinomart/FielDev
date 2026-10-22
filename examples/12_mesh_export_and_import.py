@@ -2,23 +2,23 @@
 #
 # import_model() turns an STL / OBJ / PLY / 3MF / glTF file into a field: the exact signed distance to
 # its triangles (the mesh is cleaned first, holes are closed smoothly).  So a mesh from anywhere
-# is a shape like any other: cut it, fill it with a lattice, analyse it.  Here the imported bracket
+# is a shape like any other: cut it, blend it, mirror it.  Here a part built from primitives
 # is exported with save_stl and read back.
 #
 import os
 from fieldes import *
 
-parts = import_model("step/PivotBearingSupportBracket.STEP")
-bracket, (lo, hi) = parts[0]
-
-view.set_bounds(*roi(parts), auto_scale=True)
+lo, hi = (-30, -30, -5), (30, 30, 35)
+view.set_bounds(lo, hi)
 view.set_resolution(2)
 view.set_quality(8)
 
+part = difference(cylinder(25, 30, (0, 0, 0)), sphere(18, (0, 0, 30)))
+
 os.makedirs("meshes", exist_ok=True)
-path = "meshes/bracket.stl"
+path = "meshes/part.stl"
 if not os.path.exists(path):
-    bracket.save_stl(path, lo, hi, resolution=2)       # STL carries no units: millimetres
+    part.save_stl(path, lo, hi, resolution=2)       # STL carries no units: millimetres
 
 mesh, (mlo, mhi) = import_model(path, file_units="mm")[0]
 mesh

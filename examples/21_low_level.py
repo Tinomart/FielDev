@@ -1,6 +1,6 @@
 # Low-level fields: a body is a function of x, y and z.
 #
-# Underneath every body, field and lattice of FielDes is the functional representation of the libfive kernel: a tree of
+# Underneath every body and field of FielDes is the functional representation of the libfive kernel: a tree of
 # arithmetic over three coordinates, negative inside, zero on the surface, positive outside.  libfive documents it in Scheme
 # (define-shape, remap-shape); here it is the same in Python.  `Shape.X()`, `Shape.Y()` and `Shape.Z()` are the coordinates, the
 # operators + - * / ** and the methods .min .max .abs .sqrt .square .sin .cos .tan .atan2 .exp .log build the tree, and
@@ -15,8 +15,8 @@
 #   4. a gyroid lattice, cut to a cube by a max
 #   5. a shape as a function you call, and a tree you can print -- and a slot cut in a twisted cube by the library's own difference
 #
-# No STEP file is needed.  What comes out is an ordinary body: the library's own operations (union, offset, move, the
-# analyses ...) take it as they take a box or a sphere.  Change a number and look.
+# What comes out is an ordinary body: the library's own operations (union, offset, move, smooth ...)
+# take it as they take a box or a sphere.  Change a number and look.
 from fieldes import *
 
 view.set_bounds([-12, -12, -14], [124, 12, 14], auto_scale=True)

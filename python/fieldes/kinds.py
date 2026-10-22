@@ -7,16 +7,10 @@ Everything a script makes is one of a few kinds, and FielDes shows the kind with
     solid       a 3D shape (a body: the field is negative inside it)
     curve       a 1D shape: a line or a spline through points (drawn as a line; as a field the distance to it)
     profile     a 2D shape (a field that does not depend on z: drawn flat, in the z = 0 plane)
-    field       a field that is not a body: a distance, a ramp, noise, a stress ... (a value at every point of space)
+    field       a field that is not a body: a distance, a ramp, noise ... (a value at every point of space)
     surface     an open surface (the zero set of a field, with no body behind it); a patch picked on a surface is one too
     point       a point
-    simulation  a solved analysis or optimisation
-    material    what a part (or a fluid) is made of: Material(...), steel, aluminium, water ...: an analysis is given one
-    conditions  what an analysis is given: supports, loads, thermal and flow boundary conditions
-    cell        what a lattice is made of: a cell (a strut cell, a TPMS, a planar pattern, a custom cell), a cell map,
-                a graph of beams
-    lattice     a body that is a lattice: what lattice(), lattice_surface_conform() ... make (a body filled with cells)
-    points      a set of points: what random_points() makes, the points a foam is made around (drawn as the dots of gizmos)
+    points      a set of points: the images of a point under a symmetry (drawn as the dots of gizmos)
     import      a file read in
     symmetry    mirror planes through a centre: what is made while it is selected is made with its images
     block       (a model made by one of your custom blocks carries a small block mark on its icon)
@@ -36,80 +30,15 @@ KINDS = {
     'field':      ('Field',       '#82cc58'),
     'surface':    ('Surface',     '#b583ee'),
     'point':      ('Point',       '#f4b73a'),
-    'simulation': ('Simulation',  '#ee6a5e'),
-    'material':   ('Material',    '#c9a66b'),
-    'conditions': ('Conditions',  '#e08f58'),
-    'cell':       ('Lattice cell', '#d4b43c'),
-    'lattice':    ('Lattice',     '#e0709c'),
     'points':     ('Point set',   '#f0a24c'),
     'import':     ('Import',      '#2aa198'),
     'symmetry':   ('Symmetry',    '#d33682'),
     'block':      ('Custom block', '#8da2c0'),
 }
 
-# The DOMAINS of engineering: what an analysis is about.  The Engineering block of the right-click menus has a category for each, and the model tree shows a
-# simulation, and what an analysis is given, in the colour and icon of its domain: the result in the full colour, its conditions in a lighter tint of it.
-# domain: (the words for it, the colour of a simulation, the colour of what it is given)
-DOMAINS = {
-    'structural': ('Structural', '#ee6a5e', '#f4958c'),
-    'thermal':    ('Thermal',    '#f08c2a', '#f5b46e'),
-    'fluid':      ('Fluid',      '#6f86f2', '#a1b0f7'),
-    'manufacturing': ('Manufacturing', '#46c37b', '#86d9a8'),
-}
-
-# The domain of what a function makes (an analysis, a condition), by its name: the one list the menus, the model tree and the icons read it from
-DOMAIN_OF_FUNCTION = {
-    'static_analysis': 'structural', 'modal_analysis': 'structural', 'topology_optimization': 'structural',
-    'fixed': 'structural', 'force': 'structural', 'gravity': 'structural', 'thermal_expansion': 'structural',
-    'thermal_analysis': 'thermal', 'thermal_topology_optimization': 'thermal',
-    'fixed_temperature': 'thermal', 'heat_input': 'thermal', 'heat_generation': 'thermal', 'convection': 'thermal',
-    'fluid_analysis': 'fluid', 'flow_topology_optimization': 'fluid',
-    'inlet': 'fluid', 'outlet': 'fluid', 'wall': 'fluid', 'slip': 'fluid',
-    'manufacturing_analysis': 'manufacturing', 'manufacturing_optimization': 'manufacturing',
-    'manufacturing_constraint': 'manufacturing', 'fff_constraint': 'manufacturing', 'cnc_constraint': 'manufacturing', 'molding_constraint': 'manufacturing',
-}
-
-# ... and of a value, by its class (a subclass is of its parent's domain)
-_DOMAIN_OF_CLASS = {
-    'Result': 'structural', 'ModalResult': 'structural', 'TopologyResult': 'structural',
-    'ThermalResult': 'thermal', 'ThermalTopologyResult': 'thermal',
-    'FluidResult': 'fluid', 'FlowTopologyResult': 'fluid',
-    '_Support': 'structural', '_Force': 'structural', '_Gravity': 'structural', '_Thermal': 'structural',
-    '_Temperature': 'thermal', '_Heat': 'thermal', '_HeatInput': 'thermal', '_HeatGeneration': 'thermal', '_Convection': 'thermal',
-    '_Inlet': 'fluid', '_Outlet': 'fluid', '_Wall': 'fluid', '_Slip': 'fluid',
-    'ManufacturingConstraint': 'manufacturing', 'ManufacturingAnalysis': 'manufacturing', 'ManufacturingResult': 'manufacturing',
-}
-
-
-def domain_of(callee):
-    ''' The domain of what the function `callee` (a name) makes, or '' '''
-    return DOMAIN_OF_FUNCTION.get(callee or '', '')
-
-
-def domain_of_value(value):
-    ''' The domain of a simulation or of a condition (its class, or its parent's), or ''.  A result that wraps another says it of itself
-        (`_engineering_domain`: a parametric optimisation is of the domain of its analysis) '''
-    own = getattr(value, '_engineering_domain', None)
-    if isinstance(own, str) and own:
-        return own
-    for cls in type(value).__mro__:
-        found = _DOMAIN_OF_CLASS.get(cls.__name__)
-        if found:
-            return found
-    return ''
-
-
 # The classes of the library that are not shapes, by name (a subclass is of its parent's kind)
 _BY_CLASS = {
-    'Result': 'simulation', 'ModalResult': 'simulation', 'ThermalResult': 'simulation', 'FluidResult': 'simulation',
-    'TopologyResult': 'simulation', 'FlowTopologyResult': 'simulation', 'ParametricResult': 'simulation',
-    'ManufacturingAnalysis': 'simulation', 'ManufacturingResult': 'simulation', 'ManufacturingConstraint': 'conditions',
-    'Material': 'material', 'Fluid': 'material', '_Support': 'conditions', '_Force': 'conditions',
-    '_Gravity': 'conditions', '_Thermal': 'conditions', '_Temperature': 'conditions', '_Heat': 'conditions',
-    '_HeatInput': 'conditions', '_HeatGeneration': 'conditions',
-    '_Convection': 'conditions', '_Inlet': 'conditions', '_Outlet': 'conditions', '_Wall': 'conditions',
-    '_Slip': 'conditions',
-    'LatticeCell': 'cell', 'CellMap': 'cell', 'LatticeGraph': 'cell', 'PointSet': 'points',
+    'PointSet': 'points',
     'SurfaceSelection': 'surface',
     'Regression': 'field', 'FieldFit': 'field',
 }
@@ -130,7 +59,7 @@ def kind_of(value):
     from fieldes.shape import Shape
     if isinstance(value, Shape):
         k = getattr(value, '_kind', None)
-        if k in ('point', 'points', 'surface', 'field', 'profile', 'curve', 'lattice', 'symmetry'):
+        if k in ('point', 'points', 'surface', 'field', 'profile', 'curve', 'symmetry'):
             return k
         if k == 'const':
             return 'field'
@@ -149,8 +78,8 @@ def kind_of(value):
 def keep_kind(out, shape):
     ''' `out` is `shape` edited in a way that does not change what it is (a gizmo, handles): a 2D shape is still one,
         although its field now depends on z the way the edit is written (a rotation about x) '''
-    if kind_of(shape) in ('profile', 'lattice'):
-        out._kind = kind_of(shape)
+    if kind_of(shape) == 'profile':
+        out._kind = 'profile'
 
 
 def describe():
@@ -158,16 +87,11 @@ def describe():
     return {k: {'label': label, 'color': color} for k, (label, color) in KINDS.items()}
 
 
-def describe_domains():
-    ''' The domains as {domain: {label, color, conditions}}, for the model tree and the menus: the colour of a simulation and of what it is given '''
-    return {k: {'label': label, 'color': color, 'conditions': tint} for k, (label, color, tint) in DOMAINS.items()}
-
-
 # What a function can be GIVEN, as the kinds of model it takes.  A function says it of itself, next to its definition -- `fn._takes = takes(...)` -- and everything that asks (the
 # right-click menus: what is valid for the models selected; the model tree: what can be dropped on a call) reads it from the function, so a new function is covered by one line
 # on it and no list anywhere has its name.  A function that says nothing takes any shape.
-SHAPES = frozenset(('solid', 'profile', 'curve', 'import', 'simulation', 'field', 'surface', 'point', 'lattice'))     # (what a geometric operation works on)
-BODIES = frozenset(('solid', 'profile', 'lattice', 'import', 'simulation'))     # (what has an inside, and edges: not a surface, a curve, a point or a field)
+SHAPES = frozenset(('solid', 'profile', 'curve', 'import', 'field', 'surface', 'point'))     # (what a geometric operation works on)
+BODIES = frozenset(('solid', 'profile', 'import'))     # (what has an inside, and edges: not a surface, a curve, a point or a field)
 
 
 def takes(accepts, needs=()):

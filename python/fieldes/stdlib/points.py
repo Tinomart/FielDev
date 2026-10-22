@@ -7,10 +7,10 @@ Points and surfaces: models of their own kind, and how every kind is drawn.
 
 A point is usable where a field function takes a position (distance_to_point(p), attractor(p, ...)) and gives its
 coordinates as p.xyz.  A surface is a field like any other (negative on one side, positive on the other), so it works
-wherever a field does: thicken(s, 1) makes it a wall, lattice_surface_conform(s, ...) lays a lattice on it.
+wherever a field does: thicken(s, 1) makes it a wall, texture(part, region=s) roughens the part there.
 
 What is drawn for each kind of model (Shape._display calls displayed() below):
-    a 3D shape and a simulation   as they are
+    a 3D shape                    as it is
     a 2D shape (no z)             its face in the z = 0 plane: flat, a sheet with no thickness (it has no height)
     a surface                     the sheet itself, with no thickness (the zero set of its field, meshed as it is)
     a point                       a dot, the middle point of a gizmo (click it to select the point: its gizmo shows)
@@ -251,3 +251,90 @@ def displayed(shape):
         from fieldes.stdlib.shapes import emptiness
         return emptiness()
     return shape
+
+
+################################################################################
+# A set of points
+
+class PointSet:
+    ''' A set of points: what the images of a point under a symmetry make (symmetry_images).  FielDes draws
+        them, each as the dot of a gizmo (without the gizmo's handles: they are data, not something to drag).
+        .points     the points, (x, y, z) in mm
+        .spacing    the average distance between a point and its nearest neighbour that it was made for
+        .body       the body they were made in (None when they were not made in one)
+        len(points), iterating it, points[i] work as for a list; points.stats() says how the points really are '''
+
+    _no_gizmo = True             # (not something to drag: FielDes hides the handles button)
+
+    def __init__(self, points, spacing, bounds=None, seed=None, body=None, skin=None):
+        self.points = [tuple(float(c) for c in p) for p in points]
+        self.spacing = float(spacing)
+        self.bounds = bounds
+        self.seed = seed
+        self.body = body
+        # (the points that lie ON the surface of the body -- the last `len(skin)` of `points` -- each with the unit normal that points out of the body there)
+        self.skin = [(tuple(float(c) for c in p), tuple(float(c) for c in n)) for p, n in (skin or [])]
+
+    def _display(self):
+        ''' What FielDes shows for the points: a shape with no extent that carries them (`_markers`), and the viewport draws each of them
+            as the dot of a gizmo -- nothing is meshed.  The shape is a constant that depends on the points, so that two sets are two
+            shapes (shapes with the same field are one) '''
+        shown = self.__dict__.get('_shown')
+        if shown is None:
+            import zlib
+            key = zlib.crc32(repr(self.points).encode('ascii'))
+            shown = Shape.wrap(float(1 + key % 1000003))              # (positive everywhere: nothing is inside)
+            shown._kind = 'points'
+            shown._markers = list(self.points)
+            if self.points:
+                shown._bounds = (tuple(min(p[i] for p in self.points) for i in range(3)),
+                                 tuple(max(p[i] for p in self.points) for i in range(3)))
+            self._shown = shown
+        return shown
+
+    def __len__(self):
+        return len(self.points)
+
+    def __iter__(self):
+        return iter(self.points)
+
+    def __getitem__(self, i):
+        return self.points[i]
+
+    def stats(self):
+        ''' How the points are: {count, mean, min, max} -- the distance from a point to its nearest neighbour (mm), on average, the
+            smallest and the largest of them '''
+        d = _nearest_distances(self.points, self.spacing * 1.5)
+        d = [v for v in d if v is not None]
+        if not d:
+            return {'count': len(self.points), 'mean': 0.0, 'min': 0.0, 'max': 0.0}
+        return {'count': len(self.points), 'mean': sum(d) / len(d), 'min': min(d), 'max': max(d)}
+
+    def __repr__(self):
+        s = self.stats()
+        return '<PointSet: {count} points, nearest neighbour {mean:.3g} mm on average ({min:.3g} to {max:.3g})>'.format(**s)
+
+
+def _nearest_distances(points, cell):
+    ''' For every point, the distance to the nearest other point (None when there is none within a few cells) '''
+    cell = max(float(cell), 1e-9)
+    grid = {}
+    for i, p in enumerate(points):
+        grid.setdefault((int(p[0] // cell), int(p[1] // cell), int(p[2] // cell)), []).append(i)
+    out = []
+    for i, p in enumerate(points):
+        cx, cy, cz = int(p[0] // cell), int(p[1] // cell), int(p[2] // cell)
+        best = None
+        for ring in (1, 2, 3):
+            for dx in range(-ring, ring + 1):
+                for dy in range(-ring, ring + 1):
+                    for dz in range(-ring, ring + 1):
+                        for j in grid.get((cx + dx, cy + dy, cz + dz), ()):
+                            if j != i:
+                                d = math.dist(p, points[j])
+                                if best is None or d < best:
+                                    best = d
+            if best is not None and best <= ring * cell:
+                break
+        out.append(best)
+    return out

@@ -86,36 +86,13 @@ add_library(libfive SHARED
     oracle/oracle_clause.cpp
     oracle/oracle_memo.cpp
 
-    step/step_parser.cpp
-    step/step_geometry.cpp
-    step/step_face.cpp
-    step/step_model.cpp
-    step/step_tessellate.cpp
-    step/step_exact.cpp
-    step/step_progress.cpp
-    step/step_fit.cpp
-    step/step_reconstruct.cpp
-    step/step_parts.cpp
-    step/step_bspline.cpp
-    step/step_assembly.cpp
 
     mesh_import/mesh_import.cpp
-    lattice/lattice_graph.cpp
-    lattice/surface_cells.cpp
     fields/field_oracles.cpp
     fields/point_shapes.cpp
     fields/data_fields.cpp
-    fields/lattice_field.cpp
+    fields/surface_select.cpp
 
-    fea/fea.cpp
-    fea/thermal.cpp
-    fea/tetmesh.cpp
-    fea/tet_common.cpp
-    fea/tet_quad.cpp
-    fea/tetfea.cpp
-    fea/tetthermal.cpp
-    fea/tetflow.cpp
-    fea/result_io.cpp
     run_progress.cpp
 
     libfive.cpp
@@ -202,7 +179,7 @@ endif(UNIX)
 
 target_link_libraries(libfive ${LIBS})
 
-# Manifold (vcpkg "manifold"): robust polygon triangulation for the direct
-# STEP tessellator, and mesh booleans for exact (tessellated) STEP regions
+# Manifold (vcpkg "manifold"): robust polygon triangulation of the faces of 2D
+# profiles (render/brep/mesh.cpp)
 find_package(manifold CONFIG REQUIRED)
 target_link_libraries(libfive manifold::manifold)

@@ -414,7 +414,6 @@ protected:
     double m_runShown = 0.0;
     int m_runLogged = -1;
     std::pair<int, int> m_runOperation{-2, 0};   // (step, operation) the bar shows
-    int m_runImportStage = -1;                   // and the stage of a STEP import in it
     QString m_runText;
 
     // Shown instead of the progress while the script is stopped at a breakpoint
