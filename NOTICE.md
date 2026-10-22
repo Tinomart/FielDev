@@ -40,20 +40,10 @@ and on the projects' sites.
 
 ## Example models
 
-The examples were written against sample STEP parts downloaded from GrabCAD. They are **not covered by the
-licences above**, and their authors' terms are not known.
-
-- **`examples/step/PivotBearingSupportBracket.STEP`** (the bracket of examples 01, 05, 08, 10 and 15) **is
-  distributed** with FielDes, in this repository and in the portable packages, so that those examples run as
-  they are. That is the maintainer's decision, taken without the author's permission being known; if you are its
-  author or hold its rights and want it removed, open an issue and it will be.
-- The other sample parts (`Bracket.step`, `MobileStand.step`, `ShaftSupportStand.STEP`, `Keukencombinatie.stp`)
-  are **not distributed**, neither in this repository nor in the portable packages.
-
-[`examples/step/README.md`](examples/step/README.md) lists the file names the examples expect.
+The examples make their own geometry from primitives, fields and points: no third-party model is distributed
+with them. (The FielDes the project comes from distributed a sample STEP part from GrabCAD, of unknown terms; it,
+and the STEP importer that read it, are not part of FielDev.)
 
 ## No warranty
 
-FielDes is provided **as is**, without warranty of any kind. The finite-element, thermal and optimisation
-tools are linear, simplified design aids, not certified solvers: do not use their results as the sole basis
-for a decision that affects safety.
+FielDes is provided **as is**, without warranty of any kind.
