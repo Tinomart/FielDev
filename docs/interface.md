@@ -277,7 +277,7 @@ itself the moment every placeholder in it is filled in, because every edit runs 
 where what goes there is written (hover the argument's name to read what it is); in the model tree the statement stays, with a **placeholder row**
 under it for each one, named by its argument (a click on it does the same). A model **dropped on that row takes the placeholder's place at once** (on the
 statement's row: the first one). Placeholders come from the creation menus and from autocompletion alike -- **whenever something is missing, a placeholder is
-written for it, after the argument's name** (`union(a, b=...)`, `force(region=..., vector=...)`) -- and from taking a model out of a call that cannot do without it.
+written for it, after the argument's name** (`union(a, b=...)`, `difference(a, b=...)`) -- and from taking a model out of a call that cannot do without it.
 
 **Replacing a model.** Drop a model **on a model of its kind that is one of a call's arguments** and it **takes that one's place** in the call,
 no menu: a 3D shape on a 3D shape, a field on a field, a point on a point. The model it replaces is not deleted: if the call was its first user it goes out to the top level (or
