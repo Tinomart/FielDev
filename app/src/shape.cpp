@@ -142,18 +142,6 @@ void Shape::setColorField(const libfive::Tree& field, float lo, float hi, bool a
     color_map = colormap;
 }
 
-void Shape::setBoundarySymbols(std::vector<BcGlyph> glyphs, std::vector<BcLabel> labels)
-{
-    bc_glyphs = std::move(glyphs);
-    bc_labels = std::move(labels);
-    QString key;
-    for (const auto& g : bc_glyphs)
-        key += QString("%1,%2,%3,%4,%5,%6,%7,%8,%9;").arg(g.kind).arg(g.tip).arg(g.pos.x()).arg(g.pos.y()).arg(g.pos.z())
-                   .arg(g.dir.x()).arg(g.dir.y()).arg(g.dir.z()).arg(g.size);
-    for (const auto& l : bc_labels) key += QString("%1,%2;").arg(l.kind).arg(l.text);
-    bc_key = key;
-}
-
 void Shape::setMarkers(std::vector<QVector3D> points)
 {
     m_markers = std::move(points);
@@ -430,8 +418,8 @@ bool Shape::prismNow(const std::map<libfive::Tree::Id, float>& v, std::vector<li
 {
     static const bool off = std::getenv("FIELDES_NO_NATIVE") != nullptr;
     if (off || m_prism_points.empty() || !m_prism_a.is_valid() || !m_prism_b.is_valid()) return false;
-    // (what colours or bends the shape is not a prism's to draw)
-    if (color_field.is_valid() || has_result || !m_channels.empty()) return false;
+    // (what colours the shape is not a prism's to draw)
+    if (color_field.is_valid()) return false;
     for (const auto& g : m_prism_guard)
     {
         const auto it = v.find(g.first);
@@ -535,7 +523,7 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
 {
     static const bool off = std::getenv("FIELDES_NO_NATIVE") != nullptr;          // (for comparing with the field: every sweep and prism is meshed from its field)
     if (off || !hasSweep() || !m_sweep_twist.is_valid()) return false;
-    if (color_field.is_valid() || has_result || !m_channels.empty()) return false;
+    if (color_field.is_valid()) return false;
     for (const auto& g : m_sweep_guard)
     {
         const auto it = v.find(g.first);
@@ -1244,10 +1232,10 @@ bool Shape::movedBox(QVector3D& lo, QVector3D& hi) const
 
 bool Shape::previewGizmoVars(const std::map<libfive::Tree::Id, float>& changed, bool allowed)
 {
-    // Only a plain mesh of this shape can be moved as it is: with colours (they are values of a field at the places of the mesh), a result, a deformation, steps, a
+    // Only a plain mesh of this shape can be moved as it is: with colours (they are values of a field at the places of the mesh), a
     // face or a line of points, an imported part (its triangles are placed by a matrix of their own) or a mesh that is not there yet it is made again
-    if (!allowed || !m_gizmo.present || m_locked || !mesh || has_color || has_result || has_deform || m_flat || hasControls() || m_isPoint ||
-        exactCurrent() || m_exact || !m_steps.empty())
+    if (!allowed || !m_gizmo.present || m_locked || !mesh || has_color || m_flat || hasControls() || m_isPoint ||
+        exactCurrent() || m_exact)
         return false;
     const auto own = gizmoVars();
     bool affects = false;
@@ -1341,7 +1329,6 @@ std::string Shape::extentWhy(const Settings& s)
 {
     if (!s.autoScale) return "auto scale is off";
     if (has_hint) return "it has a render hint of its own";
-    if (has_result) return "it is a result";
     if (m_step_exact || exactCurrent()) return "it is drawn from triangles of its own";
     if (!tree.is_valid()) return "no tree";
     if (hasControls() || (m_flat && hasFlatFrame())) return "a line or a face of points";
@@ -1424,7 +1411,7 @@ bool Shape::scriptBoxFresh() const
 
 bool Shape::extentSearchable() const
 {
-    return tree.is_valid() && !has_hint && !has_result && !m_step_exact && !exactCurrent() && !hasControls() && !(m_flat && hasFlatFrame()) && !hasSweep() && !hasPrism() &&
+    return tree.is_valid() && !has_hint && !m_step_exact && !exactCurrent() && !hasControls() && !(m_flat && hasFlatFrame()) && !hasSweep() && !hasPrism() &&
            m_tree_nodes <= 100000;
 }
 
@@ -1443,7 +1430,7 @@ bool Shape::extentWith(const std::map<libfive::Tree::Id, float>& vs, const QVect
 bool Shape::searchExtent(const std::map<libfive::Tree::Id, float>& numbers, const QVector3D& search_lo, const QVector3D& search_hi, QVector3D& lo, QVector3D& hi, float seconds,
                          float coarse)
 {
-    if (has_hint || has_result || m_step_exact || exactCurrent() || !tree.is_valid()) return false;
+    if (has_hint || m_step_exact || exactCurrent() || !tree.is_valid()) return false;
     if (hasControls() || (m_flat && hasFlatFrame())) return false;          // (a line or a face of points, or a face in a plane of its own: no extent is measured)
     // (a sweep or a prism: it is drawn from the numbers of its points, and a search through the field of a sweep -- a piece for every piece of the path -- took seconds, in the
     // GUI's thread, for an extent only the field's own render could use; if it has to be meshed from its field it is at the scene's resolution)
@@ -1479,7 +1466,7 @@ bool Shape::searchExtent(const std::map<libfive::Tree::Id, float>& numbers, cons
 
 double Shape::autoResolution(const Settings& s) const
 {
-    if (!s.autoScale || !m_ext_valid || has_hint || has_result) return s.res;
+    if (!s.autoScale || !m_ext_valid || has_hint) return s.res;
     const QVector3D region = s.max - s.min, size = m_ext_hi - m_ext_lo;
     const double R = std::max(region.x(), std::max(region.y(), region.z()));
     const double L = std::max(size.x(), std::max(size.y(), size.z()));
@@ -1518,7 +1505,7 @@ int Shape::defaultDivFor(const Settings& s)
 {
     // (a shape that is drawn from the numbers of its points is meshed in a moment: there is no coarse picture to show first, one pass at the finest level is all it needs)
     if (drawnFromNumbers()) return 0;
-    if (!s.autoScale || has_hint || has_result) return s.defaultDiv();
+    if (!s.autoScale || has_hint) return s.defaultDiv();
     // (its size: from the search for its box, else from the mesh it has -- a shape that is a few millimetres across in a region of a hundred starts at a level at which it is
     // a few cells wide, which draws a leg as a wedge, at every move of a drag)
     QVector3D lo = m_ext_lo, hi = m_ext_hi;
@@ -1604,29 +1591,9 @@ QString Shape::colorKey() const
 QString Shape::colorKeyBase() const
 {
     if (!has_color) return QString();
-    QString lines = QString("|lines %1 %2 %3").arg(flow_lines.size()).arg(flow_lo).arg(flow_hi);
-    if (has_result)
-    {   // the result itself; which field, step and scale are shown is view state
-        QString key = "result";
-        for (const auto& c : base_channels) key += QString("|%1").arg(quintptr(c.tree.id()));
-        for (const auto& st : m_steps)
-        {
-            key += "|step";
-            for (const auto& c : st.channels) key += QString(" %1").arg(quintptr(c.tree.id()));
-            if (st.hasDeform)
-                for (int a = 0; a < 3; ++a) key += QString(" d%1").arg(quintptr(st.deform[a].id()));
-            if (st.tree.is_valid()) key += QString(" g%1").arg(quintptr(st.tree.id()));
-            if (st.hasLines) key += QString(" l%1").arg(st.lines.size());
-        }
-        return key + lines;
-    }
-    QString steps;
-    for (const auto& st : m_steps)
-        if (st.tree.is_valid()) steps += QString("|g%1").arg(quintptr(st.tree.id()));
-    return QString("%1|%2|%3|%4|%5|%6|%7").arg(quintptr(color_field.id()))
-        .arg(color_auto).arg(color_lo).arg(color_hi).arg(color_label, color_map, bc_key) + lines + steps +
-        (has_cutoff ? QString("|patch %1").arg(color_cutoff) : QString()) +
-        (has_floor ? QString("|floor %1").arg(color_floor) : QString());
+    return QString("%1|%2|%3|%4|%5|%6").arg(quintptr(color_field.id()))
+        .arg(color_auto).arg(color_lo).arg(color_hi).arg(color_label, color_map) +
+        (has_cutoff ? QString("|patch %1").arg(color_cutoff) : QString());
 }
 
 namespace {
@@ -1844,38 +1811,7 @@ void evalRangeThreaded(libfive::ArrayEvaluator& main, const libfive::Tree& tree,
 bool Shape::probe(const QVector3D& p, float& value)
 {
     if (!has_color) return false;
-    // The elements shown: the value of the element under the cursor
-    if (has_result && m_show_elements && hasElements()) return probeElement(p, value);
-    Eigen::Vector3f q(p.x(), p.y(), p.z());
-    if (has_result)
-    {
-        // The deformed model: find the undeformed point that moved here (the
-        // point q with q + scale * u(q) = target, iterated until it holds)
-        if (has_deform && m_deform != 0)
-        {
-            for (int a = 0; a < 3; a++)
-            {
-                if (!probe_disp[a]) probe_disp[a].reset(new libfive::ArrayEvaluator(deform_tree[a]));
-            }
-            const Eigen::Vector3f target = q;
-            for (int it = 0; it < 40; it++)
-            {
-                const Eigen::Vector3f u(probe_disp[0]->value(q), probe_disp[1]->value(q),
-                                        probe_disp[2]->value(q));
-                const Eigen::Vector3f next = target - m_deform * u;
-                const bool done = (next - q).norm() < 1e-5f * (1.0f + target.norm());
-                q = next;
-                if (done) break;
-            }
-        }
-        if (!probe_channel || probe_channel_index != m_channel)
-        {
-            probe_channel.reset(new libfive::ArrayEvaluator(m_channels[size_t(m_channel)].tree));
-            probe_channel_index = m_channel;
-        }
-        value = probe_channel->value(q);
-        return true;
-    }
+    const Eigen::Vector3f q(p.x(), p.y(), p.z());
     if (!probe_eval) probe_eval.reset(new libfive::ArrayEvaluator(color_field, vars));
     value = probe_eval->value(q);
     return true;
@@ -2990,8 +2926,6 @@ void Shape::buildDeps() const
             add(m_sweep_rotate[a]);
             add(m_sweep_scale[a]);
         }
-        for (int a = 0; a < 3; ++a) add(deform_tree[a]);
-        for (const auto& c : m_channels) add(c.tree);
         for (int a = 0; a < 3; ++a)
         {
             if (m_gizmo.move[a]) m_deps.insert(m_gizmo.move[a]);
@@ -3090,7 +3024,7 @@ void Shape::linkSource(Shape* source)
 
 bool Shape::plainMesh() const
 {
-    return mesh && !has_color && !has_result && !has_deform && !m_flat && !hasControls() && !m_isPoint && !exactCurrent() && !m_exact && m_steps.empty() &&
+    return mesh && !has_color && !m_flat && !hasControls() && !m_isPoint && !exactCurrent() && !m_exact &&
            !hasSweep() && !hasPrism();
 }
 
@@ -3162,9 +3096,6 @@ void Shape::adoptMeshFromSource()
     m_outlines.clear();
     m_outline_curves.clear();
     color_values.clear();
-    step_values.clear();
-    step_disp.clear();
-    lines_dirty = true;
     prev_div = mesh_div;
     prev_seq = mesh_seq;
     prev_verts = mesh_verts;
@@ -3198,8 +3129,6 @@ void Shape::draw(const QMatrix4x4& M)
         unsigned i = 0;
 
         // Unpack vertices into a flat array that will loaded into OpenGL
-        const auto& dd = dispNow();
-        const bool deform = has_deform && m_deform != 0 && dd.size() == mesh->verts.size();
         // A patch of a surface is drawn at the top of its colour map -- except in the boundary-condition map, whose colours are the categories
         // (its top is the last one, gold): there it is the category its label names ("bc:6", a selected surface), the colour its key shows
         float patchT = 1.0f;
@@ -3211,7 +3140,7 @@ void Shape::draw(const QMatrix4x4& M)
         size_t vk = 0;
         for (auto& v0 : mesh->verts)
         {
-            const Eigen::Vector3f v = deform ? Eigen::Vector3f(v0 + m_deform * dd[vk]) : Eigen::Vector3f(v0);
+            const Eigen::Vector3f v = Eigen::Vector3f(v0);
             vk++;
             const auto v_ = v.template cast<double>().array().eval();
             // Track mesh's bounding box
@@ -3245,7 +3174,6 @@ void Shape::draw(const QMatrix4x4& M)
                 verts[i++] = g;
                 verts[i++] = b;
                 if (has_cutoff) outside = color_values[vi] - color_cutoff;
-                else if (has_floor) outside = color_floor - color_values[vi];      // (above zero below the floor: not drawn)
             }
             else
             {
@@ -3305,11 +3233,6 @@ void Shape::draw(const QMatrix4x4& M)
         gl_ready = true;
     }
 
-    if (gl_ready && m_show_elements && hasElements())
-    {
-        drawElements(M, false, QColor());
-        return;
-    }
     if (gl_ready)
     {
         auto s = (grabbed || hover) ? 1 : 0.9;
@@ -3349,7 +3272,7 @@ void Shape::draw(const QMatrix4x4& M)
         glUniformMatrix4fv(Shader::basic->uniformLocation("M"),
                            1, GL_FALSE, shown.data());
         glUniform1i(Shader::basic->uniformLocation("use_rest"), 1);
-        glUniform1i(Shader::basic->uniformLocation("patch_mode"), (has_cutoff || has_floor) ? 1 : 0);
+        glUniform1i(Shader::basic->uniformLocation("patch_mode"), has_cutoff ? 1 : 0);
         vao.bind();
         glDrawElements(GL_TRIANGLES, mesh->branes.size() * 3, GL_UNSIGNED_INT, NULL);
         vao.release();
@@ -3361,11 +3284,6 @@ void Shape::draw(const QMatrix4x4& M)
 
 void Shape::drawMonochrome(const QMatrix4x4& M, QColor color)
 {
-    if (gl_ready && m_show_elements && hasElements())
-    {
-        drawElements(M, true, color);
-        return;
-    }
     if (gl_ready)
     {
         Shader::basic->bind();
@@ -3377,7 +3295,7 @@ void Shape::drawMonochrome(const QMatrix4x4& M, QColor color)
                 color.redF(), color.greenF(), color.blueF(), 1.0f);
         glUniform4f(Shader::basic->uniformLocation("color_mul"), 0, 0, 0, 0);
         glUniform1i(Shader::basic->uniformLocation("use_rest"), 1);
-        glUniform1i(Shader::basic->uniformLocation("patch_mode"), (has_cutoff || has_floor) ? 1 : 0);
+        glUniform1i(Shader::basic->uniformLocation("patch_mode"), has_cutoff ? 1 : 0);
 
         vao.bind();
         glDrawElements(GL_TRIANGLES, mesh->branes.size() * 3, GL_UNSIGNED_INT, NULL);
@@ -3441,23 +3359,7 @@ void Shape::startRender(RenderSettings s)
                 s.div = default_div;
             }
         }
-        {   // what this render evaluates at the vertices (the shown step's fields: the GUI may change them meanwhile)
-            QString key;
-            for (const auto& c : m_channels) key += QString("|%1").arg(quintptr(c.tree.id()));
-            for (int a = 0; a < 3; ++a) key += QString("|%1").arg(quintptr(deform_tree[a].id()));
-            if (key != run_key)
-            {
-                result_evals.clear();
-                result_pool.clear();
-                run_key = key;
-            }
-            run_channels = m_channels;
-            for (int a = 0; a < 3; ++a) run_deform[a] = deform_tree[a];
-            run_has_deform = has_deform;
-            run_color_detail = color_detail;
-            step_rendering = geometryKey();
-            run_step_exact = m_step_exact;
-        }
+        run_step_exact = m_step_exact;          // (what this render draws from: the GUI may change it meanwhile)
         if (s.div == MESH_DIV_NEW_VARS ||
             s.div == MESH_DIV_NEW_VARS_SMALL)
         {
@@ -3668,25 +3570,8 @@ void Shape::onFutureFinished()
         if (next_follows) next.div = MESH_DIV_EMPTY;
     }
     if (m_cache_on.load()) emit(cacheStateChanged());
-    if (bm.mesh != nullptr && step_rendering != geometryKey())
-    {   // a render of a geometry no longer shown: kept when it is finished, not shown
-        std::shared_ptr<libfive::Mesh> m(bm.mesh);
-        if (target_div == 0)
-        {
-            StepMesh sm;
-            sm.mesh = m;
-            sm.region = bm.region;
-            sm.channels = std::move(bm.channels);
-            sm.disp = std::move(bm.disp);
-            step_meshes[step_rendering] = std::move(sm);
-        }
-        bm.mesh = nullptr;
-    }
     if (bm.mesh != nullptr)
     {
-        step_values.clear();
-        step_disp.clear();
-        lines_dirty = true;
         mesh.reset(bm.mesh);
         m_meshGizmo = m_runGizmo;                       // (the new mesh is of the numbers its render started with; shown moved when the shape has been dragged since)
         refreshPreview();
@@ -3700,12 +3585,6 @@ void Shape::onFutureFinished()
         mesh_verts = mesh->verts.size();
         render_bounds = bm.region;
         color_values = std::move(bm.values);
-        if (has_result)
-        {
-            channel_values = std::move(bm.channels);
-            disp = std::move(bm.disp);
-            applyChannel();
-        }
         if (has_color && color_auto && !color_values.empty())
         {
             float lo = std::numeric_limits<float>::infinity(), hi = -lo;
@@ -3748,14 +3627,9 @@ void Shape::onFutureFinished()
         QObject::deleteLater();
     }
     else if (next.div >= 0 || next.div == MESH_DIV_NEW_VARS
-                           || next.div == MESH_DIV_NEW_VARS_SMALL
-                           || next.div == MESH_DIV_NEW_TREE)
+                           || next.div == MESH_DIV_NEW_VARS_SMALL)
     {
         startRender(next);
-    }
-    else
-    {
-        prefetchSteps();        // (idle: the steps whose geometry has not been meshed are made now, one after the other)
     }
 }
 
@@ -4060,11 +3934,6 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
     std::string cacheKey;
     if (!m && m_cache_on.load())
     {
-        if (has_result)
-        {
-            cache_state.store(CACHE_RESULT);
-        }
-        else
         {
             cacheKey = renderCacheKey(s, mesh_region, res);
             if (cacheKey.empty())
@@ -4280,8 +4149,6 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         }
     } afterShare{colour_share, tLevel, tMesher};
 
-    // (a result's colours: as fine as the solver's elements, see refineForColour)
-    if (has_result && run_color_detail > 0 && m && !m->branes.empty()) refineForColour(*m, run_color_detail);
     BoundedMesh out;
     out.mesh = m.release();
     out.region = r;
@@ -4585,7 +4452,6 @@ std::string Shape::renderCacheTreeKey() const
         // (a patch of a surface: its mesh is cut finer along the edge of the patch than the one the first version kept, whose
         // triangles on a flat face were as big as the face)
         if (has_cutoff) out += "|patch2";
-        if (has_floor) out += "|floor1";
     }
     return out;
 }
@@ -4694,7 +4560,7 @@ bool Shape::writeRenderCache(const std::string& key, const BoundedMesh& out) con
 
 bool Shape::keepCurrent()
 {
-    if (running || !mesh || mesh_div != 0 || has_result || next.div != MESH_DIV_EMPTY) return false;
+    if (running || !mesh || mesh_div != 0 || next.div != MESH_DIV_EMPTY) return false;
     // (the mesh on screen was not meshed with the cache on: mesh it again at its level, which keeps it
     // -- or reads what an earlier run kept)
     startRender(RenderSettings{next.settings, 0, next.alg});
