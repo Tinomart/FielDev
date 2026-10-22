@@ -170,11 +170,9 @@ static QString guideHtml()
     h += li(T("<b>Right-click</b> empty space in the viewport: <b>Primitives</b> -- <b>New 3D shape</b>, <b>New 2D shape</b>, <b>New 1D shape</b>, <b>New point</b>, "
               "<b>New surface</b> and <b>New field</b>, the most basic of each -- and <b>Parametric shapes</b> (a rounded box, a ring, noise, your own logic, custom blocks) "
               "write the call into the script where the cursor is "
-              "(and select it, ready to drag); <b>Operations</b> work on the selected model and hold <b>Lattice</b>; <b>Engineering</b> has a category for "
-              "each domain -- <b>Structural</b>, <b>Thermal</b>, <b>Fluid</b>, <b>Manufacturing</b> -- with what its analyses are given and the analyses and optimizations themselves. "
-              "Right-click a model for the same <b>Operations</b> (offsets, moving, field math ...) on it and the <b>Engineering</b> analyses (static, modal, "
-              "topology optimization, thermal, flow), written with that model as the argument. Whatever a menu entry "
-              "writes that you did not give -- a force, a volume fraction, an element size -- it asks for first."));
+              "(and select it, ready to drag); <b>Operations</b> work on the selected model (offsets, rounding, moving, repeating, combining); "
+              "<b>Python</b> writes the basic blocks of the language. Right-click a model for the same <b>Operations</b> on it (offsets, moving, field math ...), "
+              "written with that model as the argument. Nothing is asked: what a menu entry writes is code, and the code is the place to change it."));
     h += li(T("<b>The same menu opens in the text editor and in the model tree</b>: right-click a line of the script that defines "
               "a model, or its row in the tree, and it is as if you had right-clicked the model in the viewport. On a line with no "
               "model it is the menu of empty space, and what you make goes under that line."));
@@ -184,11 +182,7 @@ static QString guideHtml()
     h += li(T("Every kind of thing has its own colour and icon in the tree and the menus: "
               "<span style='color:#4aa8e8'><b>3D shape</b></span>, <span style='color:#35c4b3'><b>2D shape</b></span>, "
               "<span style='color:#82cc58'><b>field</b></span>, <span style='color:#b583ee'><b>surface</b></span>, "
-              "<span style='color:#f4b73a'><b>point</b></span>, "
-              "<span style='color:#c9a66b'><b>material</b></span>, <b>simulation</b> and the <b>conditions</b> it is given, in the colour of their domain "
-              "(<span style='color:#ee6a5e'><b>structural</b></span>, <span style='color:#f08c2a'><b>thermal</b></span>, <span style='color:#6f86f2'><b>fluid</b></span>; "
-              "the conditions in a lighter tint), "
-              "<span style='color:#d4b43c'><b>lattice cell</b></span>. "
+              "<span style='color:#f4b73a'><b>point</b></span>, <b>curve</b> and <b>symmetry</b>. "
               "A model made by one of your own blocks has a small <b>f</b> badge."));
     h += li(T("<b>Every number can be a field</b>: <code>offset(part, 0.5)</code> and "
               "<code>offset(part, ramp(z_field(), (0, 40), (0.2, 2)))</code> are written alike. A point can stand "
@@ -240,7 +234,7 @@ static QString guideHtml()
     h += li(T("<b>Rename</b>: double-click a name (or F2), type, Enter: every use in the script changes. "
               "<b>Render settings</b>: open the row and edit the region, resolution and quality as numbers."));
     h += li(T("A displayed expression gets a name first: <code>sphere(3)</code> becomes <code>sphere_1 = sphere(3)</code>."));
-    h += li(T("<b>Reimport</b> reads a file again; the <b>bin</b> also clears its cache and handle edits."));
+    h += li(T("<b>Reimport</b> reads a file again; the <b>bin</b> also clears its handle edits."));
     h += li(T("Grey: hidden, or outside the render region."));
     h += "</ul>";
 
@@ -253,32 +247,16 @@ static QString guideHtml()
                 .arg(keys("view.cancel-render"), keys("file.export-screenshot"), keys("file.copy-screenshot")));
     h += "</ul>";
 
-    h += "<h2>" + T("Section and result cards") + "</h2><ul>";
+    h += "<h2>" + T("Section card") + "</h2><ul>";
     h += li(T("%1 opens the section card: pick the axis, move the plane with the slider or its arrow, flip the kept side.")
                 .arg(keys("view.section")));
-    h += li(T("<b>Cut model</b> clips the geometry; <b>Field</b> paints the plane with the distance field, or with the "
-              "analysis result inside the part."));
-    h += li(T("<b>Whole elements</b> (with analysis elements shown) keeps elements whole at the plane."));
-    h += li(T("The result card switches the field, magnifies the deformation and shows the solver's elements."));
+    h += li(T("<b>Cut model</b> clips the geometry; <b>Field</b> paints the plane with the field's value."));
     h += li(T("Hover a coloured model to read its value. Closing a legend (its x) stops the probing."));
     h += "</ul>";
 
     h += "<h2>" + T("Importing") + "</h2><ul>";
     h += li(T("%1 or drop a file on the window.").arg(keys("file.import-model")));
-    h += li(T("<b>STEP</b>: every solid becomes a field, one part each; assemblies arrive assembled. Free-form faces "
-              "are fitted and shaded by their deviation."));
-    h += li(T("<code>exclude()</code> or <code>auto_exclude=True</code> locks the file's own exact surface (made a field) where the fit is poor."));
-    h += li(T("<b>STL, OBJ, PLY, 3MF, GLB</b>: an exact distance field. Pass <code>file_units=</code> if the file is not in mm."));
-    h += "</ul>";
-
-    h += "<h2>" + T("Analysis") + "</h2><ul>";
-    h += li(T("<code>static_analysis</code>, <code>modal_analysis</code>, <code>thermal_analysis</code>, "
-              "<code>topology_optimization</code> and <code>fluid_analysis</code> work on any shape (mm, N, MPa)."));
-    h += li(T("Supports and loads are shapes: <code>fixed(region)</code>, <code>force(region, (fx, fy, fz))</code>, "
-              "<code>gravity()</code> -- and every kind of condition is an input of its own: "
-              "<code>static_analysis(part, supports=[...], loads=[...])</code>."));
-    h += li(T("Results are fields: <code>result.show('von_mises')</code>, or <code>part - 0.02 * result.von_mises</code>."));
-    h += li(T("An unchanged analysis is not solved again, in this session or the next: the result is kept and read back."));
+    h += li(T("<b>STL, OBJ, PLY, 3MF, glTF, FBX, OFF, DXF</b>: an exact distance field. Pass <code>file_units=</code> if the file is not in mm."));
     h += "</ul>";
 
     h += "<h2>" + T("Custom blocks") + "</h2><ul>";
@@ -288,13 +266,9 @@ static QString guideHtml()
               "use it run again. A block whose first argument is a model is in <b>Operations &rarr; Custom blocks</b>."));
     h += "</ul>";
 
-    h += "<h2>" + T("Fields and lattices") + "</h2><ul>";
+    h += "<h2>" + T("Fields") + "</h2><ul>";
     h += li(T("Any shape is a field. <code>depth_below(part)</code>, <code>ramp()</code>, <code>fit(data)</code> and "
-              "analysis results can drive offsets, thicknesses and lattices."));
-    h += li(T("<code>lattice(body, cell_periodic('gyroid'), cell_size=8, thickness=t, skin=1.5)</code> fills a body; "
-              "<code>density=</code> sets the share of material instead. A cell is <code>cell_periodic(kind)</code>, "
-              "<code>cell_non_periodic(kind)</code>, <code>cell_custom(region, geometry)</code> (any geometry in a box), "
-              "<code>cell_custom_truss(nodes, beams)</code> or <code>cell_custom_tpms(equation)</code>."));
+              "noise can drive offsets, thicknesses and blends."));
     h += li(T("<code>colored(part, field)</code> paints a part by a field."));
     h += "</ul>";
 
@@ -3464,9 +3438,8 @@ void Window::dragEnterEvent(QDragEnterEvent* event)
     {
         const auto f = event->mimeData()->urls().front().fileName().toLower();
         if (f.endsWith(".py") ||
-            f.endsWith(".step") || f.endsWith(".stp") || f.endsWith(".stl") ||
-            f.endsWith(".obj") || f.endsWith(".ply") || f.endsWith(".3mf") ||
-            f.endsWith(".glb") || f.endsWith(".gltf"))
+            f.endsWith(".stl") || f.endsWith(".obj") || f.endsWith(".ply") || f.endsWith(".3mf") ||
+            f.endsWith(".glb") || f.endsWith(".gltf") || f.endsWith(".fbx") || f.endsWith(".off") || f.endsWith(".dxf"))
         {
             event->acceptProposedAction();
         }
@@ -3477,8 +3450,8 @@ bool Window::dropEvent_(QDropEvent* event)
 {
     const QString local = event->mimeData()->urls().first().toLocalFile();
     const QString ext = QFileInfo(local).suffix().toLower();
-    if (ext == "step" || ext == "stp" || ext == "stl" || ext == "obj" ||
-        ext == "ply" || ext == "3mf" || ext == "glb" || ext == "gltf")
+    if (ext == "stl" || ext == "obj" || ext == "ply" || ext == "3mf" ||
+        ext == "glb" || ext == "gltf" || ext == "fbx" || ext == "off" || ext == "dxf")
     {
         importModel(local);   // models are added to the current script
         return true;
@@ -4022,8 +3995,7 @@ void Window::onImportModel(bool)
 {
     const QString f = QFileDialog::getOpenFileName(
             this, T("Import model"), workingDirectory(),
-            T("CAD models (*.step *.stp *.STEP *.STP *.stl *.STL *.obj *.OBJ *.ply *.PLY *.3mf *.3MF *.glb *.GLB *.gltf *.GLTF);;"
-            "STEP (*.step *.stp);;Triangle meshes (*.stl *.obj *.ply *.3mf *.glb *.gltf);;Any files (*)"));
+            T("Triangle meshes (*.stl *.STL *.obj *.OBJ *.ply *.PLY *.3mf *.3MF *.glb *.GLB *.gltf *.GLTF *.fbx *.FBX *.off *.OFF *.dxf *.DXF);;Any files (*)"));
     if (!f.isEmpty())
     {
         importModel(f);
@@ -4036,7 +4008,7 @@ void Window::importModel(const QString& path)
     const QFileInfo fi(path);
     const QString ext = fi.suffix().toLower();
     const bool mesh = (ext == "stl" || ext == "obj" || ext == "ply" || ext == "3mf" ||
-                      ext == "glb" || ext == "gltf");
+                      ext == "glb" || ext == "gltf" || ext == "fbx" || ext == "off" || ext == "dxf");
     const QString script = editor->getScript();
     const QStringList lines = script.split('\n');
 
@@ -4058,9 +4030,9 @@ void Window::importModel(const QString& path)
     QString roiExpr;
     if (mesh)
     {
-        // STL / OBJ / PLY files carry no units: say so explicitly, so it's
-        // obvious where to change it (3MF files state theirs)
-        if (ext == "3mf" || ext == "glb" || ext == "gltf")
+        // STL / OBJ / PLY / OFF files carry no units: say so explicitly, so it's
+        // obvious where to change it (3MF, glTF, FBX and DXF files state theirs)
+        if (ext == "3mf" || ext == "glb" || ext == "gltf" || ext == "fbx" || ext == "dxf")
             code << QString("%1 = import_model(r\"%2\")").arg(name, nativePath);
         else
             code << QString("%1 = import_model(r\"%2\", file_units=\"mm\")").arg(name, nativePath);

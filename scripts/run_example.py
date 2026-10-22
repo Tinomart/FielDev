@@ -1,9 +1,9 @@
 '''
 Runs a FielDes script without the application: prints what it prints, reports errors and the time.
 
-    python scripts/run_example.py examples/05_static_analysis.py [--digest]
+    python scripts/run_example.py examples/04_handles.py [--digest]
 
-The script runs with its own folder as the working directory (so "step/Bracket.step" resolves).  The
+The script runs with its own folder as the working directory (so a relative path resolves).  The
 viewport calls (view.set_bounds, ...) are remembered but not drawn, and var(3) is the plain number;
 the last expression is not displayed.  FIELDES_DIR names the folder holding fieldes.dll (the built
 application's folder); the Python package is found next to this script's folder.  --digest also prints a line for every shape the script made: its name and a hash

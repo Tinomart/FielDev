@@ -136,13 +136,6 @@ const QIcon& eyeIcon(bool open)
     return open ? on : off;
 }
 
-// An import of a STEP file (the ones that have a cache to reset and parts to reimport; a mesh file has neither)
-bool isStepImport(const QJsonObject& it)
-{
-    const QString p = it["path"].toString().toLower();
-    return p.endsWith(".step") || p.endsWith(".stp");
-}
-
 const QIcon& reimportIcon()
 {
     static QIcon i = makeIcon([](QPainter& p) {
@@ -2511,13 +2504,6 @@ void ScenePanel::rebuild()
             setCacheButton(row, it);
         }
 
-        // Reset: an import back to the file (its cache deleted, its handle edits removed)
-        if (kind == "import" && !failed && it.contains("path") && isStepImport(it))
-        {
-            row->setIcon(COL_RESET, resetIcon());
-            row->setToolTip(COL_RESET, T("Reset: clear the cache and handle edits"));
-        }
-
         // Action: reimport for imports
         if (kind == "import")
         {
@@ -2617,12 +2603,6 @@ void ScenePanel::rebuild()
                     setModeButton(c, modeTarget);
                     setLockButton(c, target);
                     setCacheButton(c, target);
-                }
-                // Reimport: back to what the file says (its handle edits gone), the file read again
-                if (ok && isStepImport(it))
-                {
-                    c->setIcon(COL_RESET, reimportIcon());
-                    c->setToolTip(COL_RESET, T("Reimport this part"));
                 }
                 // Delete: the part's variable (a part that is not in the script has nothing to delete)
                 if (!bound.isEmpty())
@@ -5887,18 +5867,11 @@ void ScenePanel::onContextMenu(const QPoint& pos)
             add->setToolTip(imp.contains("index") ? T("The import statement takes this part instead")
                                                   : T("Writes `name = %1[%2][0]` and shows it: a model like any other")
                                                         .arg(imp["list_var"].toString()).arg(k));
-            if (isStepImport(imp) && p["ok"].toBool())
-                menu->addAction(T("Reimport this part"), this, [=] { reimportPart(imp, k); });
             menu->popup(global);
             return;
         }
     }
     else if (type != "item") return;
-    if (!model.isEmpty() && model["kind"].toString() == "import" && isStepImport(model))
-    {
-        importMenu(model, global);
-        return;
-    }
     if (model.isEmpty() || model["failed"].toBool() || model["kind"].toString() == "failed") return;
     if (!model.contains("var") && model["kind"].toString() != "display") return;       // (the render settings and the like)
     emit menuRequested(model["line"].toInt() - 1, global);

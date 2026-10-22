@@ -7,7 +7,7 @@ what the program would make now.
 Three runs of every example (by default all of examples/*.py), each in its own copy of the examples folder with every cache folder of its own, so that nothing of the
 user's is read or written:
 
-    shipped   the examples as they are in the repository -- the caches that are shipped beside the STEP files (the import caches) -- and nothing else
+    shipped   the examples as they are in the repository, and nothing else
     cold      a copy with every cache deleted: everything is made from the files
     warm      the same folder again, run right after the cold one: everything that the cold run kept is read
 
@@ -45,7 +45,7 @@ def clear_import_caches(folder):
 def run(examples, name, caches, timeout):
     ''' The lines one example prints, as (lines, seconds, why it failed or None) '''
     env = dict(os.environ)
-    for variable, folder in (('FIELDES_FIELD_CACHE_DIR', 'field'), ('FIELDES_RESULT_CACHE_DIR', 'result'), ('FIELDES_RENDER_CACHE_DIR', 'render'),
+    for variable, folder in (('FIELDES_FIELD_CACHE_DIR', 'field'), ('FIELDES_RENDER_CACHE_DIR', 'render'),
                              ('FIELDES_SCENE_CACHE_DIR', 'scene')):
         env[variable] = os.path.join(caches, folder)
     env['PYTHONDONTWRITEBYTECODE'] = '1'

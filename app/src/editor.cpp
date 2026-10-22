@@ -422,47 +422,19 @@ void Editor::onInterpreterBusy() {
 
 namespace {
 
-// The kernel and the library say what they are doing in English ("optimising, iteration 11 of 100", "Reading part.step"): the bar shows it in the
+// The kernel and the library say what they are doing in English ("meshing", "Reading part.stl"): the bar shows it in the
 // program's language.  A text that is not one of these is shown as it is
 QString progressText(const QString& english)
 {
     static const QHash<QString, QString> fixed = {
-        {"setting up the solver", T("setting up the solver")},
-        {"meshing the part", T("meshing the part")},
-        {"resolving supports and loads", T("resolving supports and loads")},
-        {"assembling the stiffness matrix", T("assembling the stiffness matrix")},
-        {"preparing the solver", T("preparing the solver")},
-        {"assembling the matrices", T("assembling the matrices")},
-        {"finding the modes", T("finding the modes")},
-        {"meshing the fluid", T("meshing the fluid")},
-        {"resolving the boundary conditions", T("resolving the boundary conditions")},
-        {"the start: the Stokes flow", T("the start: the Stokes flow")},
-        {"assembling the conduction matrix", T("assembling the conduction matrix")},
         {"preparing the grid", T("preparing the grid")},
-        {"preparing the FEA grid", T("preparing the FEA grid")},
-        {"laying out the cells", T("laying out the cells")},
         {"meshing", T("meshing")},
-        {"solving", T("solving")},
-        {"solving the flow", T("solving the flow")},
-        {"modal analysis", T("modal analysis")},
-        {"thermal analysis", T("thermal analysis")},
-        {"optimising", T("optimising")},
-        {"optimising the body in the flow", T("optimising the body in the flow")},
-        {"the flow in time", T("the flow in time")},
     };
     const auto it = fixed.constFind(english);
     if (it != fixed.constEnd()) return it.value();
 
     struct Rule { QRegularExpression pattern; QString text; };
     static const QList<Rule> rules = {
-        {QRegularExpression("^solving, residual (\\S+) of (\\S+)$"), T("solving, residual %1 of %2")},
-        {QRegularExpression("^solving: iteration (\\d+)$"), T("solving: iteration %1")},
-        {QRegularExpression("^modal analysis, iteration (\\d+)$"), T("modal analysis, iteration %1")},
-        {QRegularExpression("^optimising, iteration (\\d+) of (~?\\d+) \\((\\d+) taken back\\)$"), T("optimising, iteration %1 of %2 (%3 taken back)")},
-        {QRegularExpression("^optimising, iteration (\\d+) of (~?\\d+)$"), T("optimising, iteration %1 of %2")},
-        {QRegularExpression("^(Newton|Picard) iteration (\\d+), residual (\\S+)$"), T("%1 iteration %2, residual %3")},
-        {QRegularExpression("^step (\\d+) of (\\d+), t = (\\S+) s$"), T("step %1 of %2, t = %3 s")},
-        {QRegularExpression("^Reading (.+): (\\d+) of (\\d+) faces$"), T("Reading %1: %2 of %3 faces")},
         {QRegularExpression("^Reading (.+)$"), T("Reading %1")},
     };
     for (const Rule& r : rules)
@@ -474,15 +446,6 @@ QString progressText(const QString& english)
         return out;
     }
 
-    // "Importing part.step: 3 of 12 solids rebuilt (+2 copies)"
-    static const QRegularExpression importing("^Importing (.+): (\\d+) of (\\d+) solids rebuilt(?: \\(\\+(\\d+) cop(?:y|ies)\\))?$");
-    const auto m = importing.match(english);
-    if (m.hasMatch())
-    {
-        QString out = T("Importing %1: %2 of %3 solids rebuilt").arg(m.captured(1), m.captured(2), m.captured(3));
-        if (!m.captured(4).isEmpty()) out += m.captured(4) == "1" ? T(" (+%1 copy)").arg(m.captured(4)) : T(" (+%1 copies)").arg(m.captured(4));
-        return out;
-    }
     return english;
 }
 
@@ -493,10 +456,8 @@ void Editor::onSpinner()
     // The script's progress, small, where the result goes.  The script runs
     // statement by statement ("2/7" and the statement's line: the runner
     // says which); the bar is how far the operation running in it has got,
-    // as that operation counts it -- a STEP import's solids and their
-    // stages, a cached import's tree files, an FEA grid's points, a solve's
-    // residual, an optimisation's iterations, a top-level loop's items,
-    // progress() calls.  Each operation has its own bar (0 -> 100 %); a
+    // as that operation counts it -- a mesh's reading and meshing, a
+    // top-level loop's items, progress() calls.  Each operation has its own bar (0 -> 100 %); a
     // statement running none of them shows an empty one.
     if (!m_runRow->isVisible())
     {
