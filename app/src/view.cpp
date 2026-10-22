@@ -4716,7 +4716,9 @@ void View::onSliceFinished(Plane& plane, FieldViewer* viewer)
 void View::setClipUniform(bool on)
 {
     Shader::basic->bind();
-    const QVector4D p = section.clipPlane();
+    // (a plane that is not in use clips nothing: (0, 0, 0, 1) is positive everywhere, so that whatever a driver does with the clip distance that the vertex shader
+    // always writes, the section plane that is switched off does not cut the model at the middle of its region)
+    const QVector4D p = on ? section.clipPlane() : QVector4D(0, 0, 0, 1);
     glUniform4f(Shader::basic->uniformLocation("clip_plane"), p.x(), p.y(), p.z(), p.w());
     // Inside faces exposed by the cut are drawn flat (see basic.frag);
     // FIELDES_CUT_MODE flips the facing convention for debugging
