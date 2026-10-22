@@ -1,0 +1,2551 @@
+/*
+FielDes: field-driven design
+Derived from Studio, a simple GUI for the libfive CAD kernel
+Copyright (C) 2021  Matt Keeter
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+#include <Python.h>
+#include <QApplication>
+#include <QMessageBox>
+#include <QRegularExpression>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+#include <map>
+#include <memory>
+#include <set>
+
+#include "fieldes/python/interpreter.hpp"
+#include "fieldes/i18n.hpp"
+#include "fieldes/documentation.hpp"
+#include "fieldes/shape.hpp"
+
+#include "libfive.h"
+#include "libfive/tree/data.hpp"
+#include "libfive/eval/default_vars.hpp"
+#include "libfive/run_progress.hpp"
+#include "libfive/fea/tetfea.hpp"
+
+// We inject a dummy module named "_fieldes_host" into the Python namespace (fieldes.view
+// re-exports its functions), then
+// use it to control settings (resolution, bounds, etc)
+static PyObject* set_resolution(PyObject* self, PyObject* args) {
+    double res;
+    if (!PyArg_ParseTuple(args, "d", &res)) {
+        return NULL;
+    }
+    PyObject_SetAttrString(self, "__resolution", PyFloat_FromDouble(res));
+    Py_RETURN_NONE;
+}
+
+static PyObject* set_quality(PyObject* self, PyObject* args) {
+    double qua;
+    if (!PyArg_ParseTuple(args, "d", &qua)) {
+        return NULL;
+    }
+    PyObject_SetAttrString(self, "__quality", PyFloat_FromDouble(qua));
+    Py_RETURN_NONE;
+}
+
+static PyObject* set_bounds(PyObject* self, PyObject* args, PyObject* kwargs) {
+    double xmin, ymin, zmin, xmax, ymax, zmax;
+    int auto_scale = 1;         // (the region grows in the script when a model reaches out of it: FielDes does that; the number is the script's)
+    static const char* kwlist[] = {"lo", "hi", "auto_scale", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "(ddd)(ddd)|p", const_cast<char**>(kwlist), &xmin, &ymin, &zmin,
+                                     &xmax, &ymax, &zmax, &auto_scale))
+    {
+        // The error flag is set by PyArg_ParseTupleAndKeywords
+        return NULL;
+    }
+    PyObject* bounds = Py_BuildValue("((ddd)(ddd))", xmin, ymin, zmin, xmax, ymax, zmax);
+    PyObject_SetAttrString(self, "__bounds", bounds);
+    Py_XDECREF(bounds);
+    PyObject_SetAttrString(self, "__auto_scale", auto_scale ? Py_True : Py_False);
+    Py_RETURN_NONE;
+}
+
+static PyObject* var_func(PyObject* host_mod, PyObject* args) {
+    if (PyTuple_Size(args) == 1) {
+        const char* err_str;
+        if (!PyArg_ParseTuple(args, "s", &err_str)) {
+            return NULL;
+        } else {
+            PyErr_SetString(PyExc_RuntimeError, err_str);
+            return NULL;
+        }
+    }
+    // Parse the argument, which should be patched in the AST by runner.run (and the key that says where in the script it is)
+    double value;
+    int lineno, end_lineno, col_offset, end_col_offset;
+    const char* key = nullptr;
+    if (!PyArg_ParseTuple(args, "d(iiii)|s", &value,
+        &lineno, &end_lineno, &col_offset, &end_col_offset, &key))
+    {
+            return NULL;
+    }
+
+    const auto prev_vars = PyObject_GetAttrString(host_mod, "__prev_vars");
+    const auto vars = PyObject_GetAttrString(host_mod, "__vars");
+    const auto num_vars = PyList_Size(vars);
+    PyErr_Print();
+
+    PyObject* v = nullptr;
+    if (key) {
+        // The variable of this place in the script, as the last run had it: the same Tree, so that a shape made with it is the same shape
+        // (its render goes on) however many variables were added or taken out above it.  The key is the statement it is in and its number
+        // in it; the one that asks for a key the n-th time in a run gets the n-th variable of that key (a loop makes many of one statement)
+        PyObject* by_key = PyObject_GetAttrString(host_mod, "__by_key");
+        PyObject* counts = PyObject_GetAttrString(host_mod, "__key_count");
+        if (by_key && counts && PyDict_Check(by_key) && PyDict_Check(counts)) {
+            PyObject* seen = PyDict_GetItemString(counts, key);         // borrowed
+            const long n = seen ? PyLong_AsLong(seen) : 0;
+            PyObject* next = PyLong_FromLong(n + 1);
+            PyDict_SetItemString(counts, key, next);
+            Py_DECREF(next);
+            const std::string full = std::string(key) + "#" + std::to_string(n);
+            PyObject* found = PyDict_GetItemString(by_key, full.c_str());   // borrowed
+            if (found) {
+                v = found;
+                Py_INCREF(v);
+            } else {
+                const auto shape_mod = PyImport_ImportModule("fieldes.shape");
+                const auto Shape = PyObject_GetAttrString(shape_mod, "Shape");
+                v = PyObject_CallMethod(Shape, "var", NULL);
+                Py_DECREF(shape_mod);
+                Py_DECREF(Shape);
+                if (v) {
+                    if (PyDict_Size(by_key) > 200000) PyDict_Clear(by_key);      // (the keys of scripts long gone)
+                    PyDict_SetItemString(by_key, full.c_str(), v);
+                }
+            }
+        }
+        Py_XDECREF(by_key);
+        Py_XDECREF(counts);
+        PyErr_Clear();
+    }
+    if (v) {
+        // (found by its key)
+    } else if (num_vars < PyList_Size(prev_vars)) {
+        // Pull just the Shape object from the tuple
+        auto item = PyList_GetItem(prev_vars, num_vars); // borrowed
+        v = PyTuple_GetItem(item, 0); // borrowed
+        Py_INCREF(v);
+    } else {
+        // Build a new free variable using Shape.var()
+        const auto shape_mod = PyImport_ImportModule("fieldes.shape");
+        const auto Shape = PyObject_GetAttrString(shape_mod, "Shape");
+        v = PyObject_CallMethod(Shape, "var", NULL); // new reference
+        Py_DECREF(shape_mod);
+        Py_DECREF(Shape);
+    }
+
+    // (the kernel is told the number this variable stands for, for the evaluators that are made without the script's numbers: an analysis
+    // of a part that is made ready to be dragged read every variable as 0)
+    if (v) {
+        if (PyObject* handle = PyObject_GetAttrString(v, "ptr")) {
+            if (void* id = PyLong_AsVoidPtr(handle)) libfive::DefaultVars::set(id, float(value));
+            Py_DECREF(handle);
+        }
+        PyErr_Clear();
+    }
+
+    const auto new_var = Py_BuildValue("Od(iiii)",
+        v, value, lineno, end_lineno, col_offset, end_col_offset);
+    PyList_Append(vars, new_var);
+
+    Py_DECREF(new_var);
+    Py_DECREF(vars);
+    Py_DECREF(prev_vars);
+    PyErr_Print();
+
+    return v;
+}
+
+// The interpreter a run's helper thread (fieldes.runner) reports to
+static FielDes::Python::Interpreter* g_interpreter = nullptr;
+
+static PyObject* partial_scene(PyObject*, PyObject* args) {
+    const char* json;
+    if (!PyArg_ParseTuple(args, "s", &json)) {
+        return NULL;
+    }
+    if (g_interpreter) {
+        // (from this thread to the window's: a queued signal)
+        emit g_interpreter->partialScene(QString::fromUtf8(json));
+    }
+    Py_RETURN_NONE;
+}
+
+// What the run has shown so far, before a statement that takes long (see Interpreter::publishPartial)
+static PyObject* partial_shapes(PyObject*, PyObject* args) {
+    PyObject* snapshot = nullptr;
+    PyObject* lines = nullptr;
+    int running = -1;
+    if (!PyArg_ParseTuple(args, "OO|i", &snapshot, &lines, &running)) {
+        return NULL;
+    }
+    if (g_interpreter) g_interpreter->publishPartial(snapshot, lines, running);
+    Py_RETURN_NONE;
+}
+
+// A variable's number changed by the run itself (see fieldes.stdlib.handles._follow_literals): the entry of the run's list of variables, and the
+// number the kernel knows it by
+static PyObject* retune_func(PyObject*, PyObject* args) {
+    PyObject* v;
+    double value;
+    if (!PyArg_ParseTuple(args, "Od", &v, &value)) {
+        return NULL;
+    }
+    if (const auto host_mod = PyImport_ImportModule("_fieldes_host")) {
+        if (PyObject* vars = PyObject_GetAttrString(host_mod, "__vars")) {
+            if (PyList_Check(vars)) {
+                for (Py_ssize_t i = 0; i < PyList_Size(vars); ++i) {
+                    PyObject* item = PyList_GetItem(vars, i);          // borrowed
+                    if (PyTuple_Check(item) && PyTuple_Size(item) == 3 && PyTuple_GetItem(item, 0) == v) {
+                        PyObject* updated = Py_BuildValue("OdO", v, value, PyTuple_GetItem(item, 2));
+                        if (updated) PyList_SetItem(vars, i, updated);   // (steals it, and lets the old entry go)
+                        break;
+                    }
+                }
+            }
+            Py_DECREF(vars);
+        }
+        Py_DECREF(host_mod);
+    }
+    if (PyObject* handle = PyObject_GetAttrString(v, "ptr")) {
+        if (void* id = PyLong_AsVoidPtr(handle)) libfive::DefaultVars::set(id, float(value));
+        Py_DECREF(handle);
+    }
+    PyErr_Clear();
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef host_methods[] = {
+    {"__retune", retune_func, METH_VARARGS, "Gives a variable of the run another number"},
+    {"set_resolution", set_resolution, METH_VARARGS, "Sets render resolution"},
+    {"set_quality", set_quality, METH_VARARGS, "Sets render quality"},
+    {"set_bounds", reinterpret_cast<PyCFunction>(reinterpret_cast<void(*)(void)>(set_bounds)), METH_VARARGS | METH_KEYWORDS, "Sets render bounds"},
+    {"__var", var_func, METH_VARARGS, "Constructs a free variable"},
+    {"partial_scene", partial_scene, METH_VARARGS, "Gives the model tree what a running script has made so far"},
+    {"partial_shapes", partial_shapes, METH_VARARGS, "Gives the viewport what a running script has shown so far"},
+    {NULL, NULL, 0, NULL}        /* Sentinel */
+};
+
+static struct PyModuleDef host_module = {
+    PyModuleDef_HEAD_INIT,
+    "_fieldes_host",   /* name of module */
+    "Global parameters to control the FielDes viewport",
+    -1,
+    host_methods, // m_methods
+    NULL, // m_slots
+    NULL, // m_traverse
+    NULL, // m_clear
+    NULL, // m_free
+};
+
+PyMODINIT_FUNC PyInit_fieldes_host(void) {
+    return PyModule_Create(&host_module);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace FielDes {
+namespace Python {
+
+const static QString SET_QUALITY_STR = "view.set_quality(%1)\n";
+const static QString SET_RESOLUTION_STR = "view.set_resolution(%1)\n";
+const static QString SET_BOUNDS_STR = "view.set_bounds([%1, %2, %3], "
+                                                        "[%4, %5, %6], auto_scale=True)\n";     // (written out although it is the default: what the script does is in the script)
+
+Interpreter::Interpreter() {
+    // Nothing to do here
+}
+
+Interpreter::~Interpreter() {
+    // The destructor is called from the main thread after the interpreter
+    // thread has finished.  We reclaim the thread state, so the GIL lives
+    // in the main thread until another Interpreter is created.
+    PyEval_RestoreThread(m_threadState);
+    if (g_interpreter == this) g_interpreter = nullptr;
+
+    Py_XDECREF(m_runFunc);
+    Py_XDECREF(m_resumeFunc);
+    Py_XDECREF(m_shapeClass);
+    Py_XDECREF(m_varFunc);
+}
+
+QString Interpreter::defaultScript() {
+    auto default_settings = Settings::defaultSettings();
+    return "from fieldes import *\n\n" +
+        SET_BOUNDS_STR.arg(default_settings.min.x())
+                      .arg(default_settings.min.y())
+                      .arg(default_settings.min.z())
+                      .arg(default_settings.max.x())
+                      .arg(default_settings.max.y())
+                      .arg(default_settings.max.z()) +
+        SET_QUALITY_STR.arg(default_settings.quality) +
+        SET_RESOLUTION_STR.arg(default_settings.res);       // (a new file is empty: nothing is made for the user to delete first)
+}
+
+void Interpreter::halt() {
+    // A script that is paused goes on, to end: it is being replaced, and the run that replaces it waits for it
+    libfive::run_progress::requestPause(false);
+
+    // Restore the thread state and claim the GIL
+    PyEval_RestoreThread(m_threadState);
+
+    // Interrupt the worker thread by ID (only while a run is going: one that has just ended has nothing to stop, and the exception would
+    // land in the next piece of Python that thread runs -- a completion, the tree's outline)
+    if (m_evaluating) PyThreadState_SetAsyncExc(m_workerThreadId, PyExc_Exception);
+
+    // Then release the thread state again, saving it locally
+    m_threadState = PyEval_SaveThread();
+}
+
+void Interpreter::terminate() {
+    // The kernel's solvers are asked first, before the GIL is waited for: the one that runs in the worker holds no GIL and gives up at its
+    // next look at the flag (which also lets a paused script go on, to end)
+    libfive::run_progress::requestCancel();
+
+    PyEval_RestoreThread(m_threadState);
+    if (m_evaluating) {
+        // (KeyboardInterrupt, not Exception: a script's own `except Exception` does not swallow it)
+        PyThreadState_SetAsyncExc(m_workerThreadId, PyExc_KeyboardInterrupt);
+    } else {
+        // (the run ended while the flag was on its way: nothing is left to stop, and the next run must not find the flag set)
+        libfive::run_progress::clearCancel();
+    }
+    m_threadState = PyEval_SaveThread();
+}
+
+void Interpreter::preinit() {
+    if (!Py_IsInitialized()) {
+        QDir app_dir;
+
+#ifdef Q_OS_WIN
+        // On Windows, we also write the PYTHONHOME environment variable, so
+        // that Python can find itself.  We assume that things were built per
+        // the README, i.e. a directory named vcpkg above the build directory
+        // (although this will also catch a global vcpkg in C:\vcpkg)
+        const QStringList homes = {QDir::toNativeSeparators("runtime/python3"),
+                                   QDir::toNativeSeparators("vcpkg/installed/x64-windows/tools/python3")};
+        app_dir = QDir(QCoreApplication::applicationDirPath());
+        bool found = false;
+        do {
+            for (const auto& home_dir : homes) {
+                if (app_dir.exists(home_dir)) {
+                    qputenv("PYTHONHOME", app_dir.filePath(home_dir).toLocal8Bit());
+                    found = true;
+                    break;
+                }
+            }
+        } while (!found && app_dir.cdUp());
+#else
+        // A packaged copy (Linux) brings its own Python: runtime/python3 next to the program holds its standard library, so nothing of
+        // the machine's Python is needed -- or looked at.  (A build that is run from where it was made uses the system's Python.)
+        app_dir = QDir(QCoreApplication::applicationDirPath());
+        do {
+            if (app_dir.exists("runtime/python3")) {
+                qputenv("PYTHONHOME", app_dir.filePath("runtime/python3").toLocal8Bit());
+                break;
+            }
+        } while (app_dir.cdUp());
+#endif
+
+        PyImport_AppendInittab("_fieldes_host", PyInit_fieldes_host);
+        Py_Initialize();
+
+        // Walk up directories from the program, looking for the folder the `fieldes`
+        // package lives in (python/ in the repository and in a packaged copy), and
+        // add it to sys.path
+        const auto bind_dir = QDir::toNativeSeparators("python/fieldes");
+        app_dir = QDir(QCoreApplication::applicationDirPath());
+        do {
+            if (app_dir.exists(bind_dir)) {
+                const auto s = PyUnicode_FromString(
+                    app_dir.filePath("python").toLocal8Bit().data());
+                PyList_Insert(PySys_GetObject("path"), 1, s);
+                Py_DECREF(s);
+                break;
+            }
+        } while (app_dir.cdUp());
+
+        // Create a dummy module for settings
+        PyModule_Create(&host_module);
+
+        // A copy of the folder without its Python library cannot work: say so here, rather than
+        // crashing when the first script runs
+        const auto library = PyImport_ImportModule("fieldes.runner");
+        if (!library) {
+            PyErr_Print();
+            QMessageBox::critical(nullptr, "FielDes",
+                "FielDes cannot load its Python library: the folder python/fieldes and the library "
+                "(fieldes.dll, fieldes.so) must stay next to the program, as in the downloaded folder.\n\n"
+                "Details are on the console (start FielDes from a terminal).");
+            std::exit(1);
+        }
+        Py_DECREF(library);
+    }
+    m_threadState = PyEval_SaveThread();
+}
+
+void Interpreter::init() {
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    g_interpreter = this;
+
+    // TODO: do a first import check and raise a reasonable error instead of
+    // crashing if the module isn't available? (it *should* always be available)
+
+    const auto runner_mod = PyImport_ImportModule("fieldes.runner");
+    PyErr_Print();
+    m_runFunc = PyObject_GetAttrString(runner_mod, "run");
+    m_resumeFunc = PyObject_GetAttrString(runner_mod, "resume");
+    PyErr_Clear();
+    m_runnerMod = runner_mod;   // kept: run() leaves scene info on it
+
+    const auto shape_mod = PyImport_ImportModule("fieldes.shape");
+    PyErr_Print();
+    m_shapeClass = PyObject_GetAttrString(shape_mod, "Shape");
+    Py_DECREF(shape_mod);
+
+    const auto threading_mod = PyImport_ImportModule("threading");
+    const auto get_ident = PyObject_GetAttrString(threading_mod, "get_ident");
+    const auto thread_id = PyObject_CallFunctionObjArgs(get_ident, NULL);
+    m_workerThreadId = PyLong_AsLong(thread_id);
+    Py_DECREF(thread_id);
+    Py_DECREF(get_ident);
+    Py_DECREF(threading_mod);
+
+    // Store the var() function locally for easy access
+    const auto host_mod = PyImport_ImportModule("_fieldes_host");
+    m_varFunc = PyObject_GetAttrString(host_mod, "__var");
+
+    // Reset studio.__vars to an empty list
+    const auto empty_list = PyList_New(0);
+    PyObject_SetAttrString(host_mod, "__vars", empty_list);
+    Py_DECREF(empty_list);
+    // The variables found again by the place they are in (var_func), and how many times each key was asked for in this run
+    const auto by_key = PyDict_New();
+    PyObject_SetAttrString(host_mod, "__by_key", by_key);
+    Py_DECREF(by_key);
+    const auto key_count = PyDict_New();
+    PyObject_SetAttrString(host_mod, "__key_count", key_count);
+    Py_DECREF(key_count);
+    Py_DECREF(host_mod);
+
+    QStringList keywords;
+
+    // Equivalent to str(obj), returning a QString
+    auto str = [](PyObject* obj) -> QString {
+        const auto s = PyObject_Str(obj);
+        const auto ws = PyUnicode_AsWideCharString(s, NULL);
+        const auto out = QString::fromWCharArray(ws);
+        PyMem_Free(ws);
+        Py_DECREF(s);
+        return out;
+    };
+    auto dump_keywords = [&](PyObject* list) {
+        const auto list_len = PyList_Size(list);
+        for (unsigned i=0; i < list_len; ++i) {
+            keywords << str(PyList_GetItem(list, i));
+        }
+    };
+
+    {   // Highlight all Python keywords
+        const auto keyword_mod = PyImport_ImportModule("keyword");
+        const auto kwlist = PyObject_GetAttrString(keyword_mod, "kwlist");
+        dump_keywords(kwlist);
+        Py_DECREF(kwlist);
+        Py_DECREF(keyword_mod);
+    }
+
+    {   // Highlight all Python builtins
+        const auto builtins_mod = PyImport_ImportModule("builtins");
+        const auto builtins_list = PyObject_Dir(builtins_mod);
+        dump_keywords(builtins_list);
+        Py_DECREF(builtins_list);
+        Py_DECREF(builtins_mod);
+    }
+
+    Documentation docs;
+
+    {   // Load all the keywords from the stdlib, then build the docs
+        const auto stdlib_mod = PyImport_ImportModule("fieldes.stdlib");
+        const auto stdlib_list = PyObject_Dir(stdlib_mod);
+        const auto stdlib_len = PyList_Size(stdlib_list);
+        PyErr_Print();
+
+        const auto inspect_mod = PyImport_ImportModule("inspect");
+        const auto sig = PyObject_GetAttrString(inspect_mod, "signature");
+        const auto getdoc = PyObject_GetAttrString(inspect_mod, "getdoc");
+        const auto getmod = PyObject_GetAttrString(inspect_mod, "getmodule");
+        PyErr_Print();
+
+        for (unsigned i=0; i < stdlib_len; ++i) {
+            const auto item = PyList_GetItem(stdlib_list, i); // borrowed ref
+            const auto item_str = str(item);
+            if (item_str.startsWith("_")) {
+                continue;
+            }
+            keywords << item_str;
+
+            // Don't add classes to the standard library documentation
+            const auto item_obj = PyObject_GetAttr(stdlib_mod, item);
+            if (!PyFunction_Check(item_obj)) {
+                Py_DECREF(item_obj);
+                continue;
+            }
+            const auto item_name_obj = PyObject_GetAttrString(
+                    item_obj, "__name__");
+            const auto item_name = str(item_name_obj);
+            Py_DECREF(item_name_obj);
+
+            const auto item_signature = PyObject_CallFunctionObjArgs(
+                    sig, item_obj, NULL);
+            const auto item_docstring = PyObject_CallFunctionObjArgs(
+                    getdoc, item_obj, NULL);
+
+            if (!item_signature || !item_docstring) {
+                std::cerr << "Warning: missing documentation for "
+                    << item_str.toStdString()
+                    << "; " << str(item_signature).toStdString()
+                    << "; " << str(item_docstring).toStdString();
+            }
+            const auto mod = PyObject_CallFunctionObjArgs(
+                    getmod, item_obj, NULL);
+            const auto mod_name = PyObject_GetAttrString(mod, "__name__");
+            const auto mod_name_str = str(mod_name);
+            Py_DECREF(mod_name);
+            Py_DECREF(mod);
+
+            docs[mod_name_str][item_str] =
+                (item_name + str(item_signature) + "\n" +
+                 str(item_docstring)).trimmed();
+
+            Py_DECREF(item_obj);
+            Py_XDECREF(item_signature);
+            Py_XDECREF(item_docstring);
+        }
+
+        Py_DECREF(getdoc);
+        Py_DECREF(getmod);
+        Py_DECREF(sig);
+        Py_DECREF(inspect_mod);
+        Py_DECREF(stdlib_list);
+        Py_DECREF(stdlib_mod);
+    }
+
+    {   // Editor support: definition locations, member names and call tips,
+        // passed along in reserved "__" sections of the documentation map
+        // (the documentation pane skips those).
+        const auto support_mod = PyImport_ImportModule("fieldes.app_support");
+        if (support_mod) {
+            const auto info = PyObject_CallMethod(support_mod, "completion_info", NULL);
+            if (info && PyList_Check(info)) {
+                const auto n = PyList_Size(info);
+                for (Py_ssize_t i=0; i < n; ++i) {
+                    const auto rec = str(PyList_GetItem(info, i)).split('\t');
+                    if (rec.size() == 4 && rec[0] == "def") {
+                        docs["__defs__"][rec[1]] = rec[2] + "\t" + rec[3];
+                    } else if (rec.size() == 3 && rec[0] == "member") {
+                        auto& m = docs["__members__"][rec[1]];
+                        m = m.isEmpty() ? rec[2] : m + " " + rec[2];
+                    } else if (rec.size() == 3 && rec[0] == "tip") {
+                        docs["__tips__"][rec[1]] = rec[2];
+                    }
+                }
+            }
+            Py_XDECREF(info);
+            Py_DECREF(support_mod);
+        }
+        PyErr_Print();
+    }
+
+    PyErr_Print();
+
+    PyGILState_Release(gstate);
+    emit(ready(keywords, docs));
+}
+
+// Formats whatever Python exception is currently set (via PyErr_Fetch/
+// PyErr_Restore, exactly like CPython's own default excepthook) into a
+// QString, the same way a script-level exception has always been reported.
+// Must be called with an exception set; clears it as a side effect (same
+// as the printing this replaces did).
+// Whether a traceback is that of the exception halt() raises in a run that an edit of the script has replaced (an Exception with no
+// message; the termination is a KeyboardInterrupt): the last line of it is the bare name
+static bool endsWithBareStop(const QString& traceback)
+{
+    const QStringList lines = traceback.trimmed().split('\n');
+    const QString last = lines.isEmpty() ? QString() : lines.last().trimmed();
+    // (a solver that was told to stop by an edit may say so itself -- "...: cancelled" -- before the stop of the run reaches Python)
+    return last == "Exception" || last == "KeyboardInterrupt" || last.endsWith(": cancelled");
+}
+
+static QString capturePythonTraceback()
+{
+    PyObject *type, *value, *traceback;
+    PyErr_Fetch(&type, &value, &traceback);
+
+    auto io_mod = PyImport_ImportModule("io");
+    auto string_io = PyObject_GetAttrString(io_mod, "StringIO");
+    auto new_stderr = PyObject_CallObject(string_io, NULL);
+    PySys_SetObject("stderr", new_stderr);
+
+    PyErr_Restore(type, value, traceback);
+    PyErr_Print();
+
+    const auto s = PyObject_CallMethod(new_stderr, "getvalue", NULL);
+    const auto ws = PyUnicode_AsWideCharString(s, NULL);
+    QString out = QString::fromWCharArray(ws);
+
+    PySys_SetObject("stderr", PySys_GetObject("__stderr__"));
+
+    PyMem_Free(ws);
+    Py_DECREF(s);
+    Py_DECREF(new_stderr);
+    Py_DECREF(string_io);
+    Py_DECREF(io_mod);
+
+    // Drop the runner's own frames ("File .../runner.py ... in run" plus
+    // its source line): they're FielDes internals, not the user's code
+    QStringList lines = out.split('\n');
+    QStringList kept;
+    for (int i=0; i < lines.size(); ++i)
+    {
+        if (lines[i].trimmed().startsWith("File ") && lines[i].contains("runner.py"))
+        {
+            if (i + 1 < lines.size() && !lines[i + 1].trimmed().startsWith("File "))
+            {
+                ++i;    // skip the source line shown under the frame
+            }
+            continue;
+        }
+        kept << lines[i];
+    }
+    return kept.join('\n');
+}
+
+// Finds the script line an error refers to: the last frame in the user's
+// script ('File "<file>", line N') or, for a syntax error, the parser's
+// report ('File "<unknown>", line N').  Returns a zero-width range on that
+// (0-based) line, meaning "the whole line", or a null QRect if none.
+static QRect errorRangeFromTraceback(const QString& tb)
+{
+    static const QRegularExpression frame(
+        R"re(File "<(?:file|unknown)>", line (\d+))re");
+    int line = -1;
+    auto it = frame.globalMatch(tb);
+    while (it.hasNext())
+    {
+        line = it.next().captured(1).toInt();
+    }
+    return (line > 0) ? QRect(0, line - 1, 0, 1) : QRect();
+}
+
+void Interpreter::setBreakpoints(QList<int> lines)
+{
+    QMutexLocker lock(&m_breakMutex);
+    m_breakpoints = lines;
+}
+
+void Interpreter::eval(QString script)
+{
+    // Every edit of the script queues a run of the script as it was then.  Edits come faster than runs: a run that a newer edit has
+    // already taken the place of is not made (the one that is running was told to stop, but a run that has not started cannot be told
+    // anything: it would run to its end, one after another, for nothing).  Only the last of a row of edits runs
+    bool drop = false;
+    {
+        QMutexLocker lock(&m_queueMutex);
+        if (m_stale > 0)
+        {
+            --m_stale;
+            m_requests.fetch_sub(1);
+            drop = true;
+        }
+        else
+        {
+            drop = m_requests.fetch_sub(1) > 1;
+        }
+    }
+    if (drop)
+    {
+        if (qEnvironmentVariableIsSet("FIELDES_TIMING")) std::cerr << "[run] request dropped (a newer one is waiting)" << std::endl;
+        return;
+    }
+    if (qEnvironmentVariableIsSet("FIELDES_TIMING")) std::cerr << "[run] start" << std::endl;
+    evaluate(script, false);
+}
+
+void Interpreter::noteRequest()
+{
+    QMutexLocker lock(&m_queueMutex);
+    m_requests.fetch_add(1);
+}
+
+void Interpreter::absorbed()
+{
+    QMutexLocker lock(&m_queueMutex);
+    m_requests.fetch_sub(1);        // (its own request, counted by noteRequest: there is no run for it)
+    m_stale += m_requests.load();   // (the runs that edits before it asked for, which wait for this one to be over: not of this text)
+}
+
+void Interpreter::setRunScript(QString script)
+{
+    QMutexLocker lock(&m_runScriptMutex);
+    m_runScript = script;
+}
+
+QString Interpreter::currentRunScript() const
+{
+    QMutexLocker lock(&m_runScriptMutex);
+    return m_runScript;
+}
+
+void Interpreter::resume()
+{
+    evaluate(m_pausedScript, true);
+}
+
+void Interpreter::evaluate(QString script, bool resuming)
+{
+    emit(busy());
+    setRunScript(script);
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    libfive::run_progress::clearCancel();       // (a termination or a pause asked for during an earlier run is over with it)
+    libfive::run_progress::requestPause(false);
+    m_evaluating = true;
+
+    const auto host_mod = PyImport_ImportModule("_fieldes_host");
+
+    // The lines to stop before, as a Python list
+    QList<int> breakpoints;
+    {
+        QMutexLocker lock(&m_breakMutex);
+        breakpoints = m_breakpoints;
+    }
+    const auto breaks = PyList_New(0);
+    for (const int b : breakpoints)
+    {
+        const auto n = PyLong_FromLong(b);
+        PyList_Append(breaks, n);
+        Py_DECREF(n);
+    }
+
+    PyObject* vars_list;
+    PyObject* ret;
+    if (!resuming)
+    {
+        // (the numbers this run finds the text behind on: see fieldes.stdlib.handles._follow_literals)
+        {
+            const auto fresh_resync = PyList_New(0);
+            PyObject_SetAttrString(host_mod, "__resync", fresh_resync);
+            Py_DECREF(fresh_resync);
+        }
+        // (the numbers of the gizmo() calls of this run: see fieldes.stdlib.handles._note_gizmo_vars and sceneGizmoIds)
+        {
+            const auto fresh_gizmos = PyList_New(0);
+            PyObject_SetAttrString(host_mod, "__gizmo_vars", fresh_gizmos);
+            Py_DECREF(fresh_gizmos);
+        }
+        // Reset all settings
+        PyObject_SetAttrString(host_mod, "__resolution", Py_None);
+        PyObject_SetAttrString(host_mod, "__quality", Py_None);
+        PyObject_SetAttrString(host_mod, "__bounds", Py_None);
+        PyObject_SetAttrString(host_mod, "__auto_scale", Py_True);
+
+        // (no variable has been asked for by a key yet in this run, and the kernel knows the number of none)
+        libfive::DefaultVars::clear();
+        const auto fresh_counts = PyDict_New();
+        PyObject_SetAttrString(host_mod, "__key_count", fresh_counts);
+        Py_DECREF(fresh_counts);
+        // Copy from __vars to __prev_vars, then reset __vars
+        const auto prev_vars = PyObject_GetAttrString(host_mod, "__vars");
+        PyObject_SetAttrString(host_mod, "__prev_vars", prev_vars);
+        Py_DECREF(prev_vars);
+        vars_list = PyList_New(0);
+        PyObject_SetAttrString(host_mod, "__vars", vars_list);
+
+        auto args = PyTuple_New(1);
+        // UTF-8, not the local 8-bit code page: PyUnicode_FromString decodes
+        // UTF-8, so any non-ASCII character (an accented path, a dash in a
+        // comment) used to be mangled or rejected
+        PyTuple_SetItem(args, 0,
+                PyUnicode_FromString(script.toUtf8().data()));
+        auto kwargs = PyDict_New();
+        PyDict_SetItemString(kwargs, "var", m_varFunc);
+        PyDict_SetItemString(kwargs, "breakpoints", breaks);
+        ret = PyObject_Call(m_runFunc, args, kwargs);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+    }
+    else
+    {
+        // The rest of the stopped script: its settings and variables so far
+        // are kept
+        vars_list = PyObject_GetAttrString(host_mod, "__vars");
+        auto args = PyTuple_New(1);
+        Py_INCREF(breaks);
+        PyTuple_SetItem(args, 0, breaks);
+        ret = m_resumeFunc ? PyObject_Call(m_resumeFunc, args, NULL) : NULL;
+        if (!ret && !PyErr_Occurred())
+        {
+            PyErr_SetString(PyExc_RuntimeError, "cannot continue: no script is stopped");
+        }
+        Py_DECREF(args);
+    }
+    Py_DECREF(breaks);
+
+    Result out;
+    out.script = currentRunScript();        // (an edit that was put into the run: the text it went on with)
+    out.settings = Settings::defaultSettings();
+    out.okay = ret && !PyErr_Occurred();
+
+    // A run that stopped with an error says so (the traceback) and shows what ran before it: the results of the statements that were done
+    // (runner.last_partial; none for a script that did not parse, which ran nothing: the picture stays as it was)
+    bool partial = false;
+    if (!out.okay)
+    {
+        const auto tb = capturePythonTraceback();
+        out.error = {tb, errorRangeFromTraceback(tb)};
+        // (halt(): an edit of the script stopped this run, and the run of the new text is next -- that is no error of the script)
+        out.replaced = freshRequests() > 0 && endsWithBareStop(tb);
+        PyErr_Clear();
+        if (!out.replaced && m_runnerMod)
+        {
+            PyObject* done = PyObject_GetAttrString(m_runnerMod, "last_partial");
+            if (done && PyList_Check(done))
+            {
+                Py_XDECREF(ret);
+                ret = done;
+                partial = true;
+            }
+            else
+            {
+                Py_XDECREF(done);
+            }
+            PyErr_Clear();
+        }
+    }
+
+    // Map storing vars and their desired values (with the mapping to positions
+    // stored elsewhere in the Result structure)
+    std::map<libfive::Tree::Id, float> vars;
+
+    if (out.okay || partial) {
+        // Did it stop at a breakpoint (runner.last_paused, a line)?
+        m_pausedScript.clear();
+        if (m_runnerMod) {
+            const auto paused = PyObject_GetAttrString(m_runnerMod, "last_paused");
+            if (paused && PyLong_Check(paused) && PyLong_AsLong(paused) > 0) {
+                out.pausedLine = int(PyLong_AsLong(paused));
+                m_pausedScript = script;
+            }
+            Py_XDECREF(paused);
+            PyErr_Clear();
+            // ... and was it for a placeholder (runner.last_hole: (line, how many, the statement's first line))?
+            const auto hole = PyObject_GetAttrString(m_runnerMod, "last_hole");
+            if (hole && PyTuple_Check(hole) && PyTuple_Size(hole) == 3) {
+                out.holeCount = int(PyLong_AsLong(PyTuple_GetItem(hole, 1)));
+                const auto text = PyTuple_GetItem(hole, 2);
+                if (text && PyUnicode_Check(text)) out.holeText = QString::fromUtf8(PyUnicode_AsUTF8(text));
+            }
+            Py_XDECREF(hole);
+            PyErr_Clear();
+        }
+
+        // The numbers of the script that the run put right (a number edited in the call of a shape that was dragged: the list of numbers below
+        // it follows): the editor writes them, once the run is over
+        if (const auto resync = PyObject_GetAttrString(host_mod, "__resync")) {
+            if (PyList_Check(resync)) {
+                for (Py_ssize_t i = 0; i < PyList_Size(resync); ++i) {
+                    int l0, c0, l1, c1;
+                    const char* text;
+                    if (PyArg_ParseTuple(PyList_GetItem(resync, i), "iiiis", &l0, &c0, &l1, &c1, &text))
+                        out.resync.push_back({l0, c0, l1, c1, QString::fromUtf8(text)});
+                }
+            }
+            Py_DECREF(resync);
+        }
+        PyErr_Clear();
+
+        // Parse vars from studio.__vars
+        const auto vars_size = PyList_Size(vars_list);
+        for (unsigned i=0; i < vars_size; ++i) {
+            PyObject* s;
+            double value;
+            int lineno, end_lineno, col_offset, end_col_offset;
+            const auto item = PyList_GetItem(vars_list, i);
+
+            PyArg_ParseTuple(item, "Od(iiii)", &s, &value,
+                &lineno, &end_lineno, &col_offset, &end_col_offset);
+            PyErr_Print();
+
+            // Link up the ID with the value and position in the text
+            const auto ptr_obj = PyObject_GetAttrString(s, "ptr");
+            PyErr_Print();
+            const auto ptr = PyLong_AsVoidPtr(ptr_obj);
+            PyErr_Print();
+            const auto id = static_cast<libfive::Tree::Id>(ptr);
+            vars[id] = value;
+            out.vars[id] = QRect(col_offset, lineno - 1,
+                                 end_col_offset - col_offset,
+                                 end_lineno - lineno);
+            Py_DECREF(ptr_obj);
+            PyErr_Print();
+        }
+
+        // Evaluating the script's last expression (e.g. a bare `shape`)
+        // never itself raises -- it's just a name lookup -- so a value
+        // whose __repr__ raises (e.g. a STEP import's FailedPart, standing
+        // in for a solid that couldn't be reconstructed) only surfaces an
+        // exception HERE, formatting it for the status line. Previously
+        // unchecked: PyObject_Repr returning NULL on such a value fed NULL
+        // straight into PyUnicode_AsWideCharString, an instant crash --
+        // confirmed by a real STEP file with a genuinely non-analytic
+        // solid. Treat it exactly like any other script-level exception
+        // instead: report it in the GUI, don't crash, don't render.
+        bool reprOk = true;
+        const auto ret_size = PyList_Size(ret);
+        if (ret_size) {
+            const auto s = PyObject_Repr(PyList_GetItem(ret, ret_size - 1));
+            if (!s && partial) {
+                // (the value of the last statement that ran cannot be told: the error that is said is the run's own)
+                PyErr_Clear();
+                out.result = "None";
+            } else if (!s) {
+                out.okay = false;
+                const auto tb = capturePythonTraceback();
+                out.error = {tb, errorRangeFromTraceback(tb)};
+                out.result = "None";
+                reprOk = false;
+            } else {
+                const auto ws = PyUnicode_AsWideCharString(s, NULL);
+                out.result = QString::fromWCharArray(ws);
+                PyMem_Free(ws);
+                Py_DECREF(s);
+                // A shape, or a list of shapes, is drawn in the viewport: its repr would only be noise
+                if (out.result.contains("<shape@"))
+                {
+                    QString rest = out.result;
+                    rest.remove(QRegularExpression("<shape@0x[0-9a-fA-F]+>"));
+                    rest.remove(QRegularExpression("[\\[\\]\\(\\),\\s]"));
+                    if (rest.isEmpty()) out.result = "None";
+                }
+            }
+        } else {
+            out.result = "None";
+        }
+        // What the script printed goes first (the value of its last line
+        // after it, unless that is None)
+        if (m_runnerMod) {
+            const auto printed = PyObject_GetAttrString(m_runnerMod, "last_output");
+            if (printed && PyUnicode_Check(printed)) {
+                QString text = QString::fromUtf8(PyUnicode_AsUTF8(printed));
+                while (text.endsWith('\n')) text.chop(1);
+                if (!text.isEmpty()) {
+                    out.result = (out.result == "None") ? text : text + "\n" + out.result;
+                }
+            }
+            Py_XDECREF(printed);
+            PyErr_Clear();
+        }
+        // Source line of each top-level statement (runner.last_lines), so
+        // every rendered shape knows which statement displayed it
+        QVector<int> stmt_lines;
+        if (m_runnerMod) {
+            const auto lines = PyObject_GetAttrString(m_runnerMod, "last_lines");
+            if (lines && PyList_Check(lines)) {
+                const auto n = PyList_Size(lines);
+                for (Py_ssize_t k=0; k < n; ++k) {
+                    const auto t = PyList_GetItem(lines, k);
+                    stmt_lines << (PyTuple_Check(t)
+                        ? int(PyLong_AsLong(PyTuple_GetItem(t, 0))) - 1 : -1);
+                }
+            }
+            Py_XDECREF(lines);
+            PyErr_Clear();
+        }
+
+        // What an object displays: the value of its _display() -- an analysis result stated on its
+        // own shows itself coloured by its fields, as any shape shows itself -- or the object itself
+        auto displayOf = [](PyObject* obj) -> PyObject* {
+            if (!obj || !PyObject_HasAttrString(obj, "_display")) return nullptr;
+            PyObject* fn = PyObject_GetAttrString(obj, "_display");
+            PyObject* res = (fn && PyCallable_Check(fn)) ? PyObject_CallObject(fn, nullptr) : nullptr;
+            Py_XDECREF(fn);
+            return res;
+        };
+        for (unsigned i=0; reprOk && i < ret_size; ++i) {
+            const auto s = PyList_GetItem(ret, i);
+            const int line = (int(i) < stmt_lines.size()) ? stmt_lines[i] : -1;
+            PyObject* shown = displayOf(s);
+            if (!shown && PyErr_Occurred() && partial) {
+                // (the run has its error already: a result that cannot be shown is left out of what ran)
+                PyErr_Clear();
+                continue;
+            }
+            if (!shown && PyErr_Occurred()) {
+                // (a result that cannot be displayed: its error, as any other)
+                out.okay = false;
+                const auto tb = capturePythonTraceback();
+                out.error = {tb, errorRangeFromTraceback(tb)};
+                out.replaced = freshRequests() > 0 && endsWithBareStop(tb);      // (an edit stopped it while it was drawing a result)
+                break;
+            }
+            PyObject* obj = shown ? shown : s;
+            recordShape(obj, out, vars, line);
+            const bool viaViewport = s && PyObject_HasAttrString(s, "_is_viewport");
+
+            const auto iter = PyObject_GetIter(obj);
+            if (iter) {
+                PyObject* item = NULL;
+                while ((item = PyIter_Next(iter))) {
+                    PyObject* d = displayOf(item);
+                    if (!d) PyErr_Clear();
+                    recordShape(d ? d : item, out, vars, line, viaViewport);
+                    Py_XDECREF(d);
+                    Py_DECREF(item);
+                }
+                Py_DECREF(iter);
+            } else {
+                // PyObject_GetIter sets an error
+                PyErr_Clear();
+            }
+            Py_XDECREF(shown);
+        }
+
+      if (reprOk) {
+        // The field models of the script, for the section viewer (fieldes.app_support.field_sources): the field is the colour
+        // of a plane whose own value is below zero everywhere, so the viewer shows it at every point of the plane
+        {
+            PyObject* sup = PyImport_ImportModule("fieldes.app_support");
+            PyObject* list = sup ? PyObject_CallMethod(sup, "field_sources", nullptr) : nullptr;
+            if (list && PyList_Check(list))
+            {
+                for (Py_ssize_t k = 0; k < PyList_Size(list); ++k)
+                {
+                    PyObject* pair = PyList_GetItem(list, k);
+                    if (!pair || !PyTuple_Check(pair) || PyTuple_Size(pair) != 4) continue;
+                    PyObject* key = PyTuple_GetItem(pair, 0);
+                    PyObject* ptr = PyObject_GetAttrString(PyTuple_GetItem(pair, 1), "ptr");
+                    if (key && PyUnicode_Check(key) && ptr && PyLong_Check(ptr))
+                    {
+                        FieldEntry entry;
+                        entry.key = QString::fromUtf8(PyUnicode_AsUTF8(key));
+                        entry.source.tree = libfive::Tree(-1.0);
+                        entry.source.vars = vars;
+                        entry.source.color = libfive::Tree(static_cast<libfive_tree>(PyLong_AsVoidPtr(ptr)));
+                        entry.source.lo = std::numeric_limits<float>::quiet_NaN();     // (the range: found when it is first shown)
+                        entry.source.hi = entry.source.lo;
+                        entry.source.label = "field";
+                        {
+                            PyObject* shown = PyTuple_GetItem(pair, 3);                 // (its eye)
+                            entry.shown = !shown || PyObject_IsTrue(shown) == 1;
+                        }
+                        PyObject* origin = PyTuple_GetItem(pair, 2);                    // (where the field is about, or None)
+                        if (origin && PyList_Check(origin) && PyList_Size(origin) == 3)
+                        {
+                            entry.centre = QVector3D(float(PyFloat_AsDouble(PyList_GetItem(origin, 0))),
+                                                     float(PyFloat_AsDouble(PyList_GetItem(origin, 1))),
+                                                     float(PyFloat_AsDouble(PyList_GetItem(origin, 2))));
+                            entry.hasCentre = !PyErr_Occurred();
+                            PyErr_Clear();
+                        }
+                        out.fields.push_back(std::move(entry));
+                    }
+                    Py_XDECREF(ptr);
+                }
+            }
+            Py_XDECREF(list);
+            Py_XDECREF(sup);
+            PyErr_Clear();
+        }
+        // Check whether settings were assigned in the script
+        auto res = PyObject_GetAttrString(host_mod, "__resolution");
+        if (res != Py_None) {
+            const double r = PyFloat_AsDouble(res);
+            if (!PyErr_Occurred()) {
+                out.settings.res = r;
+            } else {
+                res = NULL;
+            }
+        }
+        if (res == Py_None || res == NULL) {
+            out.warnings.append({
+                    T("<b>Warning:</b> no <code>view.set_resolution(...)</code>: using the default"),
+                    SET_RESOLUTION_STR.arg(out.settings.res)});
+        }
+        Py_XDECREF(res);
+
+        auto qua = PyObject_GetAttrString(host_mod, "__quality");
+        if (qua != Py_None) {
+            const double q = PyFloat_AsDouble(qua);
+            if (!PyErr_Occurred()) {
+                out.settings.quality = q;
+            } else {
+                qua = NULL;
+            }
+        }
+        if (qua == Py_None || qua == NULL) {
+            out.warnings.append({
+                    T("<b>Warning:</b> no <code>view.set_quality(...)</code>: using the default"),
+                    SET_QUALITY_STR.arg(out.settings.quality)});
+        }
+        Py_XDECREF(qua);
+
+        {
+            // (auto scale: on unless view.set_bounds(..., auto_scale=False) said otherwise)
+            PyObject* scale = PyObject_GetAttrString(host_mod, "__auto_scale");
+            out.settings.autoScale = !(scale && scale == Py_False);
+            Py_XDECREF(scale);
+            PyErr_Clear();
+        }
+        auto bounds = PyObject_GetAttrString(host_mod, "__bounds");
+        if (bounds != Py_None) {
+            double xmin, ymin, zmin, xmax, ymax, zmax;
+            if (PyArg_ParseTuple(bounds, "(ddd)(ddd)", &xmin, &ymin, &zmin,
+                                  &xmax, &ymax, &zmax))
+            {
+                out.settings.min = QVector3D(xmin, ymin, zmin);
+                out.settings.max = QVector3D(xmax, ymax, zmax);
+            } else {
+                PyErr_Clear();
+                bounds = NULL;
+            }
+        }
+        if (bounds == Py_None || bounds == NULL) {
+            out.warnings.append(
+                    {T("<b>Warning:</b> no <code>view.set_bounds(...)</code>: using the default"),
+                    SET_BOUNDS_STR.arg(out.settings.min.x())
+                                  .arg(out.settings.min.y())
+                                  .arg(out.settings.min.z())
+                                  .arg(out.settings.max.x())
+                                  .arg(out.settings.max.y())
+                                  .arg(out.settings.max.z())});
+        }
+        Py_XDECREF(bounds);
+
+        // A resolution far finer than the region needs (e.g. 1000 per unit
+        // kept from when a model was imported in metres, now in mm: a 1 um
+        // voxel across a table) makes the mesher run practically forever,
+        // and every edit re-runs the script next to it
+        {
+            const QVector3D ext = out.settings.max - out.settings.min;
+            const double span = std::max(ext.x(), std::max(ext.y(), ext.z()));
+            const double cells = out.settings.res * span;
+            // (roi_resolution(...) picks the resolution itself, within a
+            // vertex budget: a fine one is what it means)
+            if (span > 0 && cells > 5000 && !script.contains("roi_resolution(")) {
+                const double good = 1000.0 / span;
+                out.warnings.append({
+                    QString("<b>Warning:</b> <code>resolution %1</code> means %2 voxels across the "
+                            "render region (%3 wide): meshing will take very long.<br>"
+                            "&nbsp;&nbsp;&nbsp;&nbsp;About 1000 across is plenty, e.g. "
+                            "<code>view.set_resolution(%4)</code>, or "
+                            "<code>roi_resolution(...)</code> for imports.")
+                        .arg(out.settings.res).arg(qlonglong(cells)).arg(span, 0, 'g', 4)
+                        .arg(good, 0, 'g', 2),
+                    QString()});
+            }
+        }
+
+        if (!out.warnings.isEmpty() && !script.contains("from fieldes import") &&
+            !script.contains("import fieldes")) {
+            out.warnings.insert(0, {
+                "<b>Warning:</b> Missing <code>from fieldes import *</code>",
+                "from fieldes import *\n"});
+        }
+
+        // A stopped script hasn't reached its settings yet: no warnings
+        // about them until it has
+        if (out.pausedLine > 0 || partial) {
+            out.warnings.clear();       // (a run that stopped has not reached all its settings: the error comes first)
+        }
+      }
+    }
+
+    Py_DECREF(vars_list);
+    Py_XDECREF(ret);
+    m_evaluating = false;
+    // (an interruption that came as the run was ending is over with it)
+    PyThreadState_SetAsyncExc(m_workerThreadId, nullptr);
+    PyGILState_Release(gstate);
+
+    emit(done(out));
+}
+
+QString Interpreter::callSupport(const QString& function, const QString& arg, QString* error)
+{
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    QString out;
+    PyObject* mod = PyImport_ImportModule("fieldes.app_support");
+    PyObject* fn = mod ? PyObject_GetAttrString(mod, function.toUtf8().constData()) : nullptr;
+    PyObject* res = fn ? PyObject_CallFunction(fn, "s", arg.toUtf8().constData()) : nullptr;
+    if (res && PyUnicode_Check(res))
+    {
+        out = QString::fromUtf8(PyUnicode_AsUTF8(res));
+    }
+    else
+    {
+        QString why = "the call failed";
+        if (PyErr_Occurred())
+        {
+            PyObject *type = nullptr, *value = nullptr, *tb = nullptr;
+            PyErr_Fetch(&type, &value, &tb);
+            PyObject* text = value ? PyObject_Str(value) : nullptr;
+            if (text && PyUnicode_Check(text)) why = QString::fromUtf8(PyUnicode_AsUTF8(text));
+            Py_XDECREF(text);
+            Py_XDECREF(type);
+            Py_XDECREF(value);
+            Py_XDECREF(tb);
+        }
+        PyErr_Clear();
+        if (error) *error = why;
+    }
+    Py_XDECREF(res);
+    Py_XDECREF(fn);
+    Py_XDECREF(mod);
+    PyGILState_Release(gstate);
+    return out;
+}
+
+void Interpreter::publishPartial(PyObject* snapshot, PyObject* linesList, int runningLine)
+{
+    if (!snapshot || !PyList_Check(snapshot)) return;
+    // (a newer edit of the script is waiting: the run it will start draws what it shows, this one is not worth drawing)
+    if (freshRequests() > 0) return;
+    Result out;
+    out.script = currentRunScript();
+    out.keepFromLine = runningLine;     // (the shapes of the statements from the one that runs on are the last run's, until it makes them)
+    out.settings = Settings::defaultSettings();
+    out.okay = true;
+    const auto host_mod = PyImport_ImportModule("_fieldes_host");
+    if (!host_mod) { PyErr_Clear(); return; }
+
+    // The render settings the script has given by now
+    {
+        auto res = PyObject_GetAttrString(host_mod, "__resolution");
+        if (res && res != Py_None) { const double r = PyFloat_AsDouble(res); if (!PyErr_Occurred()) out.settings.res = r; }
+        Py_XDECREF(res);
+        PyErr_Clear();
+        auto qua = PyObject_GetAttrString(host_mod, "__quality");
+        if (qua && qua != Py_None) { const double q = PyFloat_AsDouble(qua); if (!PyErr_Occurred()) out.settings.quality = q; }
+        Py_XDECREF(qua);
+        PyErr_Clear();
+        PyObject* scale = PyObject_GetAttrString(host_mod, "__auto_scale");
+        out.settings.autoScale = !(scale && scale == Py_False);
+        Py_XDECREF(scale);
+        PyErr_Clear();
+        auto bounds = PyObject_GetAttrString(host_mod, "__bounds");
+        if (bounds && bounds != Py_None)
+        {
+            double xmin, ymin, zmin, xmax, ymax, zmax;
+            if (PyArg_ParseTuple(bounds, "(ddd)(ddd)", &xmin, &ymin, &zmin, &xmax, &ymax, &zmax))
+            {
+                out.settings.min = QVector3D(xmin, ymin, zmin);
+                out.settings.max = QVector3D(xmax, ymax, zmax);
+            }
+        }
+        Py_XDECREF(bounds);
+        PyErr_Clear();
+    }
+    // The numbers of the script (var) the shapes hold
+    std::map<libfive::Tree::Id, float> vars;
+    if (const auto list = PyObject_GetAttrString(host_mod, "__vars"))
+    {
+        if (PyList_Check(list))
+        {
+            for (Py_ssize_t i = 0; i < PyList_Size(list); ++i)
+            {
+                PyObject* s = nullptr;
+                double value = 0;
+                int lineno, end_lineno, col_offset, end_col_offset;
+                if (!PyArg_ParseTuple(PyList_GetItem(list, i), "Od(iiii)", &s, &value, &lineno, &end_lineno, &col_offset, &end_col_offset))
+                {
+                    PyErr_Clear();
+                    continue;
+                }
+                const auto ptr_obj = PyObject_GetAttrString(s, "ptr");
+                if (ptr_obj)
+                {
+                    vars[static_cast<libfive::Tree::Id>(PyLong_AsVoidPtr(ptr_obj))] = value;
+                    Py_DECREF(ptr_obj);
+                }
+                PyErr_Clear();
+            }
+        }
+        Py_DECREF(list);
+    }
+    PyErr_Clear();
+    QVector<int> stmt_lines;
+    if (linesList && PyList_Check(linesList))
+    {
+        for (Py_ssize_t k = 0; k < PyList_Size(linesList); ++k)
+        {
+            const auto t = PyList_GetItem(linesList, k);
+            stmt_lines << (PyTuple_Check(t) ? int(PyLong_AsLong(PyTuple_GetItem(t, 0))) - 1 : -1);
+        }
+    }
+    auto displayOf = [](PyObject* obj) -> PyObject* {
+        if (!obj || !PyObject_HasAttrString(obj, "_display")) return nullptr;
+        PyObject* fn = PyObject_GetAttrString(obj, "_display");
+        PyObject* res = (fn && PyCallable_Check(fn)) ? PyObject_CallObject(fn, nullptr) : nullptr;
+        Py_XDECREF(fn);
+        return res;
+    };
+    const auto n = PyList_Size(snapshot);
+    for (Py_ssize_t i = 0; i < n; ++i)
+    {
+        const auto s = PyList_GetItem(snapshot, i);
+        if (!s || s == Py_None) continue;
+        const int line = (int(i) < stmt_lines.size()) ? stmt_lines[i] : -1;
+        PyObject* shown = displayOf(s);
+        if (!shown && PyErr_Occurred())
+        {
+            PyErr_Clear();          // (a result that cannot be shown is left out of what is drawn now)
+            continue;
+        }
+        PyObject* obj = shown ? shown : s;
+        recordShape(obj, out, vars, line);
+        const bool viaViewport = s && PyObject_HasAttrString(s, "_is_viewport");
+        const auto iter = PyObject_GetIter(obj);
+        if (iter)
+        {
+            PyObject* item = NULL;
+            while ((item = PyIter_Next(iter)))
+            {
+                PyObject* d = displayOf(item);
+                if (!d) PyErr_Clear();
+                recordShape(d ? d : item, out, vars, line, viaViewport);
+                Py_XDECREF(d);
+                Py_DECREF(item);
+            }
+            Py_DECREF(iter);
+        }
+        PyErr_Clear();
+        Py_XDECREF(shown);
+    }
+    Py_DECREF(host_mod);
+    emit(partialResult(out));
+}
+
+// The numbers of every gizmo() call of the run (fieldes.stdlib.handles notes them in host.__gizmo_vars): a surface pull never changes one of them, whichever shape the surface
+// belongs to.  The same set for every shape of a run, made again when the list has grown; the list is held, so that no other list can take its place
+static std::shared_ptr<const std::set<libfive::Tree::Id>> sceneGizmoIds()
+{
+    static PyObject* seen = nullptr;
+    static Py_ssize_t seenSize = -1;
+    static std::shared_ptr<const std::set<libfive::Tree::Id>> made;
+    PyObject* host = PyImport_ImportModule("_fieldes_host");
+    PyObject* list = host ? PyObject_GetAttrString(host, "__gizmo_vars") : nullptr;
+    Py_XDECREF(host);
+    if (!list || !PyList_Check(list))
+    {
+        Py_XDECREF(list);
+        PyErr_Clear();
+        return nullptr;
+    }
+    if (list == seen && PyList_Size(list) == seenSize)
+    {
+        Py_DECREF(list);
+        return made;
+    }
+    auto ids = std::make_shared<std::set<libfive::Tree::Id>>();
+    for (Py_ssize_t i = 0; i < PyList_Size(list); ++i)
+    {
+        PyObject* v = PyList_GetItem(list, i);            // (borrowed)
+        PyObject* p = (v && PyObject_HasAttrString(v, "ptr")) ? PyObject_GetAttrString(v, "ptr") : nullptr;
+        if (p && PyLong_Check(p)) ids->insert(static_cast<libfive::Tree::Id>(PyLong_AsVoidPtr(p)));
+        Py_XDECREF(p);
+    }
+    PyErr_Clear();
+    Py_XDECREF(seen);
+    seen = list;                                           // (the reference of GetAttr is kept)
+    seenSize = PyList_Size(list);
+    made = ids;
+    return made;
+}
+
+void Interpreter::recordShape(
+        PyObject* obj,
+        Result &out,
+        std::map<libfive::Tree::Id, float>& vars,
+        int line,
+        bool viewport)
+{
+    if (PyObject_IsInstance(obj, m_shapeClass)) {
+        const auto ptr_obj = PyObject_GetAttrString(obj, "ptr");
+        const auto ptr = PyLong_AsVoidPtr(ptr_obj);
+        const auto tree = static_cast<libfive_tree>(ptr);
+        // A distance field is drawn from the field it was made from (fieldes.stdlib.fields.exact_distance): the surface is the same, and the viewport
+        // meshes one evaluation of the plain field at each point, not the walk to the surface (a dozen calls of it)
+        libfive::Tree drawn(tree);
+        {
+            PyObject* alias = PyObject_GetAttrString(obj, "_display_field");
+            if (alias && alias != Py_None && PyObject_IsInstance(alias, m_shapeClass))
+            {
+                PyObject* ap = PyObject_GetAttrString(alias, "ptr");
+                if (ap && PyLong_Check(ap))
+                    drawn = libfive::Tree(static_cast<libfive_tree>(PyLong_AsVoidPtr(ap)));
+                Py_XDECREF(ap);
+            }
+            Py_XDECREF(alias);
+            PyErr_Clear();
+        }
+        const auto shape = new Shape(drawn, vars);
+        shape->setSourceLine(line);
+        {
+            // (an imported part, moved or edited or not, has an exact distance of its own: the field viewers ask for it by this key)
+            PyObject* exact = PyObject_GetAttrString(obj, "_distance_of");
+            const bool hasExact = exact && exact != Py_None && PyCallable_Check(exact);
+            Py_XDECREF(exact);
+            PyErr_Clear();
+            if (hasExact)
+            {
+                shape->setExactKey(QString::number(reinterpret_cast<quintptr>(ptr)));
+                PyObject* support = PyImport_ImportModule("fieldes.app_support");
+                if (support)
+                {
+                    PyObject* r = PyObject_CallMethod(support, "register_view_shape", "O", obj);
+                    Py_XDECREF(r);
+                    Py_DECREF(support);
+                }
+                PyErr_Clear();
+            }
+        }
+        {
+            // (a 2D shape is drawn as its face in the plane z = 0, flat: see fieldes.stdlib.points.displayed)
+            PyObject* flat = PyObject_GetAttrString(obj, "_flat2d");
+            shape->setFlat(flat && PyObject_IsTrue(flat) == 1);
+            Py_XDECREF(flat);
+            PyErr_Clear();
+        }
+        // The expression of a script's number or a point's coordinate (a Shape of the library): a tree of its own, or an invalid one
+        auto treeOfShape = [](PyObject* v) -> libfive::Tree {
+            if (!v || !PyObject_HasAttrString(v, "ptr")) return libfive::Tree::invalid();
+            PyObject* p = PyObject_GetAttrString(v, "ptr");
+            libfive::Tree out = libfive::Tree::invalid();
+            if (p && PyLong_Check(p)) out = libfive::Tree(static_cast<libfive_tree>(PyLong_AsVoidPtr(p)));
+            Py_XDECREF(p);
+            return out;
+        };
+        {
+            // (the plane of a flat shape that is not z = 0: (origin, u, v), each three expressions -- see fieldes.stdlib.profile)
+            PyObject* fr = PyObject_GetAttrString(obj, "_flat_frame");
+            if (fr && PyTuple_Check(fr) && PyTuple_Size(fr) == 3)
+            {
+                std::vector<libfive::Tree> trees;
+                for (Py_ssize_t a = 0; a < 3; ++a)
+                {
+                    PyObject* vec = PyTuple_GetItem(fr, a);
+                    for (Py_ssize_t c = 0; vec && PyTuple_Check(vec) && c < PyTuple_Size(vec); ++c)
+                        trees.push_back(treeOfShape(PyTuple_GetItem(vec, c)));
+                }
+                bool good = trees.size() == 9;
+                for (const auto& t : trees) good = good && t.is_valid();
+                if (good) shape->setFlatFrame(std::move(trees));
+            }
+            Py_XDECREF(fr);
+            PyErr_Clear();
+        }
+        {
+            // (the points of a profile or a curve: where each is and what it says of itself, as expressions of the script's numbers -- the line or the face is
+            // made from them natively at every render, see Shape::setControls and fieldes.stdlib.curves)
+            PyObject* cp = PyObject_GetAttrString(obj, "_ctrl_pos");
+            if (cp && PyList_Check(cp) && PyList_Size(cp) > 0)
+            {
+                PyObject* cr = PyObject_GetAttrString(obj, "_ctrl_rot");
+                PyObject* cs = PyObject_GetAttrString(obj, "_ctrl_scale");
+                PyObject* cf = PyObject_GetAttrString(obj, "_ctrl_flag");
+                PyObject* crad = PyObject_GetAttrString(obj, "_ctrl_radius");
+                if (!crad) PyErr_Clear();
+                PyObject* cown = PyObject_GetAttrString(obj, "_ctrl_radius_own");        // (the number each point itself gives for its radius: the one its arc drags)
+                if (!cown) PyErr_Clear();
+                PyObject* cd = PyObject_GetAttrString(obj, "_ctrl_default");
+                PyObject* cl = PyObject_GetAttrString(obj, "closed");
+                PyObject* cface = PyObject_GetAttrString(obj, "_profile_face");
+                const bool face = cface && PyObject_IsTrue(cface) == 1;
+                std::vector<Shape::ControlPoint> points;
+                bool good = true;
+                for (Py_ssize_t i = 0; i < PyList_Size(cp) && good; ++i)
+                {
+                    PyObject* at = PyList_GetItem(cp, i);
+                    if (!PyTuple_Check(at) || PyTuple_Size(at) != 3) { good = false; break; }
+                    Shape::ControlPoint c;
+                    for (int a = 0; a < 3; ++a)
+                    {
+                        c.pos[a] = treeOfShape(PyTuple_GetItem(at, a));
+                        if (!c.pos[a].is_valid()) { good = false; break; }
+                        c.var[a] = Shape::soleVarOf(c.pos[a]);
+                    }
+                    PyObject* rot = (cr && PyList_Check(cr) && i < PyList_Size(cr)) ? PyList_GetItem(cr, i) : nullptr;
+                    if (good && rot && PyTuple_Check(rot) && PyTuple_Size(rot) == 3)
+                    {
+                        c.hasRot = true;
+                        for (int a = 0; a < 3; ++a)
+                        {
+                            c.rot[a] = treeOfShape(PyTuple_GetItem(rot, a));
+                            if (!c.rot[a].is_valid()) { good = false; break; }
+                        }
+                    }
+                    PyObject* sc = (cs && PyList_Check(cs) && i < PyList_Size(cs)) ? PyList_GetItem(cs, i) : nullptr;
+                    if (sc && sc != Py_None)
+                    {
+                        c.scale = treeOfShape(sc);
+                        c.hasScale = c.scale.is_valid();
+                    }
+                    PyObject* flag = (cf && PyList_Check(cf) && i < PyList_Size(cf)) ? PyList_GetItem(cf, i) : nullptr;
+                    if (flag && PyLong_Check(flag)) c.flag = int(PyLong_AsLong(flag));
+                    PyObject* rad = (crad && PyList_Check(crad) && i < PyList_Size(crad)) ? PyList_GetItem(crad, i) : nullptr;
+                    if (rad && rad != Py_None)
+                    {
+                        c.radius = treeOfShape(rad);
+                        c.hasRadius = c.radius.is_valid();
+                    }
+                    PyObject* own = (cown && PyList_Check(cown) && i < PyList_Size(cown)) ? PyList_GetItem(cown, i) : nullptr;
+                    if (own && own != Py_None)
+                    {
+                        const libfive::Tree t = treeOfShape(own);
+                        if (t.is_valid()) c.radiusVar = Shape::soleVarOf(t);
+                    }
+                    points.push_back(std::move(c));
+                }
+                if (good)
+                {
+                    shape->setNoPaint(!face);
+                    shape->setControls(std::move(points), cd && PyObject_IsTrue(cd) == 1, cl && PyObject_IsTrue(cl) == 1, face);
+                }
+                Py_XDECREF(cr);
+                Py_XDECREF(cs);
+                Py_XDECREF(cf);
+                Py_XDECREF(crad);
+                Py_XDECREF(cown);
+                Py_XDECREF(cd);
+                Py_XDECREF(cl);
+                Py_XDECREF(cface);
+            }
+            Py_XDECREF(cp);
+            PyErr_Clear();
+        }
+        {
+            // (a straight extrusion of a profile of points -- a prism: its points, and a and b, as expressions of the script's numbers, and the numbers that must still be what
+            // they were; the viewport makes it from them natively at every render: see Shape::setPrism and fieldes.stdlib.profile.extrude)
+            PyObject* pp = PyObject_GetAttrString(obj, "_prism_pos");
+            if (pp && PyList_Check(pp) && PyList_Size(pp) > 0)
+            {
+                PyObject* pr = PyObject_GetAttrString(obj, "_prism_rot");
+                PyObject* ps = PyObject_GetAttrString(obj, "_prism_scale");
+                PyObject* pf = PyObject_GetAttrString(obj, "_prism_flag");
+                PyObject* prad = PyObject_GetAttrString(obj, "_prism_radius");
+                if (!prad) PyErr_Clear();
+                PyObject* pd = PyObject_GetAttrString(obj, "_prism_default");
+                PyObject* pa = PyObject_GetAttrString(obj, "_prism_a");
+                PyObject* pb = PyObject_GetAttrString(obj, "_prism_b");
+                PyObject* pg = PyObject_GetAttrString(obj, "_prism_guard");
+                std::vector<Shape::ControlPoint> points;
+                bool good = true;
+                for (Py_ssize_t i = 0; i < PyList_Size(pp) && good; ++i)
+                {
+                    PyObject* at = PyList_GetItem(pp, i);
+                    if (!PyTuple_Check(at) || PyTuple_Size(at) != 3) { good = false; break; }
+                    Shape::ControlPoint c;
+                    for (int a = 0; a < 3; ++a)
+                    {
+                        c.pos[a] = treeOfShape(PyTuple_GetItem(at, a));
+                        if (!c.pos[a].is_valid()) { good = false; break; }
+                        c.var[a] = Shape::soleVarOf(c.pos[a]);          // (the number a wall pull moves this point by: Shape::prismWallAt)
+                    }
+                    PyObject* rot = (pr && PyList_Check(pr) && i < PyList_Size(pr)) ? PyList_GetItem(pr, i) : nullptr;
+                    if (good && rot && PyTuple_Check(rot) && PyTuple_Size(rot) == 3)
+                    {
+                        c.hasRot = true;
+                        for (int a = 0; a < 3; ++a)
+                        {
+                            c.rot[a] = treeOfShape(PyTuple_GetItem(rot, a));
+                            if (!c.rot[a].is_valid()) { good = false; break; }
+                        }
+                    }
+                    PyObject* sc = (ps && PyList_Check(ps) && i < PyList_Size(ps)) ? PyList_GetItem(ps, i) : nullptr;
+                    if (sc && sc != Py_None)
+                    {
+                        c.scale = treeOfShape(sc);
+                        c.hasScale = c.scale.is_valid();
+                    }
+                    PyObject* flag = (pf && PyList_Check(pf) && i < PyList_Size(pf)) ? PyList_GetItem(pf, i) : nullptr;
+                    if (flag && PyLong_Check(flag)) c.flag = int(PyLong_AsLong(flag));
+                    PyObject* rad = (prad && PyList_Check(prad) && i < PyList_Size(prad)) ? PyList_GetItem(prad, i) : nullptr;
+                    if (rad && rad != Py_None)
+                    {
+                        c.radius = treeOfShape(rad);
+                        c.hasRadius = c.radius.is_valid();
+                    }
+                    points.push_back(std::move(c));
+                }
+                const libfive::Tree treeA = treeOfShape(pa), treeB = treeOfShape(pb);
+                std::vector<std::pair<libfive::Tree::Id, float>> guard;
+                for (Py_ssize_t i = 0; pg && PyList_Check(pg) && i < PyList_Size(pg) && good; ++i)
+                {
+                    PyObject* item = PyList_GetItem(pg, i);
+                    if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) { good = false; break; }
+                    // (a number of the script that must still be what it was: a var(), the one number its expression is made of)
+                    const libfive::Tree::Id id = Shape::soleVarOf(treeOfShape(PyTuple_GetItem(item, 0)));
+                    if (!id) { good = false; break; }
+                    guard.push_back({id, float(PyFloat_AsDouble(PyTuple_GetItem(item, 1)))});
+                }
+                if (good && treeA.is_valid() && treeB.is_valid()) shape->setPrism(std::move(points), pd && PyObject_IsTrue(pd) == 1, treeA, treeB, std::move(guard));
+                Py_XDECREF(pr);
+                Py_XDECREF(ps);
+                Py_XDECREF(pf);
+                Py_XDECREF(prad);
+                Py_XDECREF(pd);
+                Py_XDECREF(pa);
+                Py_XDECREF(pb);
+                Py_XDECREF(pg);
+            }
+            Py_XDECREF(pp);
+            PyErr_Clear();
+        }
+        {
+            // (a sweep of a profile of points along a curve of points: both lists of points, the twist and where the gizmo places it -- the viewport makes it from the numbers
+            // natively at every render: see Shape::setSweep and fieldes.stdlib.profile.path_extrude)
+            PyObject* pp = PyObject_GetAttrString(obj, "_sweep_ppos");
+            PyObject* qp = PyObject_GetAttrString(obj, "_sweep_qpos");
+            if (pp && PyList_Check(pp) && PyList_Size(pp) > 0 && qp && PyList_Check(qp) && PyList_Size(qp) > 0)
+            {
+                auto readPoints = [&](const char* pos, const char* rot, const char* scale, const char* flag, const char* radius, std::vector<Shape::ControlPoint>& points) -> bool {
+                    PyObject* cp = PyObject_GetAttrString(obj, pos);
+                    PyObject* cr = PyObject_GetAttrString(obj, rot);
+                    PyObject* cs = PyObject_GetAttrString(obj, scale);
+                    PyObject* cf = PyObject_GetAttrString(obj, flag);
+                    PyObject* crad = radius ? PyObject_GetAttrString(obj, radius) : nullptr;      // (the points of a path have no radius: a round corner is a corner of a face)
+                    if (!crad) PyErr_Clear();
+                    bool good = cp && PyList_Check(cp);
+                    for (Py_ssize_t i = 0; good && i < PyList_Size(cp); ++i)
+                    {
+                        PyObject* at = PyList_GetItem(cp, i);
+                        if (!PyTuple_Check(at) || PyTuple_Size(at) != 3) { good = false; break; }
+                        Shape::ControlPoint c;
+                        for (int a = 0; a < 3; ++a)
+                        {
+                            c.pos[a] = treeOfShape(PyTuple_GetItem(at, a));
+                            if (!c.pos[a].is_valid()) { good = false; break; }
+                        }
+                        PyObject* r = (cr && PyList_Check(cr) && i < PyList_Size(cr)) ? PyList_GetItem(cr, i) : nullptr;
+                        if (good && r && PyTuple_Check(r) && PyTuple_Size(r) == 3)
+                        {
+                            c.hasRot = true;
+                            for (int a = 0; a < 3; ++a)
+                            {
+                                c.rot[a] = treeOfShape(PyTuple_GetItem(r, a));
+                                if (!c.rot[a].is_valid()) { good = false; break; }
+                            }
+                        }
+                        PyObject* sc = (cs && PyList_Check(cs) && i < PyList_Size(cs)) ? PyList_GetItem(cs, i) : nullptr;
+                        if (sc && sc != Py_None)
+                        {
+                            c.scale = treeOfShape(sc);
+                            c.hasScale = c.scale.is_valid();
+                        }
+                        PyObject* fl = (cf && PyList_Check(cf) && i < PyList_Size(cf)) ? PyList_GetItem(cf, i) : nullptr;
+                        if (fl && PyLong_Check(fl)) c.flag = int(PyLong_AsLong(fl));
+                        PyObject* rd = (crad && PyList_Check(crad) && i < PyList_Size(crad)) ? PyList_GetItem(crad, i) : nullptr;
+                        if (rd && rd != Py_None)
+                        {
+                            c.radius = treeOfShape(rd);
+                            c.hasRadius = c.radius.is_valid();
+                        }
+                        points.push_back(std::move(c));
+                    }
+                    Py_XDECREF(cp);
+                    Py_XDECREF(cr);
+                    Py_XDECREF(cs);
+                    Py_XDECREF(cf);
+                    Py_XDECREF(crad);
+                    return good;
+                };
+                std::vector<Shape::ControlPoint> profile, path;
+                bool good = readPoints("_sweep_ppos", "_sweep_prot", "_sweep_pscale", "_sweep_pflag", "_sweep_pradius", profile) &&
+                            readPoints("_sweep_qpos", "_sweep_qrot", "_sweep_qscale", "_sweep_qflag", nullptr, path);
+                PyObject* pd = PyObject_GetAttrString(obj, "_sweep_pdefault");
+                PyObject* qd = PyObject_GetAttrString(obj, "_sweep_qdefault");
+                PyObject* qc = PyObject_GetAttrString(obj, "_sweep_qclosed");
+                PyObject* tw = PyObject_GetAttrString(obj, "_sweep_twist");
+                const libfive::Tree twist = treeOfShape(tw);
+                bool placed = false;
+                double about[3] = {0, 0, 0};
+                libfive::Tree move[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
+                libfive::Tree rotate[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
+                libfive::Tree scale[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
+                PyObject* pl = PyObject_GetAttrString(obj, "_sweep_place");
+                if (pl && PyTuple_Check(pl) && PyTuple_Size(pl) == 4)
+                {
+                    placed = true;
+                    PyObject* ab = PyTuple_GetItem(pl, 0);
+                    for (int a = 0; a < 3 && ab && PyTuple_Check(ab) && a < PyTuple_Size(ab); ++a) about[a] = PyFloat_AsDouble(PyTuple_GetItem(ab, a));
+                    for (int part = 1; part <= 3; ++part)
+                    {
+                        PyObject* triple = PyTuple_GetItem(pl, part);
+                        for (int a = 0; a < 3 && triple && PyTuple_Check(triple) && a < PyTuple_Size(triple); ++a)
+                        {
+                            const libfive::Tree t = treeOfShape(PyTuple_GetItem(triple, a));
+                            if (!t.is_valid()) good = false;
+                            (part == 1 ? move : part == 2 ? rotate : scale)[a] = t;
+                        }
+                    }
+                }
+                // (numbers that must stay what they are for the sweep to be drawn from its outline: a var() and its value -- a guard that cannot be read is no sweep drawn from numbers)
+                PyObject* sg = PyObject_GetAttrString(obj, "_sweep_guard");
+                std::vector<std::pair<libfive::Tree::Id, float>> sweepGuard;
+                for (Py_ssize_t i = 0; sg && PyList_Check(sg) && i < PyList_Size(sg) && good; ++i)
+                {
+                    PyObject* item = PyList_GetItem(sg, i);
+                    if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) { good = false; break; }
+                    const libfive::Tree::Id id = Shape::soleVarOf(treeOfShape(PyTuple_GetItem(item, 0)));
+                    if (!id) { good = false; break; }
+                    sweepGuard.push_back({id, float(PyFloat_AsDouble(PyTuple_GetItem(item, 1)))});
+                }
+                Py_XDECREF(sg);
+                if (good && twist.is_valid())
+                {
+                    shape->setSweep(std::move(profile), pd && PyObject_IsTrue(pd) == 1, std::move(path), qd && PyObject_IsTrue(qd) == 1, qc && PyObject_IsTrue(qc) == 1, twist,
+                                    placed, about, move, rotate, scale);
+                    // (the sweep of a primitive: its outline is in the plane z = 0, its axes x and y)
+                    PyObject* fr = PyObject_GetAttrString(obj, "_sweep_free");
+                    shape->setSweepFree(fr && PyObject_IsTrue(fr) == 1);
+                    Py_XDECREF(fr);
+                    shape->setSweepGuard(std::move(sweepGuard));
+                }
+                Py_XDECREF(pd);
+                Py_XDECREF(qd);
+                Py_XDECREF(qc);
+                Py_XDECREF(tw);
+                Py_XDECREF(pl);
+            }
+            Py_XDECREF(pp);
+            Py_XDECREF(qp);
+            PyErr_Clear();
+        }
+        {
+            // (a profile, a curve: its outline is a place to press that puts a point there)
+            PyObject* ed = PyObject_GetAttrString(obj, "_editable");
+            shape->setEditable(ed && PyObject_IsTrue(ed) == 1);
+            Py_XDECREF(ed);
+            PyErr_Clear();
+        }
+        {
+            // (a point of a profile or a curve: a corner or a spline point)
+            PyObject* sm = PyObject_GetAttrString(obj, "_curve_smooth");
+            if (sm && PyBool_Check(sm)) shape->setPointStyle(PyObject_IsTrue(sm) == 1 ? 2 : 1);
+            Py_XDECREF(sm);
+            PyErr_Clear();
+            // (a round corner of a profile: a corner with a radius)
+            PyObject* rc = PyObject_GetAttrString(obj, "_curve_round");
+            if (rc && PyBool_Check(rc) && PyObject_IsTrue(rc) == 1) shape->setPointStyle(3);
+            Py_XDECREF(rc);
+            PyErr_Clear();
+        }
+        {
+            // (a point is not painted: its gizmo shows where it is)
+            PyObject* kind = PyObject_GetAttrString(obj, "_kind");
+            if (kind && PyUnicode_Check(kind) && std::string(PyUnicode_AsUTF8(kind)) == "point")
+            {
+                shape->setNoPaint(true);
+                // (the viewport draws it as a dot where the library says it is)
+                QVector3D pos;
+                bool hasPos = false;
+                PyObject* pp = PyObject_GetAttrString(obj, "_point_pos");
+                if (pp && PyTuple_Check(pp) && PyTuple_Size(pp) == 3)
+                {
+                    pos = QVector3D(float(PyFloat_AsDouble(PyTuple_GetItem(pp, 0))), float(PyFloat_AsDouble(PyTuple_GetItem(pp, 1))),
+                                    float(PyFloat_AsDouble(PyTuple_GetItem(pp, 2))));
+                    hasPos = !PyErr_Occurred();
+                }
+                Py_XDECREF(pp);
+                PyErr_Clear();
+                shape->setPoint(pos, hasPos);
+            }
+            Py_XDECREF(kind);
+            PyErr_Clear();
+        }
+        {
+            // A symmetry model (fieldes.stdlib.symmetries): (kind, planes, centre, axis, first).  Nothing of it is painted: its planes are drawn by the viewport
+            PyObject* sd = PyObject_GetAttrString(obj, "_symmetry_def");
+            if (sd && PyTuple_Check(sd) && PyTuple_Size(sd) == 5)
+            {
+                Shape::SymmetryDef d;
+                d.present = true;
+                PyObject* k = PyTuple_GetItem(sd, 0);
+                const std::string kind = PyUnicode_Check(k) ? PyUnicode_AsUTF8(k) : "axis";
+                d.kind = kind == "turn" ? 3 : kind == "cube" ? 2 : kind == "across" ? 1 : 0;
+                d.count = int(PyLong_AsLong(PyTuple_GetItem(sd, 1)));
+                auto vec = [](PyObject* t, QVector3D& out) {
+                    if (PyTuple_Check(t) && PyTuple_Size(t) == 3)
+                        out = QVector3D(float(PyFloat_AsDouble(PyTuple_GetItem(t, 0))), float(PyFloat_AsDouble(PyTuple_GetItem(t, 1))), float(PyFloat_AsDouble(PyTuple_GetItem(t, 2))));
+                };
+                vec(PyTuple_GetItem(sd, 2), d.centre);
+                vec(PyTuple_GetItem(sd, 3), d.axis);
+                vec(PyTuple_GetItem(sd, 4), d.first);
+                if (!PyErr_Occurred())
+                {
+                    shape->setNoPaint(true);
+                    shape->setSymmetryDef(d);
+                }
+            }
+            Py_XDECREF(sd);
+            PyErr_Clear();
+        }
+        {
+            // (a set of points -- fieldes.stdlib.lattices.PointSet._display -- is carried by a shape with no extent: its points are drawn
+            // by the viewport, each as the dot of a gizmo)
+            PyObject* dots = PyObject_GetAttrString(obj, "_markers");
+            if (dots && PyList_Check(dots))
+            {
+                std::vector<QVector3D> points;
+                points.reserve(size_t(PyList_Size(dots)));
+                for (Py_ssize_t k = 0; k < PyList_Size(dots); k++)
+                {
+                    PyObject* t = PyList_GetItem(dots, k);
+                    if (!PyTuple_Check(t) || PyTuple_Size(t) != 3) continue;
+                    points.emplace_back(float(PyFloat_AsDouble(PyTuple_GetItem(t, 0))), float(PyFloat_AsDouble(PyTuple_GetItem(t, 1))),
+                                        float(PyFloat_AsDouble(PyTuple_GetItem(t, 2))));
+                }
+                shape->setNoPaint(true);
+                shape->setMarkers(std::move(points));
+            }
+            Py_XDECREF(dots);
+            PyErr_Clear();
+        }
+
+        {
+            // The box the script says the shape fills (`_bounds`: the primitives know it from their numbers, and handles() and gizmo() carry it, widened by what was pulled).  It sizes the
+            // shape, for its resolution, where the quick search for its box finds none -- a shape made with var()s (Shape::setScriptBox)
+            PyObject* box = PyObject_GetAttrString(obj, "_bounds");
+            if (box && PyTuple_Check(box) && PyTuple_Size(box) == 2)
+            {
+                double v[6] = {0, 0, 0, 0, 0, 0};
+                bool ok = true;
+                for (int k = 0; k < 2 && ok; ++k)
+                {
+                    PyObject* corner = PyTuple_GetItem(box, k);          // (borrowed)
+                    ok = corner && PyTuple_Check(corner) && PyTuple_Size(corner) == 3;
+                    for (int a = 0; a < 3 && ok; ++a)
+                    {
+                        const double c = PyFloat_AsDouble(PyTuple_GetItem(corner, a));
+                        ok = !PyErr_Occurred() && c > -1e6 && c < 1e6;      // (a number that is not a number fails both)
+                        v[3 * k + a] = c;
+                    }
+                }
+                if (ok) shape->setScriptBox(QVector3D(float(v[0]), float(v[1]), float(v[2])), QVector3D(float(v[3]), float(v[4]), float(v[5])));
+            }
+            Py_XDECREF(box);
+            PyErr_Clear();
+        }
+
+        // A thin part meshed on its own (fieldes.stdlib.cad_import):
+        // (box lo, box hi, resolution, cube side, thinnest feature)
+        // (a part placed with gizmo() has the hint of the part it was placed from)
+        // (a part edited with handles() and placed with gizmo() is two steps from the part)
+        PyObject* hintOwner = obj;
+        Py_INCREF(hintOwner);
+        for (int depth = 0; hintOwner && depth < 8 && !PyObject_HasAttrString(hintOwner, "_render_hint") &&
+                            PyObject_HasAttrString(hintOwner, "_placed_from"); ++depth)
+        {
+            PyObject* from = PyObject_GetAttrString(hintOwner, "_placed_from");
+            Py_DECREF(hintOwner);
+            hintOwner = from;
+        }
+        if (hintOwner && PyObject_HasAttrString(hintOwner, "_render_hint"))
+        {
+            PyObject* h = PyObject_GetAttrString(hintOwner, "_render_hint");
+            if (h && PyTuple_Check(h) && PyTuple_Size(h) == 5)
+            {
+                auto vec = [](PyObject* t) {
+                    QVector3D v;
+                    if (t && PyTuple_Check(t) && PyTuple_Size(t) == 3)
+                        v = QVector3D(float(PyFloat_AsDouble(PyTuple_GetItem(t, 0))),
+                                      float(PyFloat_AsDouble(PyTuple_GetItem(t, 1))),
+                                      float(PyFloat_AsDouble(PyTuple_GetItem(t, 2))));
+                    return v;
+                };
+                shape->setRenderHint(vec(PyTuple_GetItem(h, 0)), vec(PyTuple_GetItem(h, 1)),
+                                     float(PyFloat_AsDouble(PyTuple_GetItem(h, 2))),
+                                     float(PyFloat_AsDouble(PyTuple_GetItem(h, 3))),
+                                     float(PyFloat_AsDouble(PyTuple_GetItem(h, 4))));
+            }
+            Py_XDECREF(h);
+            PyErr_Clear();
+        }
+        Py_XDECREF(hintOwner);
+        PyErr_Clear();
+
+        // The exact triangles of a tessellated part (fieldes.stdlib.tessellated_import): (key, vertices as bytes of floats,
+        // triangles as bytes of unsigned ints, the 12 numbers of the 3 x 4 matrix that places them).  The part is drawn from them
+        // (Shape::setExactMesh); a mesh is kept by its key, so that the script's next run does not copy it again
+        if (PyObject_HasAttrString(obj, "_display_mesh"))
+        {
+            static std::map<std::string, std::shared_ptr<const Shape::ExactMesh>> kept;
+            static size_t keptBytes = 0;
+            PyObject* d = PyObject_GetAttrString(obj, "_display_mesh");
+            if (d && PyTuple_Check(d) && PyTuple_Size(d) == 4 && PyUnicode_Check(PyTuple_GetItem(d, 0)))
+            {
+                const std::string key = PyUnicode_AsUTF8(PyTuple_GetItem(d, 0));
+                std::shared_ptr<const Shape::ExactMesh> mesh;
+                const auto found = kept.find(key);
+                if (found != kept.end())
+                {
+                    mesh = found->second;
+                }
+                else
+                {
+                    char* vbuf = nullptr;
+                    char* tbuf = nullptr;
+                    Py_ssize_t vn = 0, tn = 0;
+                    if (PyBytes_AsStringAndSize(PyTuple_GetItem(d, 1), &vbuf, &vn) == 0 &&
+                        PyBytes_AsStringAndSize(PyTuple_GetItem(d, 2), &tbuf, &tn) == 0 && vn >= 36 && tn >= 12)
+                    {
+                        auto m = std::make_shared<Shape::ExactMesh>();
+                        m->key = key;
+                        m->verts.resize(size_t(vn) / sizeof(float));
+                        std::memcpy(m->verts.data(), vbuf, m->verts.size() * sizeof(float));
+                        m->tris.resize(size_t(tn) / sizeof(uint32_t));
+                        std::memcpy(m->tris.data(), tbuf, m->tris.size() * sizeof(uint32_t));
+                        if (keptBytes > (size_t(1) << 31)) { kept.clear(); keptBytes = 0; }     // (two gigabytes of triangles: start again)
+                        keptBytes += size_t(vn) + size_t(tn);
+                        kept[key] = m;
+                        mesh = m;
+                    }
+                }
+                PyObject* mt = PyTuple_GetItem(d, 3);
+                if (mesh && PyTuple_Check(mt) && PyTuple_Size(mt) == 12)
+                {
+                    double matrix[12];
+                    for (int i = 0; i < 12; ++i) matrix[i] = PyFloat_AsDouble(PyTuple_GetItem(mt, i));
+                    shape->setExactMesh(mesh, matrix);
+                }
+            }
+            Py_XDECREF(d);
+            PyErr_Clear();
+        }
+
+        // The gizmo of a placed part (fieldes.stdlib.handles): (mode, about (3),
+        // move (3), rotate (3), scale (3)), each number a var Shape or a plain float
+        // (the mode is when the gizmo is shown: 'click', 'never' or 'always')
+        if (PyObject_HasAttrString(obj, "_gizmo"))
+        {
+            PyObject* h = PyObject_GetAttrString(obj, "_gizmo");
+            if (h && PyTuple_Check(h) && PyTuple_Size(h) == 5)
+            {
+                Shape::Gizmo hd;
+                hd.present = true;
+                PyObject* m = PyTuple_GetItem(h, 0);
+                if (PyUnicode_Check(m))
+                {
+                    const QString name = QString::fromUtf8(PyUnicode_AsUTF8(m));
+                    hd.mode = name == "never" ? Shape::Gizmo::NEVER
+                            : name == "always" ? Shape::Gizmo::ALWAYS : Shape::Gizmo::CLICK;
+                }
+                PyObject* about = PyTuple_GetItem(h, 1);
+                if (PyTuple_Check(about) && PyTuple_Size(about) == 3)
+                {
+                    hd.about = QVector3D(float(PyFloat_AsDouble(PyTuple_GetItem(about, 0))),
+                                         float(PyFloat_AsDouble(PyTuple_GetItem(about, 1))),
+                                         float(PyFloat_AsDouble(PyTuple_GetItem(about, 2))));
+                }
+                auto idOf = [](PyObject* v) -> libfive::Tree::Id {
+                    if (!v || !PyObject_HasAttrString(v, "ptr")) return nullptr;
+                    PyObject* p = PyObject_GetAttrString(v, "ptr");
+                    libfive::Tree::Id id = nullptr;
+                    if (p && PyLong_Check(p)) id = static_cast<libfive::Tree::Id>(PyLong_AsVoidPtr(p));
+                    Py_XDECREF(p);
+                    return id;
+                };
+                PyObject* mv = PyTuple_GetItem(h, 2);
+                PyObject* rt = PyTuple_GetItem(h, 3);
+                PyObject* sc = PyTuple_GetItem(h, 4);
+                for (int a = 0; a < 3; ++a)
+                {
+                    if (PyTuple_Check(mv) && PyTuple_Size(mv) == 3) hd.move[a] = idOf(PyTuple_GetItem(mv, a));
+                    if (PyTuple_Check(rt) && PyTuple_Size(rt) == 3) hd.rotate[a] = idOf(PyTuple_GetItem(rt, a));
+                    if (sc && PyTuple_Check(sc) && PyTuple_Size(sc) == 3) hd.scale[a] = idOf(PyTuple_GetItem(sc, a));
+                }
+                // The gizmo of an image (`_symmetry`: the matrix of the image, then its centre): the original's numbers, placed where the image is.  A point has its moves only
+                // (its scale and its turn are the original's to give)
+                if (PyObject_HasAttrString(obj, "_symmetry"))
+                {
+                    PyObject* sy = PyObject_GetAttrString(obj, "_symmetry");
+                    if (sy && PyTuple_Check(sy) && PyTuple_Size(sy) == 2)
+                    {
+                        PyObject* m9 = PyTuple_GetItem(sy, 0);
+                        PyObject* c3 = PyTuple_GetItem(sy, 1);
+                        if (PyTuple_Check(m9) && PyTuple_Size(m9) == 9 && PyTuple_Check(c3) && PyTuple_Size(c3) == 3)
+                        {
+                            float l[9], c[3];
+                            for (int i = 0; i < 9; ++i) l[i] = float(PyFloat_AsDouble(PyTuple_GetItem(m9, i)));
+                            for (int i = 0; i < 3; ++i) c[i] = float(PyFloat_AsDouble(PyTuple_GetItem(c3, i)));
+                            const QMatrix4x4 linear(l[0], l[1], l[2], 0, l[3], l[4], l[5], 0, l[6], l[7], l[8], 0, 0, 0, 0, 1);
+                            QMatrix4x4 full;
+                            full.translate(c[0], c[1], c[2]);
+                            full *= linear;
+                            full.translate(-c[0], -c[1], -c[2]);
+                            hd.mapped = true;
+                            hd.map = full;
+                            if (PyObject_HasAttrString(obj, "xyz"))
+                            {
+                                for (int a = 0; a < 3; ++a) { hd.rotate[a] = nullptr; hd.scale[a] = nullptr; }
+                            }
+                        }
+                    }
+                    Py_XDECREF(sy);
+                    PyErr_Clear();
+                }
+                // One of the images of a set that is one model (symmetry_images): the first image has the gizmo, the others only follow
+                if (PyObject_HasAttrString(obj, "_gizmo_hidden"))
+                {
+                    PyObject* hid = PyObject_GetAttrString(obj, "_gizmo_hidden");
+                    hd.hidden = hid && PyObject_IsTrue(hid) == 1;
+                    Py_XDECREF(hid);
+                    PyErr_Clear();
+                }
+                // The image of a point of a path, drawn with the images of its sweep: a dot that is dragged, and has no gizmo of its own
+                if (PyObject_HasAttrString(obj, "_gizmo_dot_only"))
+                {
+                    PyObject* dot = PyObject_GetAttrString(obj, "_gizmo_dot_only");
+                    hd.dotOnly = dot && PyObject_IsTrue(dot) == 1;
+                    Py_XDECREF(dot);
+                    PyErr_Clear();
+                }
+                shape->setGizmo(hd);
+            }
+            Py_XDECREF(h);
+            PyErr_Clear();
+        }
+
+        // The numbers of the symmetry an image is made in (`_symmetry_vars`): the image's field has them, but a surface of it is pulled by the original's numbers only
+        if (PyObject_HasAttrString(obj, "_symmetry_vars"))
+        {
+            PyObject* sv = PyObject_GetAttrString(obj, "_symmetry_vars");
+            if (sv && PyTuple_Check(sv))
+            {
+                std::set<libfive::Tree::Id> ids;
+                for (Py_ssize_t i = 0; i < PyTuple_Size(sv); ++i)
+                {
+                    PyObject* v = PyTuple_GetItem(sv, i);
+                    PyObject* p = (v && PyObject_HasAttrString(v, "ptr")) ? PyObject_GetAttrString(v, "ptr") : nullptr;
+                    if (p && PyLong_Check(p)) ids.insert(static_cast<libfive::Tree::Id>(PyLong_AsVoidPtr(p)));
+                    Py_XDECREF(p);
+                }
+                shape->setFrozenVars(ids);
+            }
+            Py_XDECREF(sv);
+            PyErr_Clear();
+        }
+
+        // The numbers of the gizmo() calls of the script: no surface of this shape is pulled by one of them (see sceneGizmoIds)
+        shape->setSceneGizmoVars(sceneGizmoIds());
+
+        // An image of another model in a symmetry (`_symmetry_of`)
+        shape->setSymmetryImage(PyObject_HasAttrString(obj, "_symmetry_of") == 1);
+        PyErr_Clear();
+
+        // A shape that is another one moved or mirrored -- the image of a model in a symmetry (`_symmetry_of`), a linked copy (`_instance_of`): the tree of the model, so that the
+        // viewport can give it the model's mesh instead of meshing it again (Shape::setFollows)
+        {
+            auto treeOf = [&](const char* attribute) -> libfive::Tree::Id {
+                libfive::Tree::Id id = nullptr;
+                if (!PyObject_HasAttrString(obj, attribute)) return id;
+                PyObject* model = PyObject_GetAttrString(obj, attribute);
+                if (model && PyObject_HasAttrString(model, "ptr"))
+                {
+                    PyObject* p = PyObject_GetAttrString(model, "ptr");
+                    if (p && PyLong_Check(p)) id = static_cast<libfive::Tree::Id>(PyLong_AsVoidPtr(p));
+                    Py_XDECREF(p);
+                }
+                Py_XDECREF(model);
+                PyErr_Clear();
+                return id;
+            };
+            if (const auto of = treeOf("_symmetry_of")) shape->setFollows(Shape::FOLLOW_IMAGE, of);
+            else if (const auto copyOf = treeOf("_instance_of")) shape->setFollows(Shape::FOLLOW_COPY, copyOf);
+        }
+
+        // A model the app's viewport shows, and the name it was given there (fieldes.app.viewport)
+        if (viewport && PyObject_HasAttrString(obj, "_app_shown"))
+        {
+            PyObject* v = PyObject_GetAttrString(obj, "_app_shown");
+            const bool shown = v && PyObject_IsTrue(v) == 1;
+            Py_XDECREF(v);
+            QString name;
+            PyObject* n = PyObject_GetAttrString(obj, "_app_name");
+            if (n && PyUnicode_Check(n)) name = QString::fromUtf8(PyUnicode_AsUTF8(n));
+            Py_XDECREF(n);
+            shape->setAppLabel(name, shown);
+            PyErr_Clear();
+        }
+
+        // Locked by a line `x = lock(x)` (fieldes.stdlib.handles.lock): it cannot be dragged, by gizmo or surface
+        if (PyObject_HasAttrString(obj, "_locked"))
+        {
+            PyObject* v = PyObject_GetAttrString(obj, "_locked");
+            shape->setLocked(v && PyObject_IsTrue(v) == 1);
+            Py_XDECREF(v);
+            PyErr_Clear();
+        }
+
+        // A linked copy of another shape (`instance(x)`): its surfaces are not dragged, only its gizmo moves and turns it
+        {
+            PyObject* v = PyObject_GetAttrString(obj, "_linked");
+            shape->setLinked(v && PyObject_IsTrue(v) == 1);
+            Py_XDECREF(v);
+            PyErr_Clear();
+        }
+
+        // Kept in the render cache: on unless the script says render_cache(x, False)
+        // (fieldes.stdlib.render_cache.render_cache); written for every shape that took a while to mesh, and for
+        // one under an explicit render_cache(x) always
+        if (PyObject_HasAttrString(obj, "_render_cache"))
+        {
+            PyObject* v = PyObject_GetAttrString(obj, "_render_cache");
+            const bool on = v && PyObject_IsTrue(v) == 1;
+            shape->setRenderCache(on, on);
+            Py_XDECREF(v);
+            PyErr_Clear();
+        }
+        else
+        {
+            shape->setRenderCache(true, false);
+        }
+
+        // The symbols of boundary conditions the viewport draws over it (fieldes.stdlib.boundary_conditions):
+        // _bc_glyphs = [(kind, tip, x, y, z, dx, dy, dz, size)], _bc_labels = [(kind, text, x, y, z)]
+        if (PyObject_HasAttrString(obj, "_bc_glyphs"))
+        {
+            std::vector<Shape::BcGlyph> glyphs;
+            std::vector<Shape::BcLabel> labels;
+            auto number = [](PyObject* t, Py_ssize_t k) { return float(PyFloat_AsDouble(PyTuple_GetItem(t, k))); };
+            PyObject* gl = PyObject_GetAttrString(obj, "_bc_glyphs");
+            if (gl && PyList_Check(gl))
+                for (Py_ssize_t k = 0; k < PyList_Size(gl); k++)
+                {
+                    PyObject* t = PyList_GetItem(gl, k);
+                    if (!PyTuple_Check(t) || PyTuple_Size(t) != 9) continue;
+                    Shape::BcGlyph g;
+                    g.kind = int(PyLong_AsLong(PyTuple_GetItem(t, 0)));
+                    g.tip = PyLong_AsLong(PyTuple_GetItem(t, 1)) != 0;
+                    g.pos = QVector3D(number(t, 2), number(t, 3), number(t, 4));
+                    g.dir = QVector3D(number(t, 5), number(t, 6), number(t, 7));
+                    g.size = number(t, 8);
+                    glyphs.push_back(g);
+                }
+            Py_XDECREF(gl);
+            PyObject* lb = PyObject_GetAttrString(obj, "_bc_labels");
+            if (lb && PyList_Check(lb))
+                for (Py_ssize_t k = 0; k < PyList_Size(lb); k++)
+                {
+                    PyObject* t = PyList_GetItem(lb, k);
+                    if (!PyTuple_Check(t) || PyTuple_Size(t) != 5) continue;
+                    Shape::BcLabel l;
+                    l.kind = int(PyLong_AsLong(PyTuple_GetItem(t, 0)));
+                    PyObject* text = PyTuple_GetItem(t, 1);
+                    l.text = text && PyUnicode_Check(text) ? QString::fromUtf8(PyUnicode_AsUTF8(text)) : QString();
+                    l.pos = QVector3D(number(t, 2), number(t, 3), number(t, 4));
+                    labels.push_back(l);
+                }
+            Py_XDECREF(lb);
+            PyErr_Clear();
+            shape->setBoundarySymbols(std::move(glyphs), std::move(labels));
+        }
+
+        // Shown coloured by a field (fieldes.stdlib.fea.colored)
+        if (PyObject_HasAttrString(obj, "_color_field"))
+        {
+            PyObject* field = PyObject_GetAttrString(obj, "_color_field");
+            PyObject* fptr = field ? PyObject_GetAttrString(field, "ptr") : nullptr;
+            if (fptr && PyLong_Check(fptr))
+            {
+                const auto ft = static_cast<libfive_tree>(PyLong_AsVoidPtr(fptr));
+                float lo = 0, hi = 1;
+                bool autoRange = true;
+                PyObject* range = PyObject_GetAttrString(obj, "_color_range");
+                if (range && PyTuple_Check(range) && PyTuple_Size(range) == 2)
+                {
+                    lo = float(PyFloat_AsDouble(PyTuple_GetItem(range, 0)));
+                    hi = float(PyFloat_AsDouble(PyTuple_GetItem(range, 1)));
+                    autoRange = false;
+                }
+                Py_XDECREF(range);
+                auto str = [&](const char* name) {
+                    QString out;
+                    PyObject* v = PyObject_GetAttrString(obj, name);
+                    if (v && PyUnicode_Check(v)) out = QString::fromUtf8(PyUnicode_AsUTF8(v));
+                    Py_XDECREF(v);
+                    return out;
+                };
+                shape->setColorField(libfive::Tree(ft), lo, hi, autoRange,
+                                     str("_color_label"), str("_color_map"));
+
+                // A patch of a surface (fieldes.stdlib.selection): the part is drawn only where the field is at
+                // most this value, in the colour of the map's top
+                PyObject* cutoff = PyObject_GetAttrString(obj, "_color_cutoff");
+                if (cutoff && PyFloat_Check(cutoff)) shape->setColorCutoff(float(PyFloat_AsDouble(cutoff)));
+                Py_XDECREF(cutoff);
+                PyErr_Clear();
+                // The conditions of a simulation (fieldes.stdlib.boundary_conditions): only the places that are held or loaded
+                // are drawn, the surfaces the symbols stand on -- not the body they are on
+                PyObject* floorValue = PyObject_GetAttrString(obj, "_color_floor");
+                if (floorValue && PyFloat_Check(floorValue)) shape->setColorFloor(float(PyFloat_AsDouble(floorValue)));
+                Py_XDECREF(floorValue);
+                PyErr_Clear();
+
+                // Streamlines through a flow (fieldes.stdlib.fluid): lists of (x, y, z, speed, time) points
+                auto linesOf = [](PyObject* list, std::vector<Shape::FlowLine>& lines) {
+                    if (!list || !PyList_Check(list)) return;
+                    for (Py_ssize_t k = 0; k < PyList_Size(list); k++)
+                    {
+                        PyObject* l = PyList_GetItem(list, k);
+                        if (!l || !PyList_Check(l)) continue;
+                        Shape::FlowLine line;
+                        for (Py_ssize_t j = 0; j < PyList_Size(l); j++)
+                        {
+                            PyObject* p = PyList_GetItem(l, j);
+                            if (!p || !PyTuple_Check(p) || PyTuple_Size(p) != 5) continue;
+                            std::array<float, 5> q;
+                            for (int c = 0; c < 5; c++) q[size_t(c)] = float(PyFloat_AsDouble(PyTuple_GetItem(p, c)));
+                            line.push_back(q);
+                        }
+                        if (line.size() >= 2) lines.push_back(std::move(line));
+                    }
+                };
+                PyObject* fl = PyObject_GetAttrString(obj, "_flow_lines");
+                if (fl)
+                {
+                    std::vector<Shape::FlowLine> lines;
+                    linesOf(fl, lines);
+                    float flo = 0, fhi = 1;
+                    PyObject* fr = PyObject_GetAttrString(obj, "_flow_range");
+                    if (fr && PyTuple_Check(fr) && PyTuple_Size(fr) == 2)
+                    {
+                        flo = float(PyFloat_AsDouble(PyTuple_GetItem(fr, 0)));
+                        fhi = float(PyFloat_AsDouble(PyTuple_GetItem(fr, 1)));
+                    }
+                    Py_XDECREF(fr);
+                    shape->setFlowLines(std::move(lines), flo, fhi);
+                }
+                Py_XDECREF(fl);
+                PyErr_Clear();
+
+                // An analysis result (Result._display): every field, the
+                // displacements and the elements
+                PyObject* fields = PyObject_GetAttrString(obj, "_color_fields");
+                if (fields && PyList_Check(fields) && PyList_Size(fields) > 0)
+                {
+                    auto treeOf = [](PyObject* shapeObj) {
+                        PyObject* p = shapeObj ? PyObject_GetAttrString(shapeObj, "ptr") : nullptr;
+                        libfive::Tree t = libfive::Tree::invalid();
+                        if (p && PyLong_Check(p)) t = libfive::Tree(static_cast<libfive_tree>(PyLong_AsVoidPtr(p)));
+                        Py_XDECREF(p);
+                        return t;
+                    };
+                    std::vector<Shape::FieldChannel> channels;
+                    std::vector<Py_ssize_t> channelSource;    // which entry of `fields` each channel is
+                    int current = 0;
+                    const QString currentName = str("_color_field_name");
+                    for (Py_ssize_t k = 0; k < PyList_Size(fields); k++)
+                    {
+                        PyObject* item = PyList_GetItem(fields, k);   // (name, label, shape, lo, hi)
+                        if (!PyTuple_Check(item) || PyTuple_Size(item) < 5) continue;
+                        Shape::FieldChannel c;
+                        c.name = QString::fromUtf8(PyUnicode_AsUTF8(PyTuple_GetItem(item, 0)));
+                        c.label = QString::fromUtf8(PyUnicode_AsUTF8(PyTuple_GetItem(item, 1)));
+                        c.tree = treeOf(PyTuple_GetItem(item, 2));
+                        c.lo = float(PyFloat_AsDouble(PyTuple_GetItem(item, 3)));
+                        c.hi = float(PyFloat_AsDouble(PyTuple_GetItem(item, 4)));
+                        if (!c.tree.is_valid()) continue;
+                        if (c.name == currentName) current = int(channels.size());
+                        channels.push_back(c);
+                        channelSource.push_back(k);
+                    }
+                    libfive::Tree u[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(),
+                                          libfive::Tree::invalid()};
+                    PyObject* deform = PyObject_GetAttrString(obj, "_deform");
+                    if (deform && PyTuple_Check(deform) && PyTuple_Size(deform) == 3)
+                    {
+                        for (int a = 0; a < 3; a++) u[a] = treeOf(PyTuple_GetItem(deform, a));
+                    }
+                    Py_XDECREF(deform);
+                    auto num = [&](const char* name, double fallback) {
+                        PyObject* v = PyObject_GetAttrString(obj, name);
+                        double out = (v && PyNumber_Check(v)) ? PyFloat_AsDouble(v) : fallback;
+                        Py_XDECREF(v);
+                        return out;
+                    };
+                    Shape::ElementGrid grid;
+                    PyObject* g = PyObject_GetAttrString(obj, "_fea_grid");
+                    // (corner, cell size, cell counts, fill fractions, element, [each field's value in every element])
+                    if (g && PyTuple_Check(g) && PyTuple_Size(g) == 6)
+                    {
+                        PyObject* lo3 = PyTuple_GetItem(g, 0);
+                        PyObject* dims = PyTuple_GetItem(g, 2);
+                        PyObject* frac = PyTuple_GetItem(g, 3);
+                        PyObject* kind = PyTuple_GetItem(g, 4);
+                        PyObject* vals = PyTuple_GetItem(g, 5);
+                        if (PyTuple_Check(lo3) && PyTuple_Size(lo3) == 3 && PyTuple_Check(dims) &&
+                            PyTuple_Size(dims) == 3 && PyBytes_Check(frac) && PyUnicode_Check(kind) &&
+                            PyList_Check(vals))
+                        {
+                            grid.lo = QVector3D(float(PyFloat_AsDouble(PyTuple_GetItem(lo3, 0))),
+                                                float(PyFloat_AsDouble(PyTuple_GetItem(lo3, 1))),
+                                                float(PyFloat_AsDouble(PyTuple_GetItem(lo3, 2))));
+                            grid.h = float(PyFloat_AsDouble(PyTuple_GetItem(g, 1)));
+                            for (int a = 0; a < 3; a++) grid.dims[a] = int(PyLong_AsLong(PyTuple_GetItem(dims, a)));
+                            const size_t n = size_t(grid.dims[0]) * grid.dims[1] * grid.dims[2];
+                            if (size_t(PyBytes_Size(frac)) == n * sizeof(float))
+                            {
+                                grid.fraction.resize(n);
+                                std::memcpy(grid.fraction.data(), PyBytes_AsString(frac), n * sizeof(float));
+                                grid.tetrahedra = QString::fromUtf8(PyUnicode_AsUTF8(kind)) == "tet";
+                                grid.text = str("_fea_element_text");
+                                size_t active = 0;
+                                for (float f : grid.fraction) active += f > 0;
+                                const size_t expect = active * (grid.tetrahedra ? 6 : 1);
+                                for (size_t c = 0; c < channels.size(); c++)
+                                {
+                                    std::vector<float> v;
+                                    const Py_ssize_t k = channelSource[c];
+                                    PyObject* b = k < PyList_Size(vals) ? PyList_GetItem(vals, k) : nullptr;
+                                    if (b && PyBytes_Check(b) && size_t(PyBytes_Size(b)) == expect * sizeof(float))
+                                    {
+                                        v.resize(expect);
+                                        std::memcpy(v.data(), PyBytes_AsString(b), expect * sizeof(float));
+                                    }
+                                    grid.values.push_back(std::move(v));
+                                }
+                            }
+                        }
+                    }
+                    Py_XDECREF(g);
+                    // (vertices, tetrahedra, boundary triangles, the tetrahedron of each, text,
+                    // [each field's value in every tetrahedron], the displacement at every vertex)
+                    PyObject* mesh = PyObject_GetAttrString(obj, "_fea_mesh");
+                    if (mesh && PyTuple_Check(mesh) && PyTuple_Size(mesh) == 7)
+                    {
+                        auto bytesAt = [&](Py_ssize_t i) -> PyObject* {
+                            PyObject* b = PyTuple_GetItem(mesh, i);
+                            return b && PyBytes_Check(b) ? b : nullptr;
+                        };
+                        PyObject *bv = bytesAt(0), *bt = bytesAt(1), *bf = bytesAt(2), *bft = bytesAt(3),
+                                 *bd = bytesAt(6);
+                        PyObject* text = PyTuple_GetItem(mesh, 4);
+                        PyObject* vals = PyTuple_GetItem(mesh, 5);
+                        if (bv && bt && bf && bft && bd && text && PyUnicode_Check(text) && vals && PyList_Check(vals))
+                        {
+                            auto floats = [](PyObject* b, std::vector<float>& out) {
+                                out.resize(size_t(PyBytes_Size(b)) / sizeof(float));
+                                std::memcpy(out.data(), PyBytes_AsString(b), out.size() * sizeof(float));
+                            };
+                            auto ints = [](PyObject* b, std::vector<int32_t>& out) {
+                                out.resize(size_t(PyBytes_Size(b)) / sizeof(int32_t));
+                                std::memcpy(out.data(), PyBytes_AsString(b), out.size() * sizeof(int32_t));
+                            };
+                            grid = Shape::ElementGrid();
+                            grid.isMesh = true;
+                            floats(bv, grid.mverts);
+                            ints(bt, grid.mtets);
+                            ints(bf, grid.mfaces);
+                            ints(bft, grid.mfaceTet);
+                            floats(bd, grid.mdisp);
+                            grid.text = QString::fromUtf8(PyUnicode_AsUTF8(text));
+                            for (size_t c = 0; c < channels.size(); c++)
+                            {
+                                std::vector<float> v;
+                                const Py_ssize_t k = channelSource[c];
+                                PyObject* b = k < PyList_Size(vals) ? PyList_GetItem(vals, k) : nullptr;
+                                if (b && PyBytes_Check(b)) floats(b, v);
+                                grid.values.push_back(std::move(v));
+                            }
+                        }
+                    }
+                    Py_XDECREF(mesh);
+                    PyErr_Clear();
+                    if (!channels.empty())
+                    {
+                        shape->setResult(channels, current, u[0], u[1], u[2],
+                                         float(num("_deform_scale", 0)), float(num("_deform_auto", 1)),
+                                         grid);
+                        shape->setColorDetail(float(num("_color_detail", 0)));
+                    }
+                }
+                Py_XDECREF(fields);
+                // The key numbers of a result (fieldes.stdlib.exporting.key_results): [(label, text, unit)]
+                {
+                    PyObject* keys = PyObject_GetAttrString(obj, "_key_results");
+                    if (keys && PyList_Check(keys))
+                    {
+                        QList<QStringList> rows;
+                        for (Py_ssize_t k = 0; k < PyList_Size(keys); k++)
+                        {
+                            PyObject* row = PyList_GetItem(keys, k);
+                            if (!row || !PyTuple_Check(row) || PyTuple_Size(row) != 3) continue;
+                            QStringList r;
+                            for (int c = 0; c < 3; c++)
+                            {
+                                PyObject* part = PyTuple_GetItem(row, c);
+                                r << (part && PyUnicode_Check(part) ? QString::fromUtf8(PyUnicode_AsUTF8(part)) : QString());
+                            }
+                            rows << r;
+                        }
+                        shape->setKeyResults(rows);
+                    }
+                    Py_XDECREF(keys);
+                    PyErr_Clear();
+                }
+                // What the shown values are, when the result is no solver's (a map of what a shell changed, of where a rule is broken): `_value_note`, '' for none
+                {
+                    PyObject* note = PyObject_GetAttrString(obj, "_value_note");
+                    if (note && PyUnicode_Check(note)) shape->setValueNote(QString::fromUtf8(PyUnicode_AsUTF8(note)));
+                    Py_XDECREF(note);
+                    PyErr_Clear();
+                }
+            }
+            Py_XDECREF(fptr);
+            Py_XDECREF(field);
+            PyErr_Clear();
+        }
+        // The steps of a result, or of a plain shape that changes (the iterations of an optimisation, a flow in
+        // time, the load growing): dicts with label, and any of channels (as _color_fields, by name), deform,
+        // lines, shape
+        {
+            auto treeOf = [](PyObject* shapeObj) {
+                PyObject* p = shapeObj ? PyObject_GetAttrString(shapeObj, "ptr") : nullptr;
+                libfive::Tree t = libfive::Tree::invalid();
+                if (p && PyLong_Check(p)) t = libfive::Tree(static_cast<libfive_tree>(PyLong_AsVoidPtr(p)));
+                Py_XDECREF(p);
+                return t;
+            };
+            auto linesOf = [](PyObject* list, std::vector<Shape::FlowLine>& lines) {
+                if (!list || !PyList_Check(list)) return;
+                for (Py_ssize_t k = 0; k < PyList_Size(list); k++)
+                {
+                    PyObject* l = PyList_GetItem(list, k);
+                    if (!l || !PyList_Check(l)) continue;
+                    Shape::FlowLine line;
+                    for (Py_ssize_t j = 0; j < PyList_Size(l); j++)
+                    {
+                        PyObject* p = PyList_GetItem(l, j);
+                        if (!p || !PyTuple_Check(p) || PyTuple_Size(p) != 5) continue;
+                        std::array<float, 5> q;
+                        for (int c = 0; c < 5; c++) q[size_t(c)] = float(PyFloat_AsDouble(PyTuple_GetItem(p, c)));
+                        line.push_back(q);
+                    }
+                    if (line.size() >= 2) lines.push_back(std::move(line));
+                }
+            };
+            const std::vector<Shape::FieldChannel> channels = shape->channels();
+            {
+                        PyObject* stepsObj = PyObject_GetAttrString(obj, "_color_steps");
+                        if (stepsObj && PyList_Check(stepsObj) && PyList_Size(stepsObj) > 0)
+                        {
+                            std::vector<Shape::Step> steps;
+                            std::map<void*, std::shared_ptr<Shape::StepSurface>> surfaces;      // (one for each optimisation the steps are of)
+                            for (Py_ssize_t k = 0; k < PyList_Size(stepsObj); k++)
+                            {
+                                PyObject* d = PyList_GetItem(stepsObj, k);
+                                if (!d || !PyDict_Check(d)) continue;
+                                Shape::Step st;
+                                PyObject* label = PyDict_GetItemString(d, "label");
+                                if (label && PyUnicode_Check(label)) st.label = QString::fromUtf8(PyUnicode_AsUTF8(label));
+                                PyObject* ch = PyDict_GetItemString(d, "channels");
+                                if (ch && PyList_Check(ch) && PyList_Size(ch) > 0)
+                                {
+                                    // (the result's channels, in order, with the step's values where it gives them)
+                                    st.channels = channels;
+                                    for (Py_ssize_t j = 0; j < PyList_Size(ch); j++)
+                                    {
+                                        PyObject* item = PyList_GetItem(ch, j);
+                                        if (!PyTuple_Check(item) || PyTuple_Size(item) < 5) continue;
+                                        const QString name = QString::fromUtf8(PyUnicode_AsUTF8(PyTuple_GetItem(item, 0)));
+                                        const libfive::Tree t = treeOf(PyTuple_GetItem(item, 2));
+                                        if (!t.is_valid()) continue;
+                                        for (auto& c : st.channels)
+                                            if (c.name == name)
+                                            {
+                                                c.label = QString::fromUtf8(PyUnicode_AsUTF8(PyTuple_GetItem(item, 1)));
+                                                c.tree = t;
+                                                c.lo = float(PyFloat_AsDouble(PyTuple_GetItem(item, 3)));
+                                                c.hi = float(PyFloat_AsDouble(PyTuple_GetItem(item, 4)));
+                                            }
+                                    }
+                                }
+                                PyObject* df = PyDict_GetItemString(d, "deform");
+                                if (df && PyTuple_Check(df) && PyTuple_Size(df) == 3)
+                                {
+                                    st.hasDeform = true;
+                                    for (int a = 0; a < 3; a++)
+                                    {
+                                        st.deform[a] = treeOf(PyTuple_GetItem(df, a));
+                                        if (!st.deform[a].is_valid()) st.hasDeform = false;
+                                    }
+                                }
+                                PyObject* ln = PyDict_GetItemString(d, "lines");
+                                if (ln && PyList_Check(ln))
+                                {
+                                    st.hasLines = true;
+                                    linesOf(ln, st.lines);
+                                }
+                                PyObject* sh = PyDict_GetItemString(d, "shape");
+                                if (sh && sh != Py_None) st.tree = treeOf(sh);
+                                // (the step's surface from the optimisation's own densities: (the optimisation, the iteration, the level))
+                                PyObject* sf = PyDict_GetItemString(d, "surface");
+                                if (sf && PyTuple_Check(sf) && PyTuple_Size(sf) == 3 && st.tree.is_valid())
+                                {
+                                    void* owner = PyLong_AsVoidPtr(PyTuple_GetItem(sf, 0));
+                                    if (owner)
+                                    {
+                                        auto& shared = surfaces[owner];
+                                        if (!shared)
+                                        {
+                                            auto problem = libfive::fea::tetProblemOf(owner);
+                                            if (problem)
+                                                shared = std::make_shared<Shape::StepSurface>(
+                                                    problem, PyFloat_AsDouble(PyTuple_GetItem(sf, 2)), int(PyList_Size(stepsObj)));
+                                        }
+                                        st.surface = shared;
+                                        st.surfaceStep = int(PyLong_AsLong(PyTuple_GetItem(sf, 1)));
+                                    }
+                                }
+                                steps.push_back(std::move(st));
+                            }
+                            PyObject* cur = PyObject_GetAttrString(obj, "_color_step");
+                            const int currentStep = (cur && PyLong_Check(cur)) ? int(PyLong_AsLong(cur)) : int(steps.size()) - 1;
+                            Py_XDECREF(cur);
+                            shape->setSteps(std::move(steps), currentStep);
+                        }
+                        Py_XDECREF(stepsObj);
+                        PyErr_Clear();
+            }
+        }
+        shape->settleField();               // (the field of a shape that is not drawn from numbers is made here, in the script's thread)
+        shape->moveToThread(QApplication::instance()->thread());
+        out.shapes.push_back(shape);
+
+        Py_DECREF(ptr_obj);
+        PyErr_Print();
+    }
+}
+
+}   // namespace Python
+}   // namespace FielDes

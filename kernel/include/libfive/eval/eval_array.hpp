@@ -1,0 +1,161 @@
+/*
+libfive: a CAD kernel for modeling with implicit functions
+Copyright (C) 2017  Matt Keeter
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+#pragma once
+
+#include <Eigen/Eigen>
+
+#include "libfive/eval/base.hpp"
+#include "libfive/eval/deck.hpp"
+#include "libfive/eval/eval_array_size.hpp"
+#include "libfive/render/brep/default_new_delete.hpp"
+
+namespace libfive {
+
+class ArrayEvaluator : public virtual BaseEvaluator
+{
+public:
+    ArrayEvaluator(const Tree& root);
+    ArrayEvaluator(const Tree& root,
+                   const std::map<Tree::Id, float>& vars);
+    ArrayEvaluator(std::shared_ptr<Deck> t);
+    ArrayEvaluator(std::shared_ptr<Deck> t,
+                   const std::map<Tree::Id, float>& vars);
+
+    /*
+     *  Stores the given value in the result arrays
+     *  (inlined for efficiency)
+     */
+    void set(const Eigen::Vector3f& p, size_t index)
+    {
+        v(deck->X, index) = p.x();
+        v(deck->Y, index) = p.y();
+        v(deck->Z, index) = p.z();
+
+        for (auto& o : deck->oracles)
+        {
+            o->set(p, index);
+        }
+    }
+
+    /*
+     *  Helper function to reduce boilerplate in functions which work
+     *  in arbitrary dimensions and with double-precision values.
+     */
+    template <unsigned N>
+    void set(const Eigen::Matrix<double, N, 1>& p, const Region<N>& region,
+             size_t index)
+    {
+        Eigen::Vector3f v;
+        v << p.template cast<float>(), region.perp.template cast<float>();
+        set(v, index);
+    }
+
+    /*  This is the number of samples that we can process in one pass */
+    static constexpr size_t N=LIBFIVE_EVAL_ARRAY_SIZE;
+
+protected:
+    /*  Stored in values() and used in operator() to decide how much of the
+     *  array we're addressing at once.  count_simd is rounded up to the
+     *  nearest SIMD block size; count_actual is the actual count. */
+    size_t count_simd;
+    size_t count_actual;
+
+    /*  Sets count_simd and count_actual based on count */
+    void setCount(size_t count);
+
+    /*  v(clause, index) is a specific data point */
+    Eigen::Array<float, Eigen::Dynamic, N, Eigen::RowMajor> v;
+
+    /*  ambig(index) returns whether a particular slot is ambiguous */
+    Eigen::Array<bool, 1, N> ambig;
+
+    /*  The tape being walked.  The calls on it run their callees on tapes of
+     *  their own, which pushing shortened (Tape::callTape) */
+    const Tape* tape_ = nullptr;
+
+    /*  The numbers that the variables have here: what an evaluator of a
+     *  callee is made with */
+    std::map<Tree::Id, float> varValues() const;
+
+    /*
+     *  Per-clause evaluation, used in tape walking.  c is the third
+     *  argument, that of a call only.
+     */
+    void operator()(Opcode::Opcode op, Clause::Id id,
+                    Clause::Id a, Clause::Id b, Clause::Id c = 0);
+
+    /*  The same for exactly L slots (a multiple of the SIMD size): the compiler knows the sizes of the blocks then, and sets up none
+     *  of the loops of a size it does not know, which cost about as much as the clause itself at the 8 to 32 points of most passes.
+     *  L = Eigen::Dynamic is operator() (count_simd slots) */
+    template <int L>
+    void exec(Opcode::Opcode op, Clause::Id id,
+              Clause::Id a, Clause::Id b, Clause::Id c);
+
+    /*  Walks a tape with exec<L>  */
+    template <int L>
+    void walk(const Tape& tape);
+
+    /*  A call clause: the callee's value at the points (a, b, c) of every slot
+     *  in use.  The callee's evaluator is the callee's own, so the points are
+     *  set in it one by one.  */
+    void call(Clause::Id id, Clause::Id a, Clause::Id b, Clause::Id c);
+
+    /*  The same, to find out where the callee is ambiguous (a min and a max
+     *  with equal sides): ORs those slots into ambig  */
+    void callAmbiguous(Clause::Id id, Clause::Id a, Clause::Id b,
+                       Clause::Id c, size_t count);
+
+public:
+    /*
+     *  Multi-point evaluation (values must be stored with set)
+     */
+    Eigen::Block<decltype(v), 1, Eigen::Dynamic> values(size_t count);
+    Eigen::Block<decltype(v), 1, Eigen::Dynamic> values(
+            size_t count, const Tape& tape);
+
+    /*
+     *  Single-point evaluation
+     *  Invalidates slot 0 in the data and results array
+     */
+    float value(const Eigen::Vector3f& pt);
+    float value(const Eigen::Vector3f& pt, const Tape& tape);
+
+    /*
+     *  Evaluates a single point and returns a tape that doesn't
+     *  contain branches that weren't taken by that point evaluation.
+     */
+    std::pair<float, std::shared_ptr<Tape>> valueAndPush(
+            const Eigen::Vector3f& pt);
+    std::pair<float, std::shared_ptr<Tape>> valueAndPush(
+            const Eigen::Vector3f& pt, const std::shared_ptr<Tape>& tape);
+
+    /*
+     *  Changes a variable's value
+     *
+     *  If the variable isn't present in the tree, does nothing
+     *  Returns true if the variable's value changes
+     */
+    bool setVar(Tree::Id var, float value);
+
+    /*
+     *  Returns a list of ambiguous items from indices 0 to i
+     *
+     *  This call performs O(i) work to set up the ambig array
+     */
+    Eigen::Block<decltype(ambig), 1, Eigen::Dynamic> getAmbiguous(size_t i);
+    Eigen::Block<decltype(ambig), 1, Eigen::Dynamic> getAmbiguous(
+            size_t i, const Tape& tape);
+
+    /*  Make an aligned new operator, as this class has Eigen structs
+     *  inside of it (which are aligned for SSE) */
+    ALIGNED_OPERATOR_NEW_AND_DELETE(ArrayEvaluator)
+};
+
+}   // namespace libfive
+

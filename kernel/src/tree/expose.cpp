@@ -1,0 +1,357 @@
+/*
+libfive: a CAD kernel for modeling with implicit functions
+
+The numbers of a tree that are geometry, made variables so they can be dragged;
+see expose.hpp.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+#include <algorithm>
+#include <cmath>
+#include <functional>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "libfive/tree/expose.hpp"
+#include "libfive/tree/data.hpp"
+
+namespace libfive {
+
+namespace {
+
+bool isConstant(const Tree& t)
+{
+    return std::get_if<TreeConstant>(t.get()) != nullptr;
+}
+
+/*
+ *  The plain tree that a tree with remaps and calls makes, for finding the numbers in it -- the expansion that the numbers of a saved script were counted in, one copy for every way a node
+ *  is reached.  For a field built from calls that take calls (a Newton walk, a field made from the gradient of another) that is billions of steps and gigabytes: the model tree asks it of
+ *  every row after every run.  Beyond kExpandBudget steps the tree is left as it is, its remaps and calls leaves of the walk below: it has no numbers to drag (none are counted for it,
+ *  so the count and the numbers agree, which is what a script's list of them relies on).
+ */
+constexpr size_t kExpandBudget = 2000000;
+
+Tree plainTree(const Tree& t)
+{
+    if (!(t.get()->flags & TreeData::TREE_FLAG_HAS_REMAP))
+    {
+        return t;
+    }
+    const Tree plain = t.flatten(false, Tree::Calls::Inline, kExpandBudget);
+    return plain.is_valid() ? plain : t;
+}
+
+// A constant that places a surface (not a "nothing here" sentinel of a union)
+bool isGeometry(const Tree& t)
+{
+    const auto c = std::get_if<TreeConstant>(t.get());
+    return c && !std::isnan(c->value) && std::fabs(c->value) < 1e6f;
+}
+
+/*
+ *  What a node is, for finding where a surface lacks a number: `kind` 0 is anything, 1 a constant, 2 an
+ *  expression that is a sum of coordinates times constants (a plane's distance, or a coordinate
+ *  itself); `positioned` says the expression already has a number that places it (a subtraction of one of
+ *  the constants counted).  A plane through the origin, or a sphere's or a cylinder's axis through it, has
+ *  no number in the tree at all -- x - 0 is written x -- and gets one here.
+ */
+struct Info
+{
+    char kind = 0;
+    bool positioned = false;
+};
+
+Info infoOf(const TreeData* d, const std::unordered_map<const TreeData*, Info>& info)
+{
+    Info out;
+    if (std::get_if<TreeConstant>(d))
+    {
+        out.kind = 1;
+    }
+    else if (auto n = std::get_if<TreeNonaryOp>(d))
+    {
+        if (n->op == Opcode::VAR_X || n->op == Opcode::VAR_Y || n->op == Opcode::VAR_Z) out.kind = 2;
+    }
+    else if (auto u = std::get_if<TreeUnaryOp>(d))
+    {
+        if (u->op == Opcode::OP_NEG) out = info.at(u->lhs.get());
+    }
+    else if (auto b = std::get_if<TreeBinaryOp>(d))
+    {
+        const Info l = info.at(b->lhs.get()), r = info.at(b->rhs.get());
+        if (b->op == Opcode::OP_ADD || b->op == Opcode::OP_SUB)
+        {
+            if (l.kind && r.kind)
+            {
+                out.kind = std::max(l.kind, r.kind);
+                out.positioned = l.positioned || r.positioned;
+                if (b->op == Opcode::OP_SUB &&
+                    ((isGeometry(b->lhs) && !isConstant(b->rhs)) || (isGeometry(b->rhs) && !isConstant(b->lhs))))
+                {
+                    out.positioned = true;
+                }
+            }
+        }
+        else if (b->op == Opcode::OP_MUL)
+        {
+            if (l.kind == 1 && r.kind) { out.kind = r.kind; out.positioned = r.positioned; }
+            else if (r.kind == 1 && l.kind) { out.kind = l.kind; out.positioned = l.positioned; }
+        }
+        else if (b->op == Opcode::OP_DIV)
+        {
+            if (r.kind == 1 && l.kind) { out.kind = l.kind; out.positioned = l.positioned; }
+        }
+    }
+    return out;
+}
+
+/*
+ *  Takes the tree apart leaves first and puts it back together, asking `place` for what to put where a
+ *  geometry constant is (a heap-allocated walk: trees can be too deep to recurse on).  `rebuild` false
+ *  leaves the nodes alone (the walk is only to find the constants).
+ */
+Tree walk(const Tree& root0, bool rebuild, const std::function<Tree(const Tree&)>& place)
+{
+    // (a tree with remaps is taken as the plain tree they make -- unless that is too large to make: see plainTree)
+    const Tree root = plainTree(root0);
+    std::unordered_map<const TreeData*, Tree> memo;
+    std::unordered_map<const TreeData*, Info> info;
+    std::vector<std::pair<Tree, bool>> stack;
+    stack.push_back({root, false});
+    // The box an imported part keeps around each surface's faces (so that the field outside the part is no
+    // smaller than the distance to them) is written square(max(max(lo - x, x - hi), 0)): its numbers bound
+    // where the surface's faces are, they do not place a surface, so they are not for dragging.
+    std::unordered_set<const TreeData*> notGeometry;
+    {
+        std::unordered_set<const TreeData*> seen;
+        std::vector<const TreeData*> todo = {root.get()};
+        while (!todo.empty())
+        {
+            const TreeData* d = todo.back();
+            todo.pop_back();
+            if (!seen.insert(d).second) continue;
+            if (auto u = std::get_if<TreeUnaryOp>(d))
+            {
+                if (u->op == Opcode::OP_SQUARE)
+                {
+                    if (auto outer = std::get_if<TreeBinaryOp>(u->lhs.get()))
+                    {
+                        const auto isZero = [](const Tree& t) {
+                            const auto c = std::get_if<TreeConstant>(t.get());
+                            return c && c->value == 0.0f;
+                        };
+                        if (outer->op == Opcode::OP_MAX && (isZero(outer->lhs) || isZero(outer->rhs)))
+                        {
+                            const Tree& inner = isZero(outer->lhs) ? outer->rhs : outer->lhs;
+                            if (auto in = std::get_if<TreeBinaryOp>(inner.get()))
+                            {
+                                if (in->op == Opcode::OP_MAX)
+                                {
+                                    for (const Tree& side : {in->lhs, in->rhs})
+                                    {
+                                        if (auto sb = std::get_if<TreeBinaryOp>(side.get()))
+                                        {
+                                            if (sb->op == Opcode::OP_SUB) notGeometry.insert(side.get());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                todo.push_back(u->lhs.get());
+            }
+            else if (auto b = std::get_if<TreeBinaryOp>(d))
+            {
+                todo.push_back(b->lhs.get());
+                todo.push_back(b->rhs.get());
+            }
+        }
+    }
+    // A plane through the origin (or the centre of a sphere or a cylinder's axis there) is put at a
+    // number: x becomes x - c with c = 0 for it
+    // (one number to a node: a plane shared by several unions or intersections -- as the cubes
+    // of an imported part share theirs -- is one plane, not one for each of them)
+    std::unordered_map<const TreeData*, Tree> placed;
+    auto positionedAt = [&](const Tree& child, const Tree& now) -> Tree {
+        const Info i = info.at(child.get());
+        if (i.kind == 2 && !i.positioned)
+        {
+            const auto it = placed.find(child.get());
+            if (it != placed.end()) return it->second;
+            const Tree at = Tree::binary(Opcode::OP_SUB, now, place(Tree(0.0f)));
+            placed.emplace(child.get(), at);
+            return at;
+        }
+        return now;
+    };
+    while (!stack.empty())
+    {
+        const auto top = stack.back();
+        stack.pop_back();
+        const Tree& node = top.first;
+        if (memo.count(node.get())) continue;
+        const auto un = std::get_if<TreeUnaryOp>(node.get());
+        const auto bi = std::get_if<TreeBinaryOp>(node.get());
+        if (!top.second && (un || bi))
+        {
+            stack.push_back({node, true});
+            // (the right child goes first so that the left one is taken first)
+            if (bi && !memo.count(bi->rhs.get())) stack.push_back({bi->rhs, false});
+            const Tree& first = un ? un->lhs : bi->lhs;
+            if (!memo.count(first.get())) stack.push_back({first, false});
+            continue;
+        }
+        info.emplace(node.get(), infoOf(node.get(), info));
+        if (un)
+        {
+            Tree a = memo.at(un->lhs.get());
+            if (un->op == Opcode::OP_SQUARE || un->op == Opcode::OP_ABS) a = positionedAt(un->lhs, a);
+            memo.emplace(node.get(), (rebuild && a != un->lhs) ? Tree::unary(un->op, a) : node);
+        }
+        else if (bi)
+        {
+            Tree a = memo.at(bi->lhs.get()), b = memo.at(bi->rhs.get());
+            // one side of a subtraction is a geometry constant and the other is not a constant at all
+            if (bi->op == Opcode::OP_SUB && !notGeometry.count(node.get()))
+            {
+                if (isGeometry(bi->lhs) && !isConstant(bi->rhs)) a = place(bi->lhs);
+                else if (isGeometry(bi->rhs) && !isConstant(bi->lhs)) b = place(bi->rhs);
+            }
+            // the sides of a union or an intersection that are planes with no number
+            else if (bi->op == Opcode::OP_MAX || bi->op == Opcode::OP_MIN)
+            {
+                a = positionedAt(bi->lhs, a);
+                b = positionedAt(bi->rhs, b);
+            }
+            const bool same = (a == bi->lhs) && (b == bi->rhs);
+            memo.emplace(node.get(), (rebuild && !same) ? Tree::binary(bi->op, a, b) : node);
+        }
+        else
+        {
+            memo.emplace(node.get(), node);       // (a leaf, or an oracle: as it is)
+        }
+    }
+    return memo.at(root.get());
+}
+
+}   // anonymous namespace
+
+std::map<Tree::Id, float> dragWeights(const Tree& t0)
+{
+    std::map<Tree::Id, float> out;
+    if (!t0.get()) return out;
+    const Tree root = plainTree(t0);
+    const auto isVar = [](const Tree& n) {
+        const auto v = std::get_if<TreeNonaryOp>(n.get());          // (a free variable is a leaf: Tree::var())
+        return v && v->op == Opcode::VAR_FREE;
+    };
+    // Who uses each node
+    std::unordered_map<const TreeData*, std::vector<const TreeData*>> parents;
+    std::vector<const TreeData*> variables;
+    {
+        std::unordered_set<const TreeData*> seen;
+        std::vector<const TreeData*> todo = {root.get()};
+        while (!todo.empty())
+        {
+            const TreeData* d = todo.back();
+            todo.pop_back();
+            if (!seen.insert(d).second) continue;
+            if (auto n = std::get_if<TreeNonaryOp>(d))
+            {
+                if (n->op == Opcode::VAR_FREE) variables.push_back(d);
+            }
+            else if (auto u = std::get_if<TreeUnaryOp>(d))
+            {
+                parents[u->lhs.get()].push_back(d);
+                todo.push_back(u->lhs.get());
+            }
+            else if (auto b = std::get_if<TreeBinaryOp>(d))
+            {
+                parents[b->lhs.get()].push_back(d);
+                if (b->rhs.get() != b->lhs.get()) parents[b->rhs.get()].push_back(d);
+                todo.push_back(b->lhs.get());
+                todo.push_back(b->rhs.get());
+            }
+        }
+    }
+    // Whether the value of a node is only ever combined linearly until it is squared (every way it is used ends in a square)
+    std::unordered_map<const TreeData*, int> memo;         // 1 yes, 2 no
+    std::function<bool(const TreeData*)> endsInSquare = [&](const TreeData* n) -> bool {
+        const auto known = memo.find(n);
+        if (known != memo.end()) return known->second == 1;
+        memo[n] = 2;
+        const auto found = parents.find(n);
+        bool ok = found != parents.end() && !found->second.empty();
+        if (ok)
+        {
+            for (const TreeData* p : found->second)
+            {
+                bool good = false;
+                if (auto u = std::get_if<TreeUnaryOp>(p))
+                {
+                    if (u->op == Opcode::OP_SQUARE) good = true;
+                    else if (u->op == Opcode::OP_NEG) good = endsInSquare(p);
+                }
+                else if (auto b = std::get_if<TreeBinaryOp>(p))
+                {
+                    if (b->op == Opcode::OP_MUL && b->lhs.get() == b->rhs.get()) good = true;                // (a * a)
+                    else if (b->op == Opcode::OP_ADD || b->op == Opcode::OP_SUB) good = endsInSquare(p);
+                    else if (b->op == Opcode::OP_MUL && (isConstant(b->lhs) || isConstant(b->rhs))) good = endsInSquare(p);
+                }
+                if (!good) { ok = false; break; }
+            }
+        }
+        memo[n] = ok ? 1 : 2;
+        return ok;
+    };
+    // A variable that is only ever a centre -- every use of it is x - c, or x + c, that ends in a square -- resists
+    const float kCentre = 1e4f;
+    for (const TreeData* v : variables)
+    {
+        const auto found = parents.find(v);
+        if (found == parents.end() || found->second.empty()) continue;
+        bool centre = true;
+        for (const TreeData* p : found->second)
+        {
+            const auto b = std::get_if<TreeBinaryOp>(p);
+            if (!b || (b->op != Opcode::OP_SUB && b->op != Opcode::OP_ADD) || !endsInSquare(p)) { centre = false; break; }
+        }
+        if (centre) out[static_cast<Tree::Id>(v)] = kCentre;
+    }
+    return out;
+}
+
+std::vector<float> exposableConstants(const Tree& t)
+{
+    std::vector<float> out;
+    if (!t.get()) return out;
+    walk(t, false, [&out](const Tree& c) {
+        out.push_back(std::get_if<TreeConstant>(c.get())->value);
+        return c;
+    });
+    return out;
+}
+
+Tree exposeConstants(const Tree& t, const std::vector<Tree>& with)
+{
+    if (!t.get()) return Tree::invalid();
+    size_t used = 0;
+    bool overrun = false;
+    const Tree out = walk(t, true, [&](const Tree& c) {
+        if (used >= with.size())
+        {
+            overrun = true;
+            return c;
+        }
+        return with[used++];
+    });
+    return (overrun || used != with.size()) ? Tree::invalid() : out;
+}
+
+}   // namespace libfive

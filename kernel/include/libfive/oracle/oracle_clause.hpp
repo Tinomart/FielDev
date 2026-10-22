@@ -1,0 +1,171 @@
+/*
+libfive: a CAD kernel for modeling with implicit functions
+Copyright (C) 2017  Matt Keeter
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+#pragma once
+
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <unordered_map>
+#include <string>
+
+#include "libfive/tree/tree.hpp"
+#include "libfive/tree/key.hpp"
+
+namespace libfive {
+
+/*  Forward declaration */
+class Oracle;
+class Serializer;
+class Deserializer;
+
+/*
+ *  OracleClause is an interface class for oracles, i.e. black-box nodes
+ *  within a Tree.  The only API that it exposes is a way to get an Oracle;
+ *  in the same way that Trees are turned into one or more Tapes for
+ *  evaluation, OracleClauses are turned into one or more Oracles.
+ */
+class OracleClause
+{
+public:
+    virtual ~OracleClause()=default;
+    virtual std::unique_ptr<Oracle> getOracle() const=0;
+    virtual std::string name() const=0;
+
+    /*
+     *  A short key that identifies what this oracle computes, or an empty
+     *  string (the default) when it has none.  Two oracles with the same
+     *  non-empty key are treated as the same node by Tree::cooptimize, so
+     *  a tree rebuilt with fresh (but identical) oracles -- e.g. every time
+     *  a Studio script is re-run -- is recognized as unchanged instead of
+     *  being re-meshed.
+     *
+     *  No class has to say it twice: the default is made of what the oracle
+     *  says it holds (persistentKey: a hash of its own data, which stays the
+     *  same from one run to the next, so it is the same within one) and of
+     *  the content keys of the trees it depends on.  An oracle that says
+     *  neither -- nothing of what it holds -- has none: it is this very one,
+     *  the safe answer.  A class may still give a cheaper or a coarser key of
+     *  its own (the solver results, which are named by the problem they solve).
+     */
+    virtual std::string contentKey() const;
+
+    /*
+     *  A key of what this oracle computes that stays the same from one run of
+     *  the program to the next (a hash of the data it holds -- not an address
+     *  or a number of this run), or an empty string (the default) when it has
+     *  none.  Meshes kept on disk (the render cache) are looked up by it: an
+     *  oracle with none makes a tree that cannot be kept.  It names the
+     *  oracle's own content; the trees in dependencies() are counted besides.
+     */
+    virtual std::string persistentKey() const { return std::string(); }
+    virtual std::vector<libfive::Tree> dependencies() const
+    {
+        return {};
+    }
+
+    /*
+     *  Installs a particular class's serializer / deserializer pair
+     *  T must be a subclass of OracleClause, and install must be called
+     *  with the class's name().
+     *
+     *  In addition, T must declare
+     *      bool T::serialize(Serializer& out) const
+     *      static std::unique_ptr<const OracleClause> deserialize(
+     *          Deserializer& in);
+     *  If it depends on other trees having been serialized first, it should
+     *      override dependencies().
+     */
+    template <class T>
+    static void install(const std::string& name)
+    {
+        OracleSerializer ser = [](const OracleClause* c, Serializer& out)
+        {
+            auto o = dynamic_cast<const T*>(c);
+            if (o == nullptr)
+            {
+                std::cerr << "OracleClause: Could not cast to specified type";
+                return false;
+            }
+            return o->serialize(out);
+        };
+        OracleDeserializer de = T::deserialize;
+        installed()[name] = { ser, de };
+    }
+
+    /*
+     *  Serializes an oracle clause by looking up an installed serializer.
+     *      data is pushed back into the data vector
+     *      returns false on failure
+     */
+    static bool serialize(const std::string& name, const OracleClause*,
+                          Serializer& ser);
+
+    /*  Can an oracle of this name be written to a file and read back?  */
+    static bool canSerialize(const std::string& name)
+    {
+        return installed().find(name) != installed().end();
+    }
+
+    /*
+     *  Deserializes an oracle clause by looking up an installed deserializer.
+     *      pos is adjusted as the data is read.
+     *      returns a null pointer on failure.
+     */
+    static std::unique_ptr<const OracleClause> deserialize(
+            const std::string& name, Deserializer& in);
+
+    /*
+     * optimize() gives an OracleClause the opportunity to deduplicate
+     * subtrees, balance commutative / affine expressions, and do whatever
+     * other expensive operations it may want to run before being converted
+     * into an Evaluator.
+     */
+    virtual std::unique_ptr<const OracleClause> optimized(
+            std::unordered_map<TreeDataKey, Tree>& canonical) const
+    {
+        // All arguments are unused by default
+        (void)canonical;
+
+        return nullptr;
+    }
+
+protected:
+    typedef std::function<bool(const OracleClause*, Serializer&)>
+        OracleSerializer;
+    typedef std::function<std::unique_ptr<const OracleClause>(Deserializer&)>
+        OracleDeserializer;
+
+    typedef std::pair<OracleSerializer, OracleDeserializer> SerDe;
+
+    /*
+     *  We use this function to work around static initialization
+     *  order dependencies.
+     *  https://isocpp.org/wiki/faq/ctors#construct-on-first-use-v2
+     */
+    static std::map<std::string, SerDe>& installed()
+    {
+        static std::map<std::string, SerDe> m;
+        return m;
+    }
+};
+
+}   // namespace libfive
+
+/*
+ *  Use this macro in the .cpp file for classes derived from OracleClause
+ *  to automatically register them for serialization / deserialization.
+ */
+#define REGISTER_ORACLE_CLAUSE(T) \
+class T##_Installer { \
+public: \
+    T##_Installer() { \
+        OracleClause::install<T>(#T); \
+    }\
+};\
+static T##_Installer T##_Installer_Instance;

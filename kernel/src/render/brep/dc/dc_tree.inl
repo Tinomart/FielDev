@@ -1,0 +1,1266 @@
+/*
+libfive: a CAD kernel for modeling with implicit functions
+
+Copyright (C) 2017  Matt Keeter
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+#include <future>
+#include <numeric>
+#include <functional>
+#include <limits>
+
+#include <cmath>
+
+#include <Eigen/StdVector>
+#include <boost/lockfree/queue.hpp>
+
+#include <cstdlib>
+
+#include "libfive/eval/evaluator.hpp"
+#include "libfive/eval/tape.hpp"
+
+#include "libfive/render/brep/dc/marching.hpp"
+#include "libfive/render/brep/dc/dc_tree.hpp"
+#include "libfive/render/brep/dc/dc_neighbors.hpp"
+#include "libfive/render/brep/dc/dc_flags.hpp"
+#include "libfive/render/brep/region.hpp"
+#include "libfive/render/axes.hpp"
+
+#include "../xtree.inl"
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <cstdio>
+#include <utility>
+#include <vector>
+
+namespace libfive {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// (where the time of a draw goes: the cells that the interval pass visits, the leaves that are placed, the cells that are collected, with the time each took, summed over the
+// threads, and what a leaf costs -- the clauses and the calls on its tape, the edges it searched.  Printed when the process ends, when FIELDES_TIMING is set)
+struct DcStats
+{
+    std::atomic<uint64_t> interval_cells{0}, interval_ns{0}, leaf_cells{0}, leaf_ns{0}, collect_cells{0}, collect_ns{0};
+    std::atomic<uint64_t> leaf_clauses{0}, leaf_calls{0}, leaf_edges{0}, leaf_bisected{0}, interval_clauses{0};
+    std::atomic<uint64_t> corner_ns{0}, search_ns{0}, deriv_ns{0}, surface_leaves{0}, plain_leaves{0}, plain_ns{0};
+    // (the part of deriv_ns that is the derivatives themselves, the check of which points are ambiguous -- a min, a max or an abs whose two sides are exactly equal --, and the search of the
+    // features at those points; and how many of the intersection points were ambiguous)
+    std::atomic<uint64_t> derivs_only_ns{0}, ambig_check_ns{0}, features_ns{0}, intersection_points{0}, ambiguous_points{0}, corner_ambig_checks{0};
+    ~DcStats()
+    {
+        if (!std::getenv("FIELDES_TIMING") || !(interval_cells || leaf_cells)) return;
+        std::fprintf(stderr, "[dc] intersection points %.0f, of them ambiguous %.0f; derivatives %.1f s, ambiguity check %.1f s, features at the ambiguous ones %.1f s; corner ambiguity checks %.0f\n",
+                     double(intersection_points.load()), double(ambiguous_points.load()), derivs_only_ns.load() * 1e-9, ambig_check_ns.load() * 1e-9, features_ns.load() * 1e-9,
+                     double(corner_ambig_checks.load()));
+        std::fprintf(stderr, "[dc] leaf parts: corners %.1f s, edge search %.1f s, derivatives and ambiguity %.1f s; %.0f leaves on the surface, %.0f leaves with nothing in them (%.3f ms each)\n",
+                     corner_ns.load() * 1e-9, search_ns.load() * 1e-9, deriv_ns.load() * 1e-9, double(surface_leaves.load()), double(plain_leaves.load()),
+                     plain_leaves.load() > 0 ? plain_ns.load() * 1e-6 / double(plain_leaves.load()) : 0.0);
+        const double ic = double(interval_cells.load()), lc = double(leaf_cells.load()), cc = double(collect_cells.load());
+        std::fprintf(stderr, "[dc] interval pass: %.0f cells, %.1f s (%.3f ms a cell, %.0f clauses on the tape)\n", ic, interval_ns.load() * 1e-9,
+                     ic > 0 ? interval_ns.load() * 1e-6 / ic : 0.0, ic > 0 ? interval_clauses.load() / ic : 0.0);
+        std::fprintf(stderr, "[dc] leaves placed: %.0f cells, %.1f s (%.3f ms a cell; %.0f clauses and %.1f calls on the tape, %.1f edges, %.0f %% quick search)\n", lc,
+                     leaf_ns.load() * 1e-9, lc > 0 ? leaf_ns.load() * 1e-6 / lc : 0.0, lc > 0 ? leaf_clauses.load() / lc : 0.0, lc > 0 ? leaf_calls.load() / lc : 0.0,
+                     lc > 0 ? leaf_edges.load() / lc : 0.0, lc > 0 ? 100.0 * leaf_bisected.load() / lc : 0.0);
+        std::fprintf(stderr, "[dc] collected: %.0f cells, %.1f s\n", cc, collect_ns.load() * 1e-9);
+        std::fflush(stderr);
+    }
+};
+
+inline DcStats& dcStats()
+{
+    static DcStats stats;
+    return stats;
+}
+
+inline bool dcOn()
+{
+    static const bool on = std::getenv("FIELDES_TIMING") != nullptr;
+    return on;
+}
+
+// (nothing is counted, and no clock is read, unless FIELDES_TIMING is set)
+inline uint64_t dcNowNs()
+{
+    if (!dcOn()) return 0;
+    return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+}
+
+inline void dcAdd(std::atomic<uint64_t>& counter, uint64_t n)
+{
+    if (dcOn()) counter.fetch_add(n, std::memory_order_relaxed);
+}
+
+struct DcTimer
+{
+    explicit DcTimer(std::atomic<uint64_t>& acc) : acc(acc), t0(dcNowNs()) {}
+    ~DcTimer() { dcAdd(acc, dcNowNs() - t0); }
+    std::atomic<uint64_t>& acc;
+    uint64_t t0;
+};
+
+struct DcScope
+{
+    DcScope(std::atomic<uint64_t>& cells, std::atomic<uint64_t>& ns)
+        : cells(cells), ns(ns), t0(dcNowNs()) {}
+    ~DcScope()
+    {
+        dcAdd(cells, 1);
+        dcAdd(ns, dcNowNs() - t0);
+    }
+    std::atomic<uint64_t>& cells;
+    std::atomic<uint64_t>& ns;
+    uint64_t t0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <unsigned N>
+DCTree<N>::DCTree(DCTree<N>* parent, unsigned index, const Region<N>& r)
+    : XTree<N, DCTree<N>, DCLeaf<N>>(parent, index, r)
+{
+    // Nothing to do here
+}
+
+template <unsigned N>
+DCTree<N>::DCTree()
+    : XTree<N, DCTree<N>, DCLeaf<N>>()
+{
+    // Nothing to do here
+}
+
+template <unsigned N>
+DCTree<N>::DCTree(Interval::State t)
+    : XTree<N, DCTree<N>, DCLeaf<N>>()
+{
+    this->type = t;
+}
+
+template <unsigned N>
+std::unique_ptr<DCTree<N>> DCTree<N>::empty()
+{
+    std::unique_ptr<DCTree> t(new DCTree);
+    t->type = Interval::EMPTY;
+    return t;
+}
+
+template <unsigned N>
+DCLeaf<N>::DCLeaf()
+{
+    reset();
+}
+
+template <unsigned N>
+void DCLeaf<N>::reset()
+{
+    level = 0;
+    rank = 0;
+    corner_mask = 0;
+    vertex_count = 0;
+    manifold = false;
+
+    std::fill(index.begin(), index.end(), 0);
+
+    for (auto& i : intersections) {
+        i = nullptr;
+    }
+
+    verts.setZero();
+    mass_point.setZero();
+    AtA.setZero();
+    AtB.setZero();
+    BtB = 0;
+}
+
+template <unsigned N>
+Tape::Handle DCTree<N>::evalInterval(Evaluator* eval,
+                                     const Tape::Handle& tape,
+                                     Pool& pool)
+{
+    DcScope timing(dcStats().interval_cells, dcStats().interval_ns);
+    dcAdd(dcStats().interval_clauses, tape->size());
+
+    // Do a preliminary evaluation to prune the tree, storing the interval
+    // result and an handle to the pushed tape (which we'll use when recursing)
+    auto o = eval->intervalAndPush(
+            this->region.lower3().template cast<float>(),
+            this->region.upper3().template cast<float>(),
+            tape);
+
+    this->type = o.first.state();
+    if (!o.first.isSafe())
+    {
+        assert(this->type == Interval::AMBIGUOUS);
+        return tape;
+    }
+
+    if (this->type == Interval::FILLED || this->type == Interval::EMPTY)
+    {
+        // If this is unambiguous, then we're actually installed the singleton
+        // into the parent, so we can release this tree to the pool.  This is
+        // a bit scary, because it's still used in WorkerPool, but the pool
+        // won't change it until we're done operating on it.
+        if (this->done()) {
+            releaseTo(pool);
+        }
+
+        if (tape != o.second) {
+            eval->getDeck()->claim(std::move(o.second));
+            return nullptr;
+        }
+    }
+    return o.second;
+}
+
+template <unsigned N>
+void DCTree<N>::evalLeaf(Evaluator* eval,
+                        const Tape::Handle& tape,
+                        Pool& object_pool,
+                        const DCNeighbors<N>& neighbors)
+{
+    DcScope timing(dcStats().leaf_cells, dcStats().leaf_ns);
+    const uint64_t tLeaf0 = dcNowNs();
+
+    // Track how many corners have to be evaluated here
+    // (if they can be looked up from a neighbor, they don't have
+    //  to be evaluated here, which can save time)
+    size_t count = 0;
+
+    // Remap from a value in the range [0, count) to a corner index
+    // in the range [0, 1 <<N).
+    std::array<int, 1 << N> corner_indices;
+
+    // Local array of corners
+    std::array<Interval::State, 1 << N> corners;
+
+    // Pack corners into evaluator
+    Eigen::Matrix<float, 3, 1 << N> pos;
+    for (uint8_t i=0; i < this->children.size(); ++i)
+    {
+        auto c = neighbors.check(i);
+        if (c == Interval::UNKNOWN)
+        {
+            pos.col(count) = this->region.corner3f(i);
+            eval->set(pos.col(count), count);
+            corner_indices[count++] = i;
+        }
+        else
+        {
+            corners[i] = c;
+        }
+    }
+
+    // Evaluate the region's corners and check their states
+    // We handle evaluation in three phases:
+    // 1)  Evaluate the distance field at corners, mark < 0 or > 0
+    //     as filled or empty.
+    // 2)  For values that are == 0 but not ambiguous (i.e. do not
+    //     have a min / max where both branches are possible),
+    //     evaluate the derivatives and mark the corner as filled if
+    //     there are non-zero derivatives (because that means that we
+    //     can find an inside-outside transition).
+    // 3)  For values that are == 0 and ambiguous, call isInside
+    //     (the heavy hitter of inside-outside checking).
+    auto vs = eval->values(count, *tape);
+
+    // We store ambiguity here, but clear it if the point is inside
+    // or outside (so after the loop below, ambig[i] is only set if
+    // pos[i] is both == 0 and ambiguous).  The loop below only reads the
+    // ambiguity of a corner whose value is exactly 0, so the check (a costly
+    // one: every field that is called is run again, once for each call) is
+    // only made when there is such a corner.
+    std::array<bool, 1 << N> ambig;
+    ambig.fill(false);
+    {
+        bool anyZero = false;
+        for (uint8_t i = 0; i < count; ++i)
+        {
+            anyZero |= (vs(i) == 0);
+        }
+        if (anyZero)
+        {
+            dcAdd(dcStats().corner_ambig_checks, 1);
+            auto a = eval->getAmbiguous(count, *tape);
+            for (uint8_t i = 0; i < count; ++i)
+            {
+                ambig[i] = a(i);
+            }
+        }
+    }
+
+    // This is a count of how many points there are that == 0
+    // but are unambiguous; unambig_remap[z] returns the index
+    // into the corner_indices array for a particular unambiguous zero.
+    uint8_t unambiguous_zeros = 0;
+    std::array<int, 1 << N> unambig_remap;
+
+    // This is phase 1, as described above
+    for (uint8_t i=0; i < count; ++i)
+    {
+        // Handle inside, outside, and (non-ambiguous) on-boundary
+        if (vs(i) > 0 || std::isnan(vs(i)))
+        {
+            corners[corner_indices[i]] = Interval::EMPTY;
+            ambig[i] = false;
+        }
+        else if (vs(i) < 0)
+        {
+            corners[corner_indices[i]] = Interval::FILLED;
+            ambig[i] = false;
+        }
+        else if (!ambig[i])
+        {
+            unambig_remap[unambiguous_zeros] = i;
+            unambiguous_zeros++;
+        }
+    }
+
+    // Phase 2: Optimization for non-ambiguous features
+    // We can get both positive and negative values out if
+    // there's a non-zero gradient. Once again, we need to use
+    // single-point evaluation if it's sufficiently close to zero.
+    if (unambiguous_zeros)
+    {
+        for (unsigned i = 0; i < unambiguous_zeros; ++i)
+        {
+            eval->set(pos.col(unambig_remap[i]), i);
+        }
+        auto ds = eval->derivs(unambiguous_zeros, *tape);
+        for (unsigned i=0; i < unambiguous_zeros; ++i)
+        {
+            corners[corner_indices[unambig_remap[i]]] =
+                (ds.col(i).template head<3>() != 0).any()
+                ? Interval::FILLED : Interval::EMPTY;
+        }
+    }
+
+    // Phase 3: One last pass for handling ambiguous corners
+    for (uint8_t i=0; i < count; ++i)
+    {
+        if (ambig[i])
+        {
+            corners[corner_indices[i]] =
+                eval->isInside(pos.col(i), tape)
+                    ? Interval::FILLED
+                    : Interval::EMPTY;
+        }
+    }
+
+    bool all_full = true;
+    bool all_empty = true;
+
+    // Pack corners into filled / empty arrays
+    for (uint8_t i=0; i < this->children.size(); ++i)
+    {
+        all_full  &= (corners[i] == Interval::FILLED);
+        all_empty &= (corners[i] == Interval::EMPTY);
+    }
+
+    this->type = all_empty ? Interval::EMPTY
+               : all_full  ? Interval::FILLED : Interval::AMBIGUOUS;
+
+    // Early exit if this leaf is unambiguous
+    const uint64_t tCorners1 = dcNowNs();
+    dcAdd(dcStats().corner_ns, tCorners1 - tLeaf0);
+    if (this->type != Interval::AMBIGUOUS)
+    {
+        dcAdd(dcStats().plain_leaves, 1);
+        dcAdd(dcStats().plain_ns, tCorners1 - tLeaf0);
+        if (this->done()) {
+            releaseTo(object_pool);
+        }
+        return;
+    }
+
+    dcAdd(dcStats().surface_leaves, 1);
+    assert(this->leaf == nullptr);
+    this->leaf = object_pool.next().get();
+    this->leaf->corner_mask = buildCornerMask(corners);
+
+    // Now, for the fun part of actually placing vertices!
+    // Figure out if the leaf is manifold
+    this->leaf->manifold = cornersAreManifold(this->leaf->corner_mask);
+
+    // Iterate over manifold patches, storing one vertex per patch
+    const auto& ps = MarchingTable<N>::v(this->leaf->corner_mask);
+    while (this->leaf->vertex_count < ps.size() &&
+           ps[this->leaf->vertex_count][0].first != -1)
+    {
+        // Number of edges, total
+        unsigned edge_count;
+
+        // Edge indices (as found with mt->e[a][b]) for all edges,
+        // with edge_count valid entries.
+        std::array<size_t, _edges(N)> edges;
+
+        {   // Within this block, we calculate all edges that haven't
+            // already been calculated by neighbors and store them in
+            // the appropriate slot of the intersections array.
+
+            // Numbers of edges that need evaluation
+            unsigned eval_count;
+
+            // Inside-outside pairs, with eval_count valid pairs
+            std::array<std::pair<Vec, Vec>, _edges(N)> targets;
+
+            // Edge indices (as found with mt->e[a][b]) for edges under
+            // evaluation, with eval_count valid values.
+            std::array<size_t, _edges(N)> eval_edges;
+
+            // Iterate over edges in this patch, storing [inside, outside]
+            // in the targets array if the list of intersections can't be
+            // re-used from a neighbor.
+            for (edge_count=0, eval_count=0;
+                 edge_count < ps[this->leaf->vertex_count].size() &&
+                     ps[this->leaf->vertex_count][edge_count].first != -1;
+                 ++edge_count)
+            {
+                // Sanity-checking
+                assert(corners[ps[this->leaf->vertex_count][edge_count].first]
+                       == Interval::FILLED);
+                assert(corners[ps[this->leaf->vertex_count][edge_count].second]
+                       == Interval::EMPTY);
+
+                // Store the edge index associated with this target
+                auto c = ps[this->leaf->vertex_count][edge_count];
+                edges[edge_count] = MarchingTable<N>::e(c.first)[c.second];
+
+                auto compare = neighbors.check(c.first, c.second);
+                // Enable this to turn on sharing of results with neighbors
+                if (compare != nullptr)
+                {
+                    this->leaf->intersections[edges[edge_count]] = compare;
+                }
+                else
+                {
+                    // Store inside / outside in targets array, and the edge
+                    // index in the eval_edges array.
+                    targets[eval_count] = {this->region.corner(c.first),
+                                           this->region.corner(c.second)};
+                    eval_edges[eval_count] = edges[edge_count];
+
+                    assert(eval_edges[eval_count] < this->leaf->intersections.size());
+                    eval_count++;
+                }
+
+                assert(edges[edge_count] < this->leaf->intersections.size());
+            }
+
+            // Next, we search over the target edges, doing an
+            // N-fold reduction at each stage to home in on the
+            // exact intersection position
+            constexpr int SEARCH_COUNT = 4;
+            constexpr int POINTS_PER_SEARCH = 16;
+            static_assert(
+                    _edges(N) * POINTS_PER_SEARCH <= ArrayEvaluator::N,
+                    "Potential overflow");
+
+            // Where an oracle is part of the tape (the distance to a mesh, a
+            // field of data) one point costs about a microsecond, more than all
+            // of the rest of the tape: the 4 x 16 points of the search below
+            // were 98 % of the oracle's evaluations in a mesh of a thickened
+            // imported part. A plain bisection finds the same crossing from
+            // 10 points (to a 1024th of the cell, past what a float holds
+            // at the coordinates of a part).
+            const uint64_t tSearch0 = dcNowNs();
+            bool bisected = false;
+            static const bool noBisect = std::getenv("FIELDES_NO_BISECT") != nullptr;   // (a test: the search of 4 x 16 points)
+            if (dcOn() && eval_count)
+            {
+                uint64_t calls = 0;
+                for (auto itr = tape->rbegin(); itr != tape->rend(); ++itr)
+                {
+                    if (itr->op == Opcode::CALL) { ++calls; }
+                }
+                dcAdd(dcStats().leaf_clauses, tape->size());
+                dcAdd(dcStats().leaf_calls, calls);
+                dcAdd(dcStats().leaf_edges, eval_count);
+                if (!noBisect && tape->hasOracle())
+                {
+                    dcAdd(dcStats().leaf_bisected, 1);
+                }
+            }
+            if (eval_count && tape->hasOracle() && !noBisect)
+            {
+                bisected = true;
+                // (isInside invalidates the evaluator's array of results, so it is only asked once the values are copied)
+                auto isOutside = [&](float v, const Vec& p) {
+                    return (v > 0) || (v == 0 && !eval->isInside<N>(p, this->region, tape));
+                };
+                // What a search ends with: an inside point and an outside point, 1/1024 of the edge apart
+                constexpr double END = 1.0 / 1024;
+                for (unsigned e=0; e < eval_count; ++e)
+                {
+                    const Vec a0 = targets[e].first;
+                    const Vec d0 = targets[e].second - targets[e].first;
+                    auto at = [&](double s) { return Vec(a0 + d0 * s); };
+                    double pa = 0, pb = 1;      // the inside and the outside end, as places along the edge
+
+                    // The values at the two ends say where a field that is a distance, or near to one, crosses zero (it is close to a
+                    // straight line there).  One point on each side of that place, 1/1024 of the edge apart, is then the whole search:
+                    // 4 points where 10 were halved.  Where they do not close in on the crossing, what is left is halved.
+                    {
+                        eval->set<N>(at(0), this->region, 0);
+                        eval->set<N>(at(1), this->region, 1);
+                        const auto ends = eval->values(2, *tape);
+                        const double f0 = ends(0), f1 = ends(1);
+                        double t = (f0 < 0 && f1 > 0) ? f0 / (f0 - f1) : 0.5;
+                        t = std::min(1.0 - 2 * END, std::max(2 * END, t));
+                        const double s1 = t - END / 2, s2 = t + END / 2;
+                        eval->set<N>(at(s1), this->region, 0);
+                        eval->set<N>(at(s2), this->region, 1);
+                        const auto around = eval->values(2, *tape);
+                        const float g1 = around(0), g2 = around(1);
+                        if (isOutside(g1, at(s1))) { pb = s1; } else { pa = s1; }
+                        if (isOutside(g2, at(s2))) { pb = std::min(pb, s2); } else { pa = std::max(pa, s2); }
+                        if (!(pa < pb))
+                        {
+                            pa = 0;     // (the two points disagree with each other: search the whole edge)
+                            pb = 1;
+                        }
+                    }
+                    while (pb - pa > END * (1 + 1e-9))
+                    {
+                        const double sm = (pa + pb) / 2;
+                        const Vec m = at(sm);
+                        eval->set<N>(m, this->region, 0);
+                        const float v = eval->values(1, *tape)(0);
+                        if (isOutside(v, m)) { pb = sm; } else { pa = sm; }
+                    }
+                    targets[e] = {at(pa), at(pb)};
+                }
+            }
+
+            // Multi-stage binary search for intersection
+            for (int s=0; s < (bisected ? 0 : SEARCH_COUNT); ++s)
+            {
+                // Load search points into evaluator
+                Eigen::Array<double, N, POINTS_PER_SEARCH * _edges(N)> ps;
+                for (unsigned e=0; e < eval_count; ++e)
+                {
+                    for (int j=0; j < POINTS_PER_SEARCH; ++j)
+                    {
+                        const double frac = j / (POINTS_PER_SEARCH - 1.0);
+                        const unsigned i = j + e*POINTS_PER_SEARCH;
+                        ps.col(i) = (targets[e].first * (1 - frac)) +
+                                    (targets[e].second * frac);
+                        eval->set<N>(ps.col(i), this->region, i);
+                    }
+                }
+
+                // Evaluate, then search for the first outside point
+                // and adjust inside / outside to their new positions
+                if (eval_count)
+                {
+                    // Store the results here, because calling isInside
+                    // invalidates the output array.
+                    Eigen::Array<float, 1, ArrayEvaluator::N> out;
+                    out.leftCols(POINTS_PER_SEARCH * eval_count) =
+                        eval->values(
+                            POINTS_PER_SEARCH * eval_count, *tape);
+
+                    for (unsigned e=0; e < eval_count; ++e)
+                    {
+                        // Skip one point, because the very first point is
+                        // already known to be inside the shape (but
+                        // sometimes, due to numerical issues, it registers
+                        // as outside!)
+                        for (unsigned j=1; j < POINTS_PER_SEARCH; ++j)
+                        {
+                            const unsigned i = j + e*POINTS_PER_SEARCH;
+                            if (out[i] > 0)
+                            {
+                                assert(i > 0);
+                                targets[e] = {ps.col(i - 1), ps.col(i)};
+                                break;
+                            }
+                            else if (out[i] == 0)
+                            {
+                                if (!eval->isInside<N>(ps.col(i), this->region,
+                                                               tape))
+                                {
+                                    assert(i > 0);
+                                    targets[e] = {ps.col(i - 1), ps.col(i)};
+                                    break;
+                                }
+                            }
+                            // Special-case for final point in the search,
+                            // working around numerical issues where
+                            // different evaluators disagree with whether
+                            // points are inside or outside.
+                            else if (j == POINTS_PER_SEARCH - 1)
+                            {
+                                targets[e] = {ps.col(i - 1), ps.col(i)};
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Now, we evaluate the distance field (value + derivatives) at
+            // each intersection (which is associated with a specific edge).
+            static_assert(_edges(N) * 2 <= ArrayEvaluator::N,
+                          "Too many results");
+            dcAdd(dcStats().search_ns, dcNowNs() - tSearch0);
+            if (eval_count)
+            {
+                DcTimer derivTimer(dcStats().deriv_ns);
+                for (unsigned i=0; i < eval_count; ++i)
+                {
+                    eval->set<N>(targets[i].first, this->region, 2*i);
+                    eval->set<N>(targets[i].second, this->region, 2*i + 1);
+                }
+
+                // Copy the results to a local array, to avoid invalidating
+                // the results array when we call features() below.
+                Eigen::Array<float, 4, ArrayEvaluator::N> ds;
+                const uint64_t tD0 = dcNowNs();
+                // A point is ambiguous where a min or a max has two sides of the same value and DIFFERENT derivatives (a crease: the features are searched there).  The derivative
+                // pass notes those as it goes (`trackTies`), calls included; the check of the values alone (getAmbiguous) marked every tie, also the ones of a clamp of a value that is
+                // exactly its bound (max(0, 0): the same derivative on both sides, nothing to choose), which in the fields of the manufacturing tool are 9 of 10 of the points
+                // of the surface -- and ran every field that is called again at the points to do it.  A tape with an oracle in it is checked the same way: the derivative pass
+                // asks the oracle where it is ambiguous by its own rules as well (see the ORACLE clause of DerivArrayEvaluator): on the topology-optimized bracket every one of the
+                // points of the surface was ambiguous by the check of the values, and the derivatives, the check and the search for features of them were 37 % of the drawing.
+                static const bool noTieAware = std::getenv("FIELDES_NO_TIE_AWARE") != nullptr;      // (a test: the check of the values)
+                const bool tieAware = !noTieAware;
+                eval->trackTies = tieAware;
+                ds.leftCols(2 * eval_count) = eval->derivs(
+                        2 * eval_count, *tape);
+                eval->trackTies = false;
+                const uint64_t tD1 = dcNowNs();
+                Eigen::Array<bool, 1, ArrayEvaluator::N> ambig;
+                if (tieAware)
+                {
+                    ambig.head(2 * eval_count) = eval->tiedDerivs(2 * eval_count);
+                }
+                else
+                {
+                    ambig.head(2 * eval_count) = eval->getAmbiguous(2 * eval_count, *tape);
+                }
+                const uint64_t tD2 = dcNowNs();
+                dcAdd(dcStats().derivs_only_ns, tD1 - tD0);
+                dcAdd(dcStats().ambig_check_ns, tD2 - tD1);
+                dcAdd(dcStats().intersection_points, 2 * eval_count);
+                if (dcOn())
+                {
+                    for (unsigned i=0; i < 2 * eval_count; ++i)
+                    {
+                        if (ambig(i)) { dcAdd(dcStats().ambiguous_points, 1); }
+                    }
+                }
+
+                // Iterate over all inside-outside pairs, storing the number
+                // of intersections before each inside node (in prev_size),
+                // then checking the rank of the pair after each outside
+                // node based on the accumulated intersections.
+                for (unsigned i=0; i < 2 * eval_count; ++i)
+                {
+                    // This is the position associated with the intersection
+                    // being investigated.
+                    Eigen::Vector3d pos;
+                    pos << ((i & 1) ? targets[i/2].second
+                                    : targets[i/2].first),
+                           this->region.perp;
+
+                    // If this position is unambiguous, then we can use the
+                    // derivatives value calculated and stored in ds.
+                    if (!ambig(i))
+                    {
+                        saveIntersection(pos.template head<N>(),
+                                         ds.col(i).template cast<double>()
+                                                  .template head<N>(),
+                                         ds.col(i).w(), eval_edges[i/2],
+                                         object_pool);
+                    }
+                    // Otherwise, we need to use the feature-finding special
+                    // case to find all possible derivatives at this point.
+                    else
+                    {
+                        const uint64_t tF0 = dcNowNs();
+                        const auto fs = eval->features(
+                                pos.template cast<float>(), tape);
+                        dcAdd(dcStats().features_ns, dcNowNs() - tF0);
+
+                        for (auto& f : fs)
+                        {
+                            saveIntersection(pos.template head<N>(),
+                                             f.template head<N>()
+                                              .template cast<double>(),
+                                             ds.col(i).w(), eval_edges[i/2],
+                                             object_pool);
+                        }
+                    }
+                }
+            }
+        }
+        // At this point, every [intersections[e] for e in edges] should be
+        // populated with an Intersection object, whether taken from a neighbor
+        // or calculated in the code above.
+
+        // Reset the mass point, since we may have used it for the previous
+        // vertex.
+        this->leaf->mass_point = this->leaf->mass_point.Zero();
+
+        {   // Build the mass point from max-rank intersections
+            int max_rank = 0;
+            for (unsigned i=0; i < edge_count; ++i) {
+                if (this->leaf->intersections[edges[i]]) {
+                    auto r = this->leaf->intersections[edges[i]]->get_rank();
+                    if (r > max_rank) {
+                        max_rank = r;
+                    }
+                }
+            }
+
+            for (unsigned i=0; i < edge_count; ++i)
+            {
+                if (this->leaf->intersections[edges[i]] &&
+                    this->leaf->intersections[edges[i]]->get_rank() == max_rank)
+                {
+                    this->leaf->mass_point +=
+                        this->leaf->intersections[edges[i]]
+                                  ->normalized_mass_point();
+                }
+            }
+        }
+
+        // Now, we'll (pretend to) unpack into A and b matrices,
+        // then immediately calculate AtA, AtB, and BtB
+        //
+        // (Note: this has been moved to the Intersection class, but
+        //  the explanation below is still valid)
+        //
+        //  The A matrix is of the form
+        //  [n1x, n1y, n1z]
+        //  [n2x, n2y, n2z]
+        //  [n3x, n3y, n3z]
+        //  ...
+        //  (with one row for each sampled point's normal)
+        //
+        //  The b matrix is of the form
+        //  [p1 . n1]
+        //  [p2 . n2]
+        //  [p3 . n3]
+        //  ...
+        //  (with one row for each sampled point)
+        //
+        // Since we're deliberately sampling on either side of the
+        // intersection, we subtract out the distance-field value
+        // to make the math work out.
+        //
+        // Instead of actually populating these matrices, we'll immediately
+        // construct the compact results AtA, AtB, BtB
+        this->leaf->AtA.array() = 0;
+        this->leaf->AtB.array() = 0;
+        this->leaf->BtB = 0;
+        for (unsigned i=0; i < edge_count; ++i)
+        {
+            if (this->leaf->intersections[edges[i]])
+            {
+                this->leaf->AtA += this->leaf->intersections[edges[i]]->AtA;
+                this->leaf->AtB += this->leaf->intersections[edges[i]]->AtB;
+                this->leaf->BtB += this->leaf->intersections[edges[i]]->BtB;
+            }
+        }
+
+        // Find the vertex position, storing into the appropriate column
+        // of the vertex array and ignoring the error result (because
+        // this is the bottom of the recursion)
+        findVertex(this->leaf->vertex_count);
+
+        // Move on to the next vertex
+        this->leaf->vertex_count++;
+    }
+    this->done();
+}
+
+template <unsigned N>
+void DCTree<N>::saveIntersection(const Vec& pos, const Vec& derivs,
+                                 const double value, const size_t edge,
+                                 Pool& object_pool)
+{
+    // Just-in-time allocation of intersections array
+    if (this->leaf->intersections[edge] == nullptr)
+    {
+        this->leaf->intersections[edge] = object_pool.next().next().get();
+    }
+    this->leaf->intersections[edge]->push(pos, derivs, value);
+}
+
+template <unsigned N>
+uint8_t DCTree<N>::buildCornerMask(
+        const std::array<Interval::State, 1 << N>& corners)
+{
+    uint8_t corner_mask = 0;
+    for (unsigned i=0; i < (1 << N); ++i)
+    {
+        assert(corners[i] != Interval::UNKNOWN);
+        corner_mask |= (corners[i] == Interval::FILLED) << i;
+    }
+    return corner_mask;
+}
+
+template <unsigned N>
+bool DCTree<N>::collectChildren(Evaluator* eval,
+                                const Tape::Handle& tape,
+                                Pool& object_pool,
+                                double max_err)
+{
+    // Wait for collectChildren to have been called N times
+    if (this->pending-- != 0)
+    {
+        return false;
+    }
+    DcScope timing(dcStats().collect_cells, dcStats().collect_ns);
+
+    // Load the children here, to avoid atomics
+    std::array<DCTree<N>*, 1 << N> cs;
+    for (unsigned i=0; i < this->children.size(); ++i)
+    {
+        cs[i] = this->children[i].load(std::memory_order_relaxed);
+    }
+
+    // If any children are branches, then we can't collapse.
+    // We do this check first, to avoid allocating then freeing a Leaf
+    if (std::any_of(cs.begin(), cs.end(),
+                    [](DCTree<N>* o){ return o->isBranch(); }))
+    {
+        this->done();
+        return true;
+    }
+
+    // Update corner and filled / empty state from children
+    bool all_empty = true;
+    bool all_full  = true;
+    std::array<Interval::State, 1 << N> corners;
+    for (uint8_t i=0; i < cs.size(); ++i)
+    {
+        auto c = cs[i];
+        assert(c != nullptr);
+
+        // Grab corner values from children
+        corners[i] = c->cornerState(i);
+
+        all_empty &= (c->type == Interval::EMPTY);
+        all_full  &= (c->type == Interval::FILLED);
+    }
+
+    this->type = all_empty ? Interval::EMPTY
+               : all_full  ? Interval::FILLED : Interval::AMBIGUOUS;
+
+    // If this cell is unambiguous, then forget all its branches and return
+    if (this->type == Interval::FILLED || this->type == Interval::EMPTY)
+    {
+        this->releaseChildren(object_pool);
+
+        // this->done will swap us with a singleton, so we can release
+        // this tree to the pool right away
+        if (this->done()) {
+            releaseTo(object_pool);
+        }
+        return true;
+    }
+
+    auto corner_mask = buildCornerMask(corners);
+
+    //  This conditional implements the three checks described in
+    //  [Ju et al, 2002] in the section titled
+    //      "Simplification with topology safety"
+    bool manifold = cornersAreManifold(corner_mask) &&
+        std::all_of(cs.begin(), cs.end(),
+                [](DCTree<N>* o){ return o->isManifold(); }) &&
+        leafsAreManifold(cs, corners);
+
+    // If we're not manifold, then we can't collapse
+    if (!manifold)
+    {
+        this->done();
+        return true;
+    }
+
+    // We've now passed all of our opportunities to exit without
+    // allocating a Leaf, so create one here.
+    assert(this->leaf == nullptr);
+    this->leaf = object_pool.next().get();
+    this->leaf->manifold = true;
+    this->leaf->corner_mask = corner_mask;
+
+    // Populate the feature rank as the maximum of all children
+    // feature ranks (as seen in DC: The Secret Sauce)
+    this->leaf->rank = std::accumulate(cs.begin(), cs.end(), (unsigned)0,
+            [](unsigned a, DCTree<N>* b){ return std::max(a, b->rank());} );
+
+    // Accumulate the mass point, QEF matrices, and appropriate intersections.
+    for (unsigned i=0; i < cs.size(); ++i)
+    {
+        const auto& c = cs[i];
+        assert(c != nullptr);
+
+        if (c->type == Interval::AMBIGUOUS)
+        {
+            assert(c->leaf != nullptr);
+            if (c->leaf->rank == this->leaf->rank)
+            {
+                this->leaf->mass_point += c->leaf->mass_point;
+            }
+            this->leaf->AtA += c->leaf->AtA;
+            this->leaf->AtB += c->leaf->AtB;
+            this->leaf->BtB += c->leaf->BtB;
+
+            for (auto& edge : edgesFromChild(i))
+            {
+                if (c->leaf->intersections[edge])
+                {
+                    assert(!this->leaf->intersections[edge]);
+                    this->leaf->intersections[edge] = c->leaf->intersections[edge];
+                }
+            }
+        }
+        else
+        {
+            assert(c->leaf == nullptr);
+        }
+    }
+
+    // If the vertex error is below a threshold, and the vertex
+    // is well-placed in the distance field, then convert into
+    // a leaf by erasing all of the child branches
+    {
+        bool collapsed = false;
+#if LIBFIVE_LINEAR_ERROR
+        if (findVertex(this->leaf->vertex_count++) < max_err * max_err &&
+#else
+        if (findVertex(this->leaf->vertex_count++) < max_err &&
+#endif
+            this->region.contains(vert(0), 1e-6))
+        {
+            Eigen::Vector3f v;
+            v << vert(0).template cast<float>(),
+                 this->region.perp.template cast<float>();
+            if (fabs(eval->value(v, *tape->getBase(v))) < max_err)
+            {
+                // Store this tree's depth based on the region's level
+                this->leaf->level = this->region.level;
+
+                // Then, erase all of the children and mark that we collapsed
+                this->releaseChildren(object_pool);
+                collapsed = true;
+            }
+        }
+        if (!collapsed)
+        {
+            object_pool.next().put(this->leaf);
+            this->leaf = nullptr;
+        }
+    }
+
+    this->done();
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <unsigned N>
+double DCTree<N>::findVertex(unsigned index)
+{
+    assert(this->leaf != nullptr);
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, N, N>> es(
+            this->leaf->AtA);
+    assert(this->leaf->mass_point(N) > 0);
+
+    // We need to find the pseudo-inverse of AtA.
+    auto eigenvalues = es.eigenvalues().real();
+
+    // Truncate near-singular eigenvalues in the SVD's diagonal matrix
+    Eigen::Matrix<double, N, N> D = Eigen::Matrix<double, N, N>::Zero();
+
+    // Pick a cutoff depending on whether the derivatives were normalized
+    // before loading them into the AtA matrix
+#if LIBFIVE_UNNORMALIZED_DERIVS
+    auto highest_val = eigenvalues.template lpNorm<Eigen::Infinity>();
+    // We scale EIGENVALUE_CUTOFF to highestVal.  Additionally, we need to 
+    // use a significantly lower cutoff threshold (here set to the square 
+    // of the normalized-derivatives threshold), since when derivatives 
+    // are not normalized a cutoff of .1 can cause one feature to be 
+    // entirely ignored if its derivative is fairly small in comparison to
+    // another feature.  (The same can happen with any cutoff, but it is
+    // much less likely this way, and it should still be high enough to
+    // avoid wild vertices due to noisy normals under most circumstances, 
+    // at least enough that they will be a small minority of the situations
+    // in which dual contouring's need to allow out-of-box vertices causes
+    // issues.)
+
+    // If highestVal is extremely small, it's almost certainly due to noise or
+    // is 0; in the former case, scaling our cutoff to it will still result in 
+    // a garbage result, and in the latter it'll produce a diagonal matrix full
+    // of infinities.  So we instead use an infinite cutoff to force D to be
+    // set to zero, resulting in the mass point being used as our vertex, which
+    // is the best we can do without good gradients.
+    constexpr double EIGENVALUE_CUTOFF_2 = EIGENVALUE_CUTOFF * EIGENVALUE_CUTOFF;
+    const double cutoff = (highest_val > 1e-20)
+        ? highest_val * EIGENVALUE_CUTOFF_2
+        : std::numeric_limits<double>::infinity();
+#else
+    const double cutoff = EIGENVALUE_CUTOFF;
+#endif
+
+    for (unsigned i = 0; i < N; ++i) {
+        D.diagonal()[i] = (fabs(eigenvalues[i]) < cutoff)
+            ? 0 : (1 / eigenvalues[i]);
+    }
+
+    // Get rank from eigenvalues
+    if (!this->isBranch())
+    {
+        assert(index > 0 || this->leaf->rank == 0);
+        this->leaf->rank = D.diagonal().count();
+    }
+
+    // SVD matrices
+    auto U = es.eigenvectors().real().eval(); // = V
+
+    // Pseudo-inverse of A
+    auto AtAp = (U * D * U.transpose()).eval();
+
+    // Solve for vertex position (minimizing distance to center)
+    Vec center = this->leaf->mass_point.template head<N>() /
+                 this->leaf->mass_point(N);
+    Vec v = AtAp * (this->leaf->AtB - (this->leaf->AtA * center)) + center;
+
+    // A vertex may leave its cell to keep a sharp feature, but one more than a cell's width away comes from
+    // noisy normals (a thin wall only a few cells thick, creases at a nearly flat angle): it makes a spike
+    // that no surface goes through, up to hundreds of millimetres long.  Such a vertex is pulled back to
+    // the cell widened by its own width.
+    {
+        const Vec pad = (this->region.upper - this->region.lower).matrix();
+        v = v.cwiseMax(this->region.lower.matrix() - pad)
+             .cwiseMin(this->region.upper.matrix() + pad);
+    }
+
+    // Store this specific vertex in the verts matrix
+    this->leaf->verts.col(index) = v;
+
+    // Return the QEF error
+    return (v.transpose() * this->leaf->AtA * v -
+            2*v.transpose() * this->leaf->AtB)[0]
+            + this->leaf->BtB;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <unsigned N>
+typename DCTree<N>::Vec DCTree<N>::vert(unsigned i) const
+{
+    assert(this->leaf != nullptr);
+    assert(i < this->leaf->vertex_count);
+    return this->leaf->verts.col(i);
+}
+
+template <unsigned N>
+Intersection<N>* DCTree<N>::intersection(unsigned a, unsigned b) const
+{
+    assert(MarchingTable<N>::e(a)[b] != -1);
+    if (MarchingTable<N>::e(a)[b] < 0)
+    {
+        return nullptr;
+    }
+    return intersection(MarchingTable<N>::e(a)[b]);
+}
+
+template <unsigned N>
+Intersection<N>* DCTree<N>::intersection(unsigned edge) const
+{
+    // A neighbour that was taken for all outside or all inside (it has no leaf) has no intersection on this edge to share, though this
+    // cell found a sign change on it: the two cells took the corner differently, as a field that is within the rounding of a float of 0
+    // there can do when the cells are worked on by several threads at once (with one thread the neighbour's corner is read, not found
+    // again).  The cell then finds the intersection itself, as it does where there is no neighbour.  (Found by a mesh part meshed on
+    // eight threads: it died here in eight runs of ten, with the old remap of a part as often as with a call.)
+    if (this->leaf == nullptr)
+    {
+        return nullptr;
+    }
+    return this->leaf->intersections[edge];
+}
+
+template <unsigned N>
+Interval::State DCTree<N>::cornerState(uint8_t i) const
+{
+    switch (this->type)
+    {
+        case Interval::AMBIGUOUS:
+            assert(this->leaf != nullptr);
+            return (this->leaf->corner_mask & (1 << i))
+                ? Interval::FILLED : Interval::EMPTY;
+
+        case Interval::UNKNOWN: assert(false);
+
+        case Interval::FILLED:  // fallthrough
+        case Interval::EMPTY:   assert(this->leaf == nullptr);
+                                return this->type;
+    };
+    return this->type;
+}
+
+template <unsigned N>
+bool DCTree<N>::isManifold() const
+{
+    assert(!this->isBranch());
+    switch (this->type)
+    {
+        case Interval::AMBIGUOUS:
+            assert(this->leaf != nullptr);
+            return this->leaf->manifold;
+
+        case Interval::UNKNOWN: assert(false);
+
+        case Interval::FILLED:  // fallthrough
+        case Interval::EMPTY:   assert(this->leaf == nullptr);
+                                return true;
+    };
+    return true;
+}
+
+template <unsigned N>
+uint8_t DCTree<N>::cornerMask() const
+{
+    assert(!this->isBranch());
+    switch (this->type)
+    {
+        case Interval::AMBIGUOUS:
+            assert(this->leaf != nullptr);
+            return this->leaf->corner_mask;
+
+        case Interval::UNKNOWN: assert(false);
+
+        case Interval::FILLED:  assert(this->leaf == nullptr);
+                                return ((1 << (1 << N)) - 1);
+        case Interval::EMPTY:   assert(this->leaf == nullptr);
+                                return 0;
+    };
+    return 0;
+}
+
+template <unsigned N>
+unsigned DCTree<N>::level() const
+{
+    assert(!this->isBranch());
+    switch (this->type)
+    {
+        case Interval::AMBIGUOUS:
+            assert(this->leaf != nullptr);
+            return this->leaf->level;
+
+        case Interval::UNKNOWN: assert(false);
+
+        case Interval::FILLED:  // fallthrough
+        case Interval::EMPTY:   assert(this->leaf == nullptr);
+                                return 0;
+    };
+    return 0;
+}
+
+template <unsigned N>
+unsigned DCTree<N>::rank() const
+{
+    assert(!this->isBranch());
+    switch (this->type)
+    {
+        case Interval::AMBIGUOUS:
+            assert(this->leaf != nullptr);
+            return this->leaf->rank;
+
+        case Interval::UNKNOWN: assert(false);
+
+        case Interval::FILLED:  // fallthrough
+        case Interval::EMPTY:   assert(this->leaf == nullptr);
+                                return 0;
+    };
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <unsigned N>
+std::array<unsigned, 2 * N> DCTree<N>::edgesFromChild(unsigned childIndex)
+{
+    std::array<unsigned, 2 * N> out;
+    for (unsigned i=0; i < N; ++i)
+    {
+        auto otherCorner = childIndex ^ (1 << i);
+        assert(MarchingTable<N>::e(childIndex)[otherCorner] >= 0);
+        assert(MarchingTable<N>::e(otherCorner)[childIndex] >= 0);
+        out[2 * i] = MarchingTable<N>::e(childIndex)[otherCorner];
+        out[2 * i + 1] = MarchingTable<N>::e(otherCorner)[childIndex];
+    }
+    return out;
+}
+
+template <unsigned N>
+void DCTree<N>::releaseTo(Pool& object_pool) {
+    if (this->leaf != nullptr) {
+        object_pool.next().put(this->leaf);
+        this->leaf = nullptr;
+    }
+    if (!isSingleton(this)) {
+        object_pool.put(this);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <unsigned N>
+bool DCTree<N>::checkConsistency() const
+{
+    return checkConsistency(DCNeighbors<N>());
+}
+
+template <unsigned N>
+bool DCTree<N>::checkConsistency(const DCNeighbors<N>& neighbors) const
+{
+    if (this->isBranch()) {
+        for (unsigned i=0; i < this->children.size(); ++i) {
+            auto next = neighbors.push(i, this->children);
+            if (!this->children[i].load()->checkConsistency(next)) {
+                return false;
+            }
+        }
+    } else {
+        for (unsigned i=0; i < this->children.size(); ++i) {
+            auto r = neighbors.checkConsistency(i, cornerState(i));
+            if (r.first != nullptr) {
+                std::cerr << "Mismatch detected:\n"
+                    << "  Tree A:\n"
+                    << "    [" << this->region.lower.transpose() << "]\n"
+                    << "    [" << this->region.upper.transpose() << "]\n"
+                    << "    type: " << this->type << "\n"
+                    << "    branch: "
+                        << (this->isBranch() ? "yes" : "no") << "\n"
+                    << "    rank: " << this->rank() << "\n"
+                    << "    corner " << i << " at ["
+                        << this->region.corner(i).transpose()
+                        << "]: " << cornerState(i) << "\n"
+                    << "  Tree B:\n"
+                    << "    [" << r.first->region.lower.transpose() << "]\n"
+                    << "    [" << r.first->region.upper.transpose() << "]\n"
+                    << "    type: " << r.first->type << "\n"
+                    << "    branch: "
+                        << (r.first->isBranch() ? "yes" : "no") << "\n"
+                    << "    rank: " << r.first->rank() << "\n"
+                    << "    corner " << r.second << " at ["
+                        << r.first->region.corner(r.second).transpose() << "]: "
+                        << r.first->cornerState(r.second) << "\n";
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+}   // namespace libfive

@@ -1,0 +1,112 @@
+/*
+libfive: a CAD kernel for modeling with implicit functions
+Copyright (C) 2018  Matt Keeter
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+#pragma once
+
+#include <unordered_map>
+
+#include <boost/bimap.hpp>
+
+#include "libfive/tree/tree.hpp"
+#include "libfive/eval/callee.hpp"
+#include "libfive/eval/clause.hpp"
+#include "libfive/oracle/oracle.hpp"
+
+namespace libfive {
+
+/*
+ *  A Deck is the top-level class that produces Tapes.  It includes
+ *  meta-data like the number of clauses, constant values, and variable,
+ *  mapping.
+ *
+ *  When evaluating, you should have one Deck per thread, because
+ *  Oracles are stored on a per-Deck basis.
+ *
+ *  The deck contains a list of constants and variables which are used
+ *  to construct Evaluators, and pointers to Oracles that are used during
+ *  evaluation.
+ */
+class Deck
+{
+public:
+    /*  `registry`: the callees of the tree this one is a part of (a Deck that is made from a callee is made with the registry of the Deck
+     *  that holds that callee); none for a Deck that is made from a tree of its own, which then owns the registry its callees are in */
+    Deck(const Tree& root, CalleeRegistry* registry = nullptr);
+
+    Deck(const Deck&)=delete;
+    Deck& operator=(const Deck& other)=delete;
+
+    /*  Indices of X, Y, Z coordinates */
+    Clause::Id X, Y, Z;
+
+    /*  Constants, unpacked from the tree at construction */
+    std::vector<std::pair<Clause::Id, float>> constants;
+
+    /*  Map of variables (in terms of where they live in this Evaluator) to
+     *  their ids in their respective Tree (e.g. what you get when calling
+     *  Tree::var().id() */
+    boost::bimap<Clause::Id, Tree::Id> vars;
+
+    /*  Oracles are also unpacked from the tree at construction, and
+     *  stored in this flat list.  The ORACLE opcode takes an index into
+     *  this list and an index into the results array. */
+    std::vector<std::unique_ptr<Oracle>> oracles;
+
+    /*  The fields that the tape calls, one for each tree that a call in the
+     *  tree calls (calls of the same tree share it).  Each CALL clause is a
+     *  call site, and has a number of its own: site(clause id).  Evaluators
+     *  use it to find the callee (calleeAt) and the tape that this site runs
+     *  its callee on under a given tape (Tape::callTape). */
+    std::vector<Callee*> callees;           // (not owned: the registry owns them)
+    std::vector<uint32_t> site_callee;
+    std::unordered_map<Clause::Id, uint32_t> site_of;
+
+    uint32_t site(Clause::Id call) const { return site_of.at(call); }
+    Callee& calleeAt(uint32_t site) const { return *callees[site_callee[site]]; }
+    size_t sites() const { return site_callee.size(); }
+
+    /*  The registry of the callees of this Deck and of the Decks of its callees; owned by the Deck that was made from a tree of its own */
+    std::unique_ptr<CalleeRegistry> own_registry;
+    CalleeRegistry* registry = nullptr;
+
+    /*  Stores the total number of clauses (including X/Y/Z, oracles,
+     *  variables, and constants, which aren't explicitly in the tape).
+     *  This is used by Evaluators to decide how many memory slots to allocate
+     *  for results during Tape evaluation. */
+    size_t num_clauses;
+
+    /*  This is the top-level tape associated with this Deck. */
+    std::shared_ptr<Tape> tape;
+
+    /*  Moves this tape into the spares bin, so it can be reused later */
+    void claim(std::shared_ptr<Tape>&& tape) {
+        spares.push_back(tape);
+    }
+
+    /*
+     *  Binds all oracles to the contexts in the given tape
+     */
+    void bindOracles(const Tape& tape);
+
+    /*
+     *  Unbinds all oracles, setting their contexts to null
+     */
+    void unbindOracles();
+
+protected:
+    /*  Temporary storage, used when pushing into a Tape  */
+    std::vector<uint8_t> disabled;
+    std::vector<Clause::Id> remap;
+
+    /*  We can keep spare tapes around, to avoid reallocating their data */
+    std::vector<std::shared_ptr<Tape>> spares;
+
+    friend class Tape;
+};
+
+} // namespace libfive
