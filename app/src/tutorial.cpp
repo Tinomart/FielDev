@@ -738,11 +738,6 @@ void Tutorial::buildSteps()
         }
         return out;
     };
-    // (the tree, and the tab of the properties that comes out of its right edge)
-    auto treeWithTab = [this, scene]() -> QVector<QRect> {
-        const QRect r = widgetRect(scene());
-        return r.isEmpty() ? QVector<QRect>() : QVector<QRect>{r.adjusted(0, 0, 34, 0)};
-    };
     // The model of the steps that work on a field: a plate, a point, a field made of the point -- how far every place is from it -- and the plate
     // grown by it (`linked`: by the field; else by 1)
     auto fieldModel = [](bool linked) {
@@ -816,16 +811,6 @@ void Tutorial::buildSteps()
         return true;
     };
 
-    // (the tree and the viewport together: a menu is opened from either)
-    auto bothAndScript = [this, scene, scriptWidget]() -> QVector<QRect> {
-        QVector<QRect> out;
-        for (QWidget* w : {static_cast<QWidget*>(scene()), static_cast<QWidget*>(m_view), scriptWidget()})
-        {
-            const QRect r = widgetRect(w);
-            if (!r.isEmpty()) out << r;
-        }
-        return out;
-    };
     auto both = [this, scene]() -> QVector<QRect> {
         QVector<QRect> out;
         for (QWidget* w : {static_cast<QWidget*>(scene()), static_cast<QWidget*>(m_view)})
@@ -871,9 +856,7 @@ void Tutorial::buildSteps()
     {
         Step s;
         s.title = T("Thank you for downloading FielDes");
-        s.text = T("FielDes stands for Field driven Design, which means that it wants you to design clean, organic geometry through the power of math. "
-                   "It is most useful for post processing steps like simulations or topology optimizations of imported CAD files or geometries you modelled directly "
-                   "in FielDes itself. The data from those steps creates fields that can directly improve your designs.")
+        s.text = T("FielDes stands for Field driven Design, which means that it wants you to design clean, organic geometry through the power of math.")
                  + "\n\n" + T("Happy designing, and I hope FielDes can make your workflows faster and more intuitive.")
                  + "\n\n" + "-Tino";
         s.hint = T("The guided tour is a few minutes. It starts again from Help ▸ Guided tour.");
@@ -1458,52 +1441,6 @@ void Tutorial::buildSteps()
         };
         add(s);
     }
-    // 18b: a lattice whose wall thickness is a field (a model of its own): what a field is for, made visible -- one line changes every cell
-    {
-        Step s;
-        s.title = T("A lattice that follows a field");
-        s.text = T("foam fills a block with a gyroid lattice, and the thickness of its walls is walls: a field, thin at the left and thick at the right. In the walls line, change the 2.6 to 3.5.");
-        s.hint = T("One line changes every cell: the lattice is made where the field says. A lattice takes a moment to draw. Or press Show me.");
-        s.code = linesWith("^(walls|foam) =");
-        s.holes = holesOf(scriptWidget);
-        s.focus = [this]() -> QRect { return scriptLineRect(std::max(0, scriptLine("walls ="))); };
-        s.point = [this] { const QRect r = scriptLineRect(std::max(0, scriptLine("walls ="))); return r.isEmpty() ? QPoint() : QPoint(r.right() - 20, r.center().y()); };
-        s.place = Right;
-        s.keys = true;
-        s.group = "field";
-        s.closeRows = true;
-        s.showView = true;
-        s.enter = [this, scene] {
-            while (auto m = QApplication::activePopupWidget()) m->close();
-            if (QAction* a = sectionAction()) a->setChecked(false);
-            // (resolution 7: at less the walls are visibly faceted, and the lattice is what this step is to show well)
-            useScript(tourHeader("[-30, -22, -8], [30, 22, 10]", 7) +
-                      "block = box((-24, -16, -5), (24, 16, 5))\n"
-                      "walls = ramp(x_field(), (-24, 24), (1.0, 2.6))\n"
-                      "foam = lattice(block, cell_periodic('gyroid'), cell_size=12, thickness=walls)\n"
-                      "foam");
-            scene()->clearSelection();
-        };
-        // (the call is changed, and is still whole: a half-typed number is not the step done)
-        s.done = [statementAt] {
-            const Statement st = statementAt("walls =");
-            QString flat = st.text;
-            flat.remove(QRegularExpression("\\s"));
-            return st.first >= 0 && flat.endsWith("))") && flat != "walls=ramp(x_field(),(-24,24),(1.0,2.6))";
-        };
-        s.doneNote = T("Nice. Every cell of the lattice follows the field.");
-        s.show = [this](std::function<void()> over) {
-            const int line = scriptLine("walls =");
-            if (line < 0) { over(); return; }
-            const QString text = m_editor->getScript().split('\n').value(line);
-            static const QRegularExpression re(R"(-?[\d.]+)");
-            QRegularExpressionMatch last;
-            for (auto m = re.globalMatch(text); m.hasNext();) last = m.next();
-            if (!last.hasMatch()) { over(); return; }
-            typeOver(line, last.capturedStart(), last.capturedEnd(), "3.5", over);
-        };
-        add(s);
-    }
     // 19: a reference: Ctrl+drag (what it is and why comes first)
     {
         Step s;
@@ -1973,109 +1910,6 @@ void Tutorial::buildSteps()
                 after(2000, [this, over] {
                     m_view->toggleSymmetry();
                     after(900, [this, over] { m_busy = false; hideCursor(); static_cast<TourLayer*>(m_layer)->cursorKey.clear(); over(); });
-                });
-            });
-        };
-        add(s);
-    }
-    // 26b: simulations and optimisations: what they are, shown running (a model of its own: a beam, held at one end and pulled at the other, being optimised)
-    {
-        Step s;
-        s.title = T("Simulations and optimization");
-        s.text = T("FielDes runs simulations -- static, modal, thermal, fluid -- and optimizations as lines of the script. Watch one: this beam is held at its left end and pulled down at the "
-                   "right, and the optimization takes away the material that carries nothing, one step after the other.")
-                 + "\n\n" + T("To learn how to set one up from scratch, open one of the examples: File ▸ Open example file.");
-        s.hint = T("The bar under the code shows the step it is at, and the picture follows. 05_static_analysis, 06_modal_analysis, 07_thermal_analysis, 08_topology_optimization and 16_fluid_flow show how.");
-        s.holes = bothAndScript;
-        s.cardNear = [this]() { return widgetRect(m_view); };
-        s.place = InsideBottomLeft;
-        s.group = "optimization";
-        s.closeRows = true;
-        s.enter = [this, scene] {
-            while (auto m = QApplication::activePopupWidget()) m->close();
-            useScript(tourHeader("[-5, -10, -10], [65, 30, 20]", 2) +
-                      "beam = box((0, 0, 0), (60, 20, 10))\n"
-                      "support = fixed(box((-1, -1, -1), (1, 21, 11)))\n"
-                      "load = force(box((59, -1, -1), (61, 21, 11)), (0, 0, -300))\n"
-                      "opt = topology_optimization(beam, supports=[support], loads=[load], material=steel, volume_fraction=0.4, element_size=2.5)\n"
-                      "opt");
-            scene()->clearSelection();
-            m_view->standardView(View::VIEW_ISO);
-        };
-        add(s);
-    }
-    // 27: the property tab of a result (a model of its own: one beam, held at one end and pulled at the other)
-    {
-        Step s;
-        s.title = T("Properties");
-        s.text = T("A result has more to give than its picture. Point at result: a tab comes out at the edge of the tree. Click it, then click a field -- von_mises, say.");
-        s.hint = T("The drawer lists the fields and the numbers of the result; the one you click is written under it as a model of its own: "
-                   "von_mises_1 = result.von_mises -- a field, which can be shown, sliced and used in other models. The tab is there once the analysis has run. Or press Show me.");
-        s.code = linesWith("^result\\b|^\\w+ = result\\.");
-        s.holes = [this, treeWithTab]() {
-            QVector<QRect> out = treeWithTab();
-            const QRect view = widgetRect(m_view);
-            if (!view.isEmpty()) out << view;           // (the simulation is drawn in the viewport: it is not dimmed)
-            return out;
-        };
-        s.cardNear = [this]() { return widgetRect(m_view); };
-        s.aim = aimRow({"result"});
-        s.place = InsideBottomLeft;
-        s.group = "properties";
-        s.closeRows = true;
-        s.enter = [this, scene] {
-            while (auto m = QApplication::activePopupWidget()) m->close();
-            useScript(tourHeader("[-5, -10, -10], [65, 30, 20]", 2) +
-                      "beam = box((0, 0, 0), (60, 20, 10))\n"
-                      "support = fixed(box((-1, -1, -1), (1, 21, 11)))\n"
-                      "load = force(box((59, -1, -1), (61, 21, 11)), (0, 0, -300))\n"
-                      "result = static_analysis(beam, supports=[support], loads=[load], material=steel, element_size=5)\n"
-                      "result");
-            scene()->clearSelection();
-            m_view->standardView(View::VIEW_ISO);                    // (the beam is framed by useScript)
-        };
-        s.done = [this] {
-            static const QRegularExpression re(R"(^\w+ = result\.\w+)", QRegularExpression::MultilineOption);
-            return re.match(m_editor->getScript()).hasMatch();
-        };
-        s.doneNote = T("Nice. It is a field like any other: shown, sliced, used in other models.");
-        s.show = [this, scene](std::function<void()> over) {
-            // (the mouse comes to the row of result: the tab comes out; the hand goes to it, and then to the field in the drawer)
-            const QRect row = scene()->visibleRowRect("result", m_window);
-            if (row.isEmpty()) { over(); return; }
-            QWidget* vp = scene()->treeViewport();
-            const QPoint rowPoint(row.left() + 80, row.center().y());
-            QPointer<QWidget> viewport(vp);
-            m_busy = true;
-            setCursor(rowPoint + QPoint(60, 40));
-            glide(m_cursor, rowPoint, 700, [=](QPoint wp) {
-                setCursor(wp);
-                if (viewport) sendMouse(viewport, QEvent::MouseMove, viewport->mapFrom(m_window, wp), Qt::NoButton, Qt::NoButton);
-            }, [=] {
-                after(350, [=] {
-                    QPointer<QWidget> tab = scene()->propertyTab();
-                    if (!tab || !tab->isVisible()) { m_busy = false; hideCursor(); over(); return; }
-                    const QPoint tabPoint = m_window->mapFromGlobal(tab->mapToGlobal(tab->rect().center()));
-                    glide(rowPoint, tabPoint, 500, [=](QPoint wp) { setCursor(wp); }, [=] {
-                        setCursor(tabPoint, true);
-                        if (!tab) { m_busy = false; hideCursor(); over(); return; }
-                        sendMouse(tab, QEvent::MouseButtonPress, tab->rect().center(), Qt::LeftButton, Qt::LeftButton);
-                        sendMouse(tab, QEvent::MouseButtonRelease, tab->rect().center(), Qt::LeftButton, Qt::NoButton);
-                        after(900, [=] {
-                            setCursor(tabPoint, false);
-                            QPointer<QPushButton> button = m_window->findChild<QPushButton*>("prop_von_mises");
-                            if (!button) { m_busy = false; hideCursor(); over(); return; }
-                            const QPoint target = m_window->mapFromGlobal(button->mapToGlobal(button->rect().center()));
-                            glide(tabPoint, target, 700, [=](QPoint wp) { setCursor(wp); }, [=] {
-                                setCursor(target, true);
-                                after(350, [=] {
-                                    if (button) button->click();
-                                    setCursor(target, false);
-                                    after(500, [=] { m_busy = false; hideCursor(); over(); });
-                                });
-                            });
-                        });
-                    });
                 });
             });
         };

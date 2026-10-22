@@ -39,35 +39,16 @@ QHash<QString, Kind>& kinds()
         {"field",      {"Field",        QColor("#82cc58")}},
         {"surface",    {"Surface",      QColor("#b583ee")}},
         {"point",      {"Point",        QColor("#f4b73a")}},
-        {"simulation", {"Simulation",   QColor("#ee6a5e")}},
-        {"material",   {"Material",     QColor("#c9a66b")}},
-        {"conditions", {"Conditions",   QColor("#e08f58")}},
-        {"cell",       {"Lattice cell", QColor("#d4b43c")}},
-        {"lattice",    {"Lattice",      QColor("#e0709c")}},
         {"points",     {"Point set",    QColor("#f0a24c")}},
         {"import",     {"Import",       QColor("#2aa198")}},
         {"symmetry",   {"Symmetry",     QColor("#d33682")}},
         {"block",      {"Custom block", QColor("#8da2c0")}},
         // (not kinds of model: the parts of the right-click menus that are not primitives)
         {"operation",  {"Operation",    QColor("#b9c4d0")}},
-        {"engineering", {"Engineering", QColor("#b9c4d0")}},
         {"shapes",     {"Parametric shape", QColor("#7aa2f0")}},
         {"python",     {"Python",       QColor("#6c71c4")}},
     };
     return k;
-}
-
-// The engineering domains: the colour of a simulation and the lighter one of what it is given (the same as fieldes/kinds.py says)
-struct Domain { QColor result, conditions; };
-
-QHash<QString, Domain>& domains()
-{
-    static QHash<QString, Domain> d = {
-        {"structural", {QColor("#ee6a5e"), QColor("#f4958c")}},
-        {"thermal",    {QColor("#f08c2a"), QColor("#f5b46e")}},
-        {"fluid",      {QColor("#6f86f2"), QColor("#a1b0f7")}},
-    };
-    return d;
 }
 
 QHash<QString, QIcon>& cache()
@@ -96,7 +77,7 @@ QColor alpha(QColor c, int a)
     return c;
 }
 
-void drawKind(QPainter& p, const QString& type, const QColor& c, const QString& domain)
+void drawKind(QPainter& p, const QString& type, const QColor& c)
 {
     if (type == "curve")
     {
@@ -154,146 +135,6 @@ void drawKind(QPainter& p, const QString& type, const QColor& c, const QString& 
         p.setBrush(c);
         p.drawEllipse(QPointF(8, 8), 2.7, 2.7);
     }
-    else if (type == "simulation" && domain == "thermal")
-    {
-        // a thermal result: a thermometer, its column filled
-        p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(Qt::NoBrush);
-        p.drawRoundedRect(QRectF(6.6, 1.8, 2.8, 8.8), 1.4, 1.4);
-        p.setPen(Qt::NoPen);
-        p.setBrush(c);
-        p.drawEllipse(QPointF(8, 11.7), 2.7, 2.7);
-        p.drawRoundedRect(QRectF(7.25, 5.6, 1.5, 6.0), 0.7, 0.7);
-        p.setPen(QPen(alpha(c, 210), 1.2, Qt::SolidLine, Qt::RoundCap));
-        for (double y : {3.6, 5.8, 8.0}) p.drawLine(QPointF(11.0, y), QPointF(12.8, y));
-    }
-    else if (type == "simulation" && domain == "fluid")
-    {
-        // a flow result: streamlines
-        p.setBrush(Qt::NoBrush);
-        for (int k = 0; k < 3; ++k)
-        {
-            const double y = 4.2 + k * 3.8;
-            QPainterPath path;
-            path.moveTo(1.6, y);
-            path.cubicTo(4.6, y - 2.6, 6.4, y + 2.6, 8.2, y);
-            path.cubicTo(10.0, y - 2.6, 11.8, y + 2.6, 14.4, y);
-            p.setPen(QPen(k == 1 ? c : alpha(c, 185), 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-            p.drawPath(path);
-        }
-    }
-    else if (type == "simulation" && domain == "manufacturing")
-    {
-        // a manufacturing result: the layers a part is built of, each a little further out than the one below
-        p.setPen(Qt::NoPen);
-        const double starts[4] = {4.4, 3.0, 5.2, 2.4};
-        const double widths[4] = {6.0, 8.6, 5.4, 9.6};
-        for (int i = 0; i < 4; ++i)
-        {
-            p.setBrush(i == 1 ? c : alpha(c, 175));
-            p.drawRoundedRect(QRectF(starts[i], 2.4 + i * 3.1, widths[i], 2.2), 0.8, 0.8);
-        }
-    }
-    else if (type == "simulation")
-    {
-        // a result: bars of a plot on a base line
-        p.setPen(Qt::NoPen);
-        const double heights[3] = {5.0, 9.5, 7.0};
-        for (int i = 0; i < 3; ++i)
-        {
-            p.setBrush(i == 1 ? c : alpha(c, 170));
-            p.drawRoundedRect(QRectF(2.6 + i * 4.2, 13 - heights[i], 3.2, heights[i]), 0.8, 0.8);
-        }
-        p.setPen(QPen(alpha(c, 220), 1.2, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(QPointF(1.8, 13.8), QPointF(14.2, 13.8));
-    }
-    else if (type == "material")
-    {
-        // what a part is made of: a block with the hatching of a section
-        p.setPen(QPen(c, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 50));
-        p.drawRoundedRect(QRectF(2.4, 3.2, 11.2, 9.6), 1.2, 1.2);
-        p.setPen(QPen(c, 1.1, Qt::SolidLine, Qt::RoundCap));
-        for (int k = 0; k < 3; ++k) p.drawLine(QPointF(3.6 + 3.2 * k, 12.0), QPointF(6.6 + 3.2 * k, 4.4));
-    }
-    else if (type == "conditions" && domain == "thermal")
-    {
-        // what a thermal analysis is given: heat rising from a surface
-        p.setBrush(Qt::NoBrush);
-        for (int k = 0; k < 3; ++k)
-        {
-            const double x = 4.2 + k * 3.8;
-            QPainterPath path;
-            path.moveTo(x, 12.0);
-            path.cubicTo(x - 2.2, 9.0, x + 2.2, 6.2, x, 2.6);
-            p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-            p.drawPath(path);
-        }
-        p.setPen(QPen(c, 2.0, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(QPointF(2.4, 14.0), QPointF(13.6, 14.0));
-    }
-    else if (type == "conditions" && domain == "fluid")
-    {
-        // what a flow analysis is given: a flow into a channel between two walls
-        p.setPen(QPen(alpha(c, 220), 1.8, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(QPointF(1.6, 3.0), QPointF(14.4, 3.0));
-        p.drawLine(QPointF(1.6, 13.0), QPointF(14.4, 13.0));
-        p.setPen(QPen(c, 1.6, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(QPointF(2.6, 8.0), QPointF(10.6, 8.0));
-        p.setPen(Qt::NoPen);
-        p.setBrush(c);
-        p.drawPolygon(QPolygonF({QPointF(9.6, 5.0), QPointF(14.0, 8.0), QPointF(9.6, 11.0)}));
-    }
-    else if (type == "conditions" && domain == "manufacturing")
-    {
-        // what a manufacturing check is given: a limit, a gauge with its ticks
-        p.setPen(QPen(c, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 60));
-        p.drawRoundedRect(QRectF(1.8, 5.2, 12.4, 5.6), 1.0, 1.0);
-        p.setPen(QPen(c, 1.2, Qt::SolidLine, Qt::RoundCap));
-        for (int k = 0; k < 4; ++k) p.drawLine(QPointF(4.2 + k * 2.6, 5.4), QPointF(4.2 + k * 2.6, k % 2 == 0 ? 8.6 : 7.4));
-    }
-    else if (type == "conditions")
-    {
-        // what an analysis is given: a load pressing down on a support
-        p.setPen(QPen(c, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.drawLine(QPointF(8, 2), QPointF(8, 9.2));
-        QPolygonF head({QPointF(4.8, 7.2), QPointF(11.2, 7.2), QPointF(8, 11)});
-        p.setBrush(c);
-        p.drawPolygon(head);
-        p.setPen(QPen(c, 2.0, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(QPointF(3, 13.4), QPointF(13, 13.4));
-    }
-    else if (type == "cell")
-    {
-        // a hexagonal cell
-        QPolygonF hex;
-        for (int k = 0; k < 6; ++k)
-        {
-            const double a = kPi / 3 * k + kPi / 6;
-            hex << QPointF(8 + 6.4 * std::cos(a), 8 + 6.4 * std::sin(a));
-        }
-        p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 60));
-        p.drawPolygon(hex);
-        p.setPen(Qt::NoPen);
-        p.setBrush(c);
-        p.drawEllipse(QPointF(8, 8), 1.6, 1.6);
-    }
-    else if (type == "lattice")
-    {
-        // a body filled with cells: a small cube of struts -- the edges and the diagonals of its faces
-        const QPointF v0(3.2, 4.4), v1(11.2, 4.4), v2(13.2, 2.4), v3(5.2, 2.4), v4(3.2, 12.4), v5(11.2, 12.4), v6(13.2, 10.4), v7(5.2, 10.4);
-        p.setPen(QPen(alpha(c, 200), 1.25, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.drawLine(v0, v1); p.drawLine(v1, v2); p.drawLine(v2, v3); p.drawLine(v3, v0);
-        p.drawLine(v4, v5); p.drawLine(v5, v6); p.drawLine(v6, v7); p.drawLine(v7, v4);
-        p.drawLine(v0, v4); p.drawLine(v1, v5); p.drawLine(v2, v6); p.drawLine(v3, v7);
-        p.setPen(QPen(c, 1.25, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(v0, v5); p.drawLine(v1, v6); p.drawLine(v7, v0);
-        p.setPen(Qt::NoPen);
-        p.setBrush(c);
-        for (const QPointF& n : {v0, v1, v4, v5}) p.drawEllipse(n, 1.5, 1.5);
-    }
     else if (type == "points")
     {
         // a set of points: a scatter
@@ -329,19 +170,6 @@ void drawKind(QPainter& p, const QString& type, const QColor& c, const QString& 
         QPolygonF right;
         right << QPointF(13.8, 4.0) << QPointF(9.6, 8.0) << QPointF(13.8, 12.0);
         p.drawPolygon(right);
-    }
-    else if (type == "engineering")
-    {
-        // what is worked out about a model: a truss, three bars and their joints
-        p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 45));
-        p.drawPolygon(QPolygonF({QPointF(2.0, 13.2), QPointF(8.0, 2.8), QPointF(14.0, 13.2)}));
-        p.setBrush(Qt::NoBrush);
-        p.drawLine(QPointF(5.0, 8.0), QPointF(11.0, 8.0));
-        p.drawLine(QPointF(8.0, 8.0), QPointF(8.0, 13.2));
-        p.setPen(Qt::NoPen);
-        p.setBrush(c);
-        for (const QPointF& n : {QPointF(2.0, 13.2), QPointF(8.0, 2.8), QPointF(14.0, 13.2), QPointF(8.0, 8.0)}) p.drawEllipse(n, 1.5, 1.5);
     }
     else if (type == "operation")
     {
@@ -431,13 +259,8 @@ void drawBlockMark(QPainter& p)
 
 }   // anonymous namespace
 
-QColor color(const QString& type, const QString& domain)
+QColor color(const QString& type)
 {
-    if (!domain.isEmpty() && (type == "simulation" || type == "conditions"))
-    {
-        auto d = domains().constFind(domain);
-        if (d != domains().constEnd()) return type == "simulation" ? d->result : d->conditions;
-    }
     auto it = kinds().constFind(type);
     return it == kinds().constEnd() ? kinds()["solid"].color : it->color;
 }
@@ -448,34 +271,18 @@ QString label(const QString& type)
     return it == kinds().constEnd() ? type : T(it->label);
 }
 
-QIcon icon(const QString& type, bool block, const QString& domain)
+QIcon icon(const QString& type, bool block)
 {
-    // (only a simulation and what an analysis is given have a picture of their domain)
-    const QString d = (type == "simulation" || type == "conditions") ? domain : QString();
-    const QString key = type + (block ? "+block" : "") + (d.isEmpty() ? QString() : "@" + d);
+    const QString key = type + (block ? "+block" : "");
     auto it = cache().constFind(key);
     if (it != cache().constEnd()) return *it;
-    const QColor c = color(type, d);
+    const QColor c = color(type);
     QIcon made = draw([&](QPainter& p) {
-        drawKind(p, type, c, d);
+        drawKind(p, type, c);
         if (block) drawBlockMark(p);
     });
     cache().insert(key, made);
     return made;
-}
-
-void setDomains(const QJsonObject& given)
-{
-    bool changed = false;
-    for (auto it = given.constBegin(); it != given.constEnd(); ++it)
-    {
-        const QJsonObject o = it.value().toObject();
-        Domain& d = domains()[it.key()];
-        const QColor r(o["color"].toString()), c(o["conditions"].toString());
-        if (r.isValid() && r != d.result) { d.result = r; changed = true; }
-        if (c.isValid() && c != d.conditions) { d.conditions = c; changed = true; }
-    }
-    if (changed) cache().clear();
 }
 
 void setKinds(const QJsonObject& given)
