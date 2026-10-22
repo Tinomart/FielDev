@@ -20,6 +20,7 @@ from fieldes.ffi import lib, libfive_interval_t, libfive_region_t
 from fieldes.shape import Shape
 from fieldes.stdlib import meshfiles
 from fieldes.stdlib.materials import Material
+from fieldes.stdlib.rigging import Joint
 
 __all__ = ['export_mesh', 'export_field']
 
@@ -347,6 +348,92 @@ def _box_uvs(xyz, tri, size):
     return out_xyz, out_tri, uv
 
 
+_SKIN_FORMATS = ('.glb', '.gltf')                       # (the formats that carry a skeleton and the weights of a skin)
+
+
+def _check_skeleton(skeleton):
+    ''' The list of joints, checked: each has its own name, hangs from one that comes before it, and there is one root '''
+    joints = list(skeleton) if isinstance(skeleton, (list, tuple)) else [skeleton]
+    if not joints:
+        raise ValueError('export_mesh: a skeleton has joints')
+    if len(joints) > 255:
+        raise ValueError('export_mesh: a skeleton has at most 255 joints, not {}'.format(len(joints)))
+    seen = set()
+    for j in joints:
+        if not isinstance(j, Joint):
+            raise TypeError('export_mesh: skeleton is a list of joint(...), not {!r}'.format(type(j).__name__))
+        if j.name in seen:
+            raise ValueError('export_mesh: two joints are called {!r}'.format(j.name))
+        if j.parent is not None and j.parent not in seen:
+            raise ValueError('export_mesh: the joint {!r} hangs from {!r}, which is not a joint made before it'.format(j.name, j.parent))
+        seen.add(j.name)
+    roots = [j.name for j in joints if j.parent is None]
+    if len(roots) != 1:
+        raise ValueError('export_mesh: a skeleton has one root, a joint with no parent -- not {}: {}'.format(len(roots), ', '.join(roots) or 'none'))
+    return joints
+
+
+def _skin_weights(xyz, joints, falloff):
+    ''' For every vertex the four joints that move it and how much: (joint numbers, a B array of 4 for each vertex; weights, an f array of 4 for each).
+        The bones: a joint has a bone to each of its children, and a joint with none has one to its tip (given, or the bone before it gone on for half its length).  A vertex
+        belongs to the NEAREST bone, and so to the joint that bone is of.  Near the two ends of the bone it is shared with the joints beside it -- the parent of the joint at the
+        start, the child at the end: half at the very joint, less and less over `falloff` mm along the bone, none beyond -- so that a joint bends smoothly and a bone that
+        is merely near (the other leg) never moves a vertex.  `falloff` is in mm; None: 4 % of the largest side of the model '''
+    nv = len(xyz) // 3
+    if falloff is None:
+        falloff = 0.04 * (max(max(xyz[c::3]) - min(xyz[c::3]) for c in range(3)) or 1.0)
+    falloff = float(falloff)
+    if not falloff > 0:
+        raise ValueError('export_mesh: skin_falloff is above 0 mm, not {!r}'.format(falloff))
+    number = {j.name: k for k, j in enumerate(joints)}
+    children = {}
+    for k, j in enumerate(joints):
+        if j.parent is not None:
+            children.setdefault(j.parent, []).append(k)
+    bones = []                      # (the joint it is of, its start, the vector to its end, the square of its length, the joint at its end (None: a tip))
+    for k, j in enumerate(joints):
+        a = j.position
+        if children.get(j.name):
+            ends = [(joints[c].position, c) for c in children[j.name]]
+        elif j.tip is not None:
+            ends = [(j.tip, None)]
+        elif j.parent is not None:
+            before = joints[number[j.parent]].position
+            ends = [(tuple(a[c] + 0.5 * (a[c] - before[c]) for c in range(3)), None)]
+        else:
+            ends = [(a, None)]
+        for b, c in ends:
+            v = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            bones.append((k, a, v, v[0] * v[0] + v[1] * v[1] + v[2] * v[2], c))
+    ids = array('B', [0]) * (4 * nv)
+    weights = array('f', [0.0]) * (4 * nv)
+    for i in range(nv):
+        px, py, pz = xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]
+        nearest = None
+        for k, a, v, l2, c in bones:
+            dx, dy, dz = px - a[0], py - a[1], pz - a[2]
+            t = (dx * v[0] + dy * v[1] + dz * v[2]) / l2 if l2 > 0 else 0.0
+            t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+            ex, ey, ez = dx - t * v[0], dy - t * v[1], dz - t * v[2]
+            d2 = ex * ex + ey * ey + ez * ez
+            if nearest is None or d2 < nearest[0]:
+                nearest = (d2, k, t, l2, c)
+        d2, k, t, l2, c = nearest
+        length = math.sqrt(l2)
+        at_start = 0.5 * max(0.0, 1.0 - t * length / falloff) if joints[k].parent is not None else 0.0
+        at_end = 0.5 * max(0.0, 1.0 - (1.0 - t) * length / falloff) if c is not None else 0.0
+        shares = [(1.0 - at_start - at_end, k)]
+        if at_start > 0.0:
+            shares.append((at_start, number[joints[k].parent]))
+        if at_end > 0.0:
+            shares.append((at_end, c))
+        shares.sort(key=lambda s: -s[0])
+        for slot, (w, joint_number) in enumerate(shares[:4]):
+            ids[4 * i + slot] = joint_number
+            weights[4 * i + slot] = w
+    return ids, weights
+
+
 def _triangle_materials(xyz, tri, materials):
     ''' (the list of materials, the number of the material of each triangle: the last whose `where` is negative at the middle of the triangle, -1 for none) '''
     materials = list(materials) if isinstance(materials, (list, tuple)) else [materials]
@@ -407,7 +494,7 @@ def _half_of(symmetric):
     return 'xyz'.index(text), float(plane), sign
 
 
-def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None):
+def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None):
     ''' Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
             .stl (binary; ascii=True for text), .obj, .ply, .3mf, .glb, .gltf, .fbx (Autodesk FBX, ASCII 7.4: see fbx.py), .off, .dxf (3DFACE)
@@ -431,6 +518,9 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
                     texture is not mirrored on the back faces; the vertices on a seam are made again for each side of it.  The texture fits each side once (the
                     largest side of the model is 0 to 1), or ("box", 500) repeats it every 500 mm of the model, going on from one surface to the next (world-scaled
                     tiling).  .obj (vt), .ply (s, t), .glb, .gltf (TEXCOORD_0).  The images are the `texture=` of the materials
+        skeleton    a list of `joint(...)`s (see rigging.py), one root, each after its parent: written as the nodes and the skin of a glTF, with the four joints that
+                    move each vertex and their weights (JOINTS_0, WEIGHTS_0) made from the distance of the vertex to the bones.  .glb, .gltf
+        skin_falloff  how far, in mm, a bone can be behind the nearest one and still move a vertex (the width of the blend at a joint); None: 4 % of the model
 
         Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
         (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path. '''
@@ -447,6 +537,9 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
     uv_size = _uv_spec(uvs)
     if uv_size is not False and ext not in _UV_FORMATS:
         raise ValueError('export_mesh: texture coordinates are written in {} files, not {}'.format(', '.join(_UV_FORMATS), ext))
+    if skeleton is not None and ext not in _SKIN_FORMATS:
+        raise ValueError('export_mesh: a skeleton is written in {} files, not {}'.format(', '.join(_SKIN_FORMATS), ext))
+    joints = _check_skeleton(skeleton) if skeleton is not None else None
     if max_triangles is not None and int(max_triangles) < 4:
         raise ValueError('export_mesh: max_triangles={!r} -- a closed surface has at least four'.format(max_triangles))
     from fieldes.stdlib.fields import _shape_bounds
@@ -466,11 +559,15 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
     if materials:
         materials, tri_material = _triangle_materials(xyz, tri, materials)
     vertex_colors = _vertex_colors(xyz, colors) if colors is not None else None
+    skin = None
+    if joints is not None:
+        ids, weights = _skin_weights(xyz, joints, skin_falloff)
+        skin = (joints, ids, weights)
     xyz = _convert(xyz, units, up)
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
     note = '%s%s' % (_UNIT_NAMES[units], ', Y up' if up == 'y' else '')
-    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note, materials=materials or None, tri_material=tri_material, colors=vertex_colors, uvs=uv)
+    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note, materials=materials or None, tri_material=tri_material, colors=vertex_colors, uvs=uv, skin=skin)
     return path
 
 

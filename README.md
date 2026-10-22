@@ -35,7 +35,7 @@ the viewport. **A mesh is only ever the output**: the field is the model.
 
 New here? A welcome card offers a **guided tour** the first time FielDes starts (**Help → Guided tour** any time after): short cards over the
 program itself that point at what they talk about and let you try it. The [tutorial](docs/tutorial.md) is the written version.
-**File → Open example file** has 17 scripts (`00_START_HERE.py` says where everything is); the [examples README](examples/README.md) lists them.
+**File → Open example file** has 18 scripts (`00_START_HERE.py` says where everything is); the [examples README](examples/README.md) lists them.
 
 ## What it does
 
@@ -111,6 +111,7 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [`33_character.py`](examples/33_character.py) | A character from points: limbs that taper between joints (`chain`, `round_cone`), blended into one body, the other half made by a mirror |
 | [`34_materials.py`](examples/34_materials.py) | Materials by region (a body or a field) and vertex colours from fields, written as OBJ + MTL, glTF and PLY — each checked by reading the files back |
 | [`35_uvs.py`](examples/35_uvs.py) | Texture coordinates by the box projection, fitted or world-scaled, with the seams made, and the image of a material — OBJ, glTF and PLY, checked by reading them back |
+| [`36_skeleton.py`](examples/36_skeleton.py) | A skeleton of joints (`joint`, `mirror_joints`) and the skin weights of the mesh, written as a rigged glTF — nodes, inverse bind matrices, `JOINTS_0` and `WEIGHTS_0`, checked by reading the file back |
 
 ## Documentation
 

@@ -49,6 +49,13 @@ one while you drag it. For a mesh that is symmetric to the last bit -- for a gam
 own symmetry instead: `export_mesh(body, "hero.glb", symmetric="x")` cuts the half exactly at x = 0 and mirrors it, with no seam
 (see [Units, axes, a budget of triangles, symmetry](meshes.md#units-axes-a-budget-of-triangles-symmetry)).
 
+## The skeleton
+
+A character is rigged with `joint(...)`s -- the same points the limbs are made of can be the joints -- and `export_mesh(body, "hero.glb", skeleton=bones)` writes
+them with the skin weights for a game engine: see [Skeleton and skin weights](meshes.md#skeleton-and-skin-weights-gltf). `mirror_joints` makes the left side of a
+skeleton from the right, as `symmetric_x` makes the left half of the body.
+[`examples/36_skeleton.py`](../examples/36_skeleton.py) does it for the figure of example 33.
+
 ## Menus
 
 In the viewport's menu of empty space the shapes the library makes of points are under **Parametric shapes**; select points first and the entry is made

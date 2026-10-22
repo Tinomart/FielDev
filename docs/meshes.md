@@ -139,6 +139,31 @@ export_mesh(wall, "wall.obj", uvs=("box", 500))                                 
 
 [`examples/35_uvs.py`](../examples/35_uvs.py) checks it by reading the files back: the areas in the texture against the areas in space, the seams, the tiling.
 
+### Skeleton and skin weights (glTF)
+
+```python
+hips = joint("hips", (0, 0, 92))
+spine = joint("spine", (0, 0, 106), parent="hips")
+shoulder = joint("shoulder.R", shoulder_point, parent="spine")            # a point works: the numbers it has when the file is written
+bones = mirror_joints([hips, spine, shoulder, joint("hand.R", (37, 8, 92), parent="shoulder.R")])   # a ".L" joint for every ".R" one
+export_mesh(hero, "hero.glb", skeleton=bones)                              # skin_falloff=8 for a wider blend at the joints
+```
+
+- **`joint(name, position, parent, tip)`** is a joint: where it is (a point or `(x, y, z)`), and the name of the joint it hangs from. The joints of a skeleton
+  are listed in order, every joint after its parent, and there is **one root**. A joint with no children has a bone to its `tip`, given or the bone before it
+  gone on for half its length (the hand goes on past the wrist). **`mirror_joints(joints)`** adds a `.L` joint, across x = 0 (`axis=`, `plane=` and `suffixes=`
+  change that), for every `.R` one.
+- **What is written** (`.glb`, `.gltf` only): the joints as nodes of the glTF, each a translation from its parent in metres with Y up; the skin with the
+  inverse bind matrices; and for every vertex the four joints that move it and their weights (`JOINTS_0`, `WEIGHTS_0`), each set adding up to 1.
+- **The weights** come from the bones: a joint has a bone to each of its children (the geometry between the elbow and the hand follows the elbow, as it does when
+  the elbow is turned). A vertex belongs to the **nearest bone**, and so to its joint; near the two ends of the bone it is shared with the joint beside it --
+  the parent at the start, the child at the end -- half at the very joint, less and less over `skin_falloff` millimetres along the bone (4 % of the model by
+  default), none beyond. A bone that is only *near* -- the other leg -- never moves a vertex.
+- It can be written with the materials, the colours and the texture coordinates in the same file.
+
+[`examples/36_skeleton.py`](../examples/36_skeleton.py) reads the file back and checks the nodes and the hierarchy, the inverse bind matrices, that the tip of the
+hand, the head, the forearms, the shin and the foot are moved by their joints, that no joint of the left half moves a vertex of the right, and the refusals.
+
 **FBX is a proprietary format** of Autodesk, whose SDK is available under its own licence and whose files have no published specification. FielDes
 reads and writes FBX **without the Autodesk SDK**, from the structure of the files as the community documents it (the node tree, the property types,
 the objects and their connections), and handles **meshes only**: geometry, the transform of the models that hold it, the scene's unit and up axis -- no

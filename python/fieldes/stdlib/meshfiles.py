@@ -297,7 +297,12 @@ def _gltf_material(m, texture=None):
     return out
 
 
-def _gltf_document(xyz, tri, name, materials=None, tri_material=None, colors=None, uvs=None):
+def _gltf_point(p):
+    ''' A place of the model (mm, Z up) as glTF has it: metres, Y up (x, z, -y) '''
+    return (p[0] * 0.001, p[2] * 0.001, -p[1] * 0.001)
+
+
+def _gltf_document(xyz, tri, name, materials=None, tri_material=None, colors=None, uvs=None, skin=None):
     ''' (the glTF document, its binary buffer).  The positions are in metres with Y up (x, z, -y: FielDes's Z up turned the way mesh_import turns glTF back); a primitive of
         the mesh for each material (the whole mesh in one when there are none), and the vertex colours as COLOR_0 '''
     pos = array('f')
@@ -324,6 +329,14 @@ def _gltf_document(xyz, tri, name, materials=None, tri_material=None, colors=Non
         accessors.append({'bufferView': len(views) - 1, 'componentType': 5126, 'count': nv, 'type': 'VEC2'})
         attributes['TEXCOORD_0'] = len(accessors) - 1
         binary += data
+    if skin is not None:
+        joints, ids, weights = skin                 # (the joints, and for every vertex the four that move it and how much: ids a B array, weights an f array)
+        for key, values, kind, component in (('JOINTS_0', ids, 'VEC4', 5121), ('WEIGHTS_0', weights, 'VEC4', 5126)):
+            data = _little(values)
+            views.append({'buffer': 0, 'byteOffset': len(binary), 'byteLength': len(data), 'target': 34962})
+            accessors.append({'bufferView': len(views) - 1, 'componentType': component, 'count': nv, 'type': kind})
+            attributes[key] = len(accessors) - 1
+            binary += data
     primitives = []
     for k, group in _by_material(tri, tri_material):
         data = _little(group)
@@ -334,16 +347,44 @@ def _gltf_document(xyz, tri, name, materials=None, tri_material=None, colors=Non
             primitive['material'] = k
         primitives.append(primitive)
         binary += data
+    nodes = [{'mesh': 0, 'name': _clean_name(name)}]
+    scene = [0]
+    skins = None
+    if skin is not None:
+        # The joints are nodes with no turn, each a translation from its parent: the pose of the mesh is the bind pose, and the inverse bind matrix of a joint is the
+        # translation back from where it is
+        where = {j.name: _gltf_point(j.position) for j in joints}
+        number = {j.name: k + 1 for k, j in enumerate(joints)}
+        matrices = array('f')
+        for j in joints:
+            here = where[j.name]
+            origin = where[j.parent] if j.parent is not None else (0.0, 0.0, 0.0)
+            node = {'name': j.name, 'translation': [here[c] - origin[c] for c in range(3)]}
+            children = [number[c.name] for c in joints if c.parent == j.name]
+            if children:
+                node['children'] = children
+            nodes.append(node)
+            matrices.extend((1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -here[0], -here[1], -here[2], 1.0))
+        data = _little(matrices)
+        views.append({'buffer': 0, 'byteOffset': len(binary), 'byteLength': len(data)})
+        accessors.append({'bufferView': len(views) - 1, 'componentType': 5126, 'count': len(joints), 'type': 'MAT4'})
+        binary += data
+        root = next(k + 1 for k, j in enumerate(joints) if j.parent is None)
+        nodes[0]['skin'] = 0
+        scene.append(root)
+        skins = [{'inverseBindMatrices': len(accessors) - 1, 'joints': list(range(1, len(joints) + 1)), 'skeleton': root}]
     doc = {
         'asset': {'version': '2.0', 'generator': 'FielDes'},
         'scene': 0,
-        'scenes': [{'nodes': [0]}],
-        'nodes': [{'mesh': 0, 'name': _clean_name(name)}],
+        'scenes': [{'nodes': scene}],
+        'nodes': nodes,
         'meshes': [{'name': _clean_name(name), 'primitives': primitives}],
         'accessors': accessors,
         'bufferViews': views,
         'buffers': [{'byteLength': len(binary)}],
     }
+    if skins:
+        doc['skins'] = skins
     if materials:
         images, made = [], []
         for m in materials:
@@ -357,8 +398,8 @@ def _gltf_document(xyz, tri, name, materials=None, tri_material=None, colors=Non
     return doc, binary
 
 
-def write_glb(path, xyz, tri, name='fieldes', materials=None, tri_material=None, colors=None, uvs=None):
-    doc, binary = _gltf_document(xyz, tri, name, materials, tri_material, colors, uvs)
+def write_glb(path, xyz, tri, name='fieldes', materials=None, tri_material=None, colors=None, uvs=None, skin=None):
+    doc, binary = _gltf_document(xyz, tri, name, materials, tri_material, colors, uvs, skin)
     text = json.dumps(doc, separators=(',', ':')).encode('utf-8')
     text += b' ' * (-len(text) % 4)
     binary += b'\0' * (-len(binary) % 4)
@@ -371,8 +412,8 @@ def write_glb(path, xyz, tri, name='fieldes', materials=None, tri_material=None,
         f.write(binary)
 
 
-def write_gltf(path, xyz, tri, name='fieldes', materials=None, tri_material=None, colors=None, uvs=None):
-    doc, binary = _gltf_document(xyz, tri, name, materials, tri_material, colors, uvs)
+def write_gltf(path, xyz, tri, name='fieldes', materials=None, tri_material=None, colors=None, uvs=None, skin=None):
+    doc, binary = _gltf_document(xyz, tri, name, materials, tri_material, colors, uvs, skin)
     doc['buffers'][0]['uri'] = 'data:application/octet-stream;base64,' + base64.b64encode(binary).decode('ascii')
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(doc, f, separators=(',', ':'))
@@ -532,7 +573,7 @@ def read_dxf(path):
 
 # ---------------------------------------------------------------------------
 
-def write_mesh(path, xyz, tri, name=None, ascii=False, note='millimetres', materials=None, tri_material=None, colors=None, uvs=None):
+def write_mesh(path, xyz, tri, name=None, ascii=False, note='millimetres', materials=None, tri_material=None, colors=None, uvs=None, skin=None):
     ''' Writes a mesh in the format of the file's extension (see the top of this file).  `note` is what the comment of an OBJ or a PLY says of the numbers
         ("millimetres", "metres, Y up"): the unit and the axes are the caller's to say in the formats that have none of their own '''
     path = os.fspath(path)
@@ -549,9 +590,9 @@ def write_mesh(path, xyz, tri, name=None, ascii=False, note='millimetres', mater
     elif ext == '.3mf':
         write_3mf(path, xyz, tri, name)
     elif ext == '.glb':
-        write_glb(path, xyz, tri, name, materials, tri_material, colors, uvs)
+        write_glb(path, xyz, tri, name, materials, tri_material, colors, uvs, skin)
     elif ext == '.gltf':
-        write_gltf(path, xyz, tri, name, materials, tri_material, colors, uvs)
+        write_gltf(path, xyz, tri, name, materials, tri_material, colors, uvs, skin)
     elif ext == '.off':
         write_off(path, xyz, tri, name)
     elif ext == '.dxf':

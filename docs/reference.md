@@ -3,7 +3,7 @@
 Every public function and class of the FielDes library, generated from its docstrings
 (`python scripts/gen_reference.py`).  `from fieldes import *` brings all of them in.
 
-Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Materials of an export](#materials-of-an-export) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: limbs made of points](#characters-limbs-made-of-points) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDes apps: the inputs of a script](#fieldes-apps-the-inputs-of-a-script)
+Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Materials of an export](#materials-of-an-export) | [Skeletons of an export](#skeletons-of-an-export) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: limbs made of points](#characters-limbs-made-of-points) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDes apps: the inputs of a script](#fieldes-apps-the-inputs-of-a-script)
 
 ## Primitive shapes
 
@@ -533,6 +533,46 @@ texture    the file name of an image (a path relative to the mesh file, "skin.pn
 
 The materials of an export are layers: each triangle takes the LAST one that covers it, so the base material (no `where`) goes first.
 
+## Skeletons of an export
+
+Rigging: a skeleton of joints for the glTF that a game engine animates.
+
+    hips = joint("hips", (0, 0, 92))
+    spine = joint("spine", (0, 0, 128), parent="hips")
+    shoulder = joint("shoulder.R", shoulder_point, parent="spine")           # a point works: its numbers at the time of the export
+    elbow = joint("elbow.R", (31, 0, 113), parent="shoulder.R")
+    bones = mirror_joints([hips, spine, shoulder, elbow])                    # every ".R" joint gets a ".L" one on the other side of x = 0
+    export_mesh(figure, "hero.glb", skeleton=bones)
+
+The joints are in the order they are given, every joint after its parent, and there is ONE root.  The export writes them as the nodes of the glTF, with the
+skin (the inverse bind matrices) and, for every vertex, the four joints that move it and how much (JOINTS_0 and WEIGHTS_0): the weights come from the
+distance of the vertex to the bones.  The bone of a joint is the segments from it to its children (and the joint itself): the geometry between the elbow and
+the hand follows the elbow, as it does when the elbow is turned.  A vertex follows the nearest bone alone, and shares itself with the others that are about as near
+-- within `skin_falloff` -- so that a joint bends smoothly.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this file,
+You can obtain one at http://mozilla.org/MPL/2.0/.
+
+### `Joint`
+
+A joint of a skeleton: see `joint`
+
+### `joint(name, position, parent=None, tip=None)`
+
+A joint of a skeleton for `export_mesh(..., skeleton=[...])`.
+
+name      what the file calls it (a text: "elbow.R"; each joint of a skeleton has its own)
+position  where it is in the model: a point (the numbers it has when the file is written) or (x, y, z)
+parent    the name of the joint it hangs from, a joint that was made before it; None for the root, which there is one of
+tip       where the bone of a joint with no children ends -- the hand, the head, the toe: a point or (x, y, z).  Not given: the bone goes on in the
+          direction of the one before it for half its length (the hand goes on past the wrist), so that the end of the body has a bone of its own
+
+### `mirror_joints(joints, axis='x', plane=0.0, suffixes=('.R', '.L'))`
+
+The joints and the mirror images of those whose name ends with `suffixes[0]`: across the plane `axis` = `plane` ("x", "y" or "z"), named with `suffixes[1]`
+instead, hanging from the mirror image of their parent when it has one and from their parent otherwise.  The skeleton of a half of a body is the skeleton of all of it
+
 ## Exporting files
 
 Exporting: a body as a mesh file, a field sampled on a grid.
@@ -559,7 +599,7 @@ resolution  samples per mm (the scene's resolution by default, limited to 2 mill
 
 A field is not a mesh: this is the sampling of it that other programs work with, at the resolution asked for.  Returns the path.
 
-### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None)`
+### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None)`
 
 Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
@@ -584,6 +624,9 @@ uvs         "box": texture coordinates by the box projection -- each triangle is
             texture is not mirrored on the back faces; the vertices on a seam are made again for each side of it.  The texture fits each side once (the
             largest side of the model is 0 to 1), or ("box", 500) repeats it every 500 mm of the model, going on from one surface to the next (world-scaled
             tiling).  .obj (vt), .ply (s, t), .glb, .gltf (TEXCOORD_0).  The images are the `texture=` of the materials
+skeleton    a list of `joint(...)`s (see rigging.py), one root, each after its parent: written as the nodes and the skin of a glTF, with the four joints that
+            move each vertex and their weights (JOINTS_0, WEIGHTS_0) made from the distance of the vertex to the bones.  .glb, .gltf
+skin_falloff  how far, in mm, a bone can be behind the nearest one and still move a vertex (the width of the blend at a joint); None: 4 % of the model
 
 Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
 (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path.
