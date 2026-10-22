@@ -2106,7 +2106,7 @@ Ensures that the input argument is a Shape, converting constants
 
 ### `field_shape(ptr)`
 
-A field a solver calculated (a stress, a temperature, a speed, a density ...), made from the tree `ptr`: a FIELD, not a body -- a value at
+A field made from the tree `ptr`: a FIELD, not a body -- a value at
 every point of space, which is not drawn, is not a part, and has an icon (that opens the field viewer) when it is displayed
 
 ### `shape(f)`
@@ -2235,7 +2235,7 @@ such key.)
 ### `value_key(v)`
 
 A hashable key for an argument, by its content: numbers (every bit), text, sequences, shapes (by
-their expression), and the library's own small objects (a material, a support, a load: by their
+their expression), and the library's own small objects (by their
 fields).  Raises Uncacheable for anything else
 
 ## Keeping rendered meshes (render cache)
