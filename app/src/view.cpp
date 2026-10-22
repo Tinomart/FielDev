@@ -4862,8 +4862,7 @@ void View::drawSlicePlane(const QMatrix4x4& m, Plane& plane, const SectionSettin
         glUniform1f(Shader::slice->uniformLocation("color_hi"), plane.slice.colorHi);
     }
     glUniform1i(Shader::slice->uniformLocation("color_mode"), colorMode);
-    if (deformed) glDrawArrays(GL_TRIANGLES, 0, plane.gridVerts);
-    else glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     if (plane.colorTex) plane.colorTex->release(1);
     if (plane.lutTex) plane.lutTex->release(2);
     glActiveTexture(GL_TEXTURE0);
