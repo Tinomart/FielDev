@@ -2,18 +2,8 @@
 
 ## Running FielDes
 
-**Installer (Windows x64).** Run `FielDes-<version>-windows-x64-setup.exe`: it asks for the language and the folder, installs for your user (no administrator rights) and starts FielDes when
-you click Finish.
-
-**Portable folder (Windows x64).** Unzip it anywhere and run `FielDes.exe`. The folder contains the
-application, its libraries (Qt and the Visual C++ runtime too), a private Python runtime, the Python library, the examples and these
-documents -- **nothing else has to be installed**. Nothing is written outside your user settings and the cache files
-next to the STEP files you import.
-
-**Linux.** `sh FielDes-<version>-linux-x64-installer.run` (or the `.deb`, or the `.tar.gz` unpacked and run): the same, with Qt, Python and
-the libraries inside. See [Building](building.md) for how they are made and what is tried.
-
-**From source.** See [Building from source](building.md).
+FielDev has **no release and no installer yet**: build it from source (see [Building from source](building.md)) and run `FielDes` from the build
+folder -- the program keeps the name FielDes until the rename.
 
 FielDes always opens maximised, so the model has the room. The first time, a card offers the **guided tour** (about two
 minutes, on the program itself; every step and the whole tour can be skipped, and a skipped tour says where it is found again: **Help → Guided tour**; the
@@ -29,7 +19,7 @@ remembered.
 │  editor (the script)     │  viewport                                      │
 │                          │   ┌ model tree ┐            ┌ section ┐ triad  │
 │                          │   └────────────┘            └─────────┘        │
-│                          │                     ┌ result card / legends ┐  │
+│                          │                     ┌─────── legends ───────┐  │
 ├──────────────────────────┤                     └───────────────────────┘  │
 │  output                  │  scale bar        cursor position              │
 ├──────────────────────────┴────────────────────────────────────────────────┤
@@ -39,7 +29,7 @@ remembered.
 
 The script is always the model. Every button in the viewport edits the script, so everything can be
 undone (`Ctrl+Z`) and read back. The dark cards floating on the viewport (model tree, section card,
-legends, result card) belong to the model; the dark top dock and status bar frame the window, and the
+legends) belong to the model; the dark top dock and status bar frame the window, and the
 editor is on the light side.
 
 See [The interface](interface.md) for every part of it.
@@ -108,7 +98,7 @@ and, one named line each, in the script and the viewport; every part has an eye 
 ## Running a script without the window
 
 ```
-python scripts/run_example.py examples/05_static_analysis.py
+python scripts/run_example.py examples/04_handles.py
 ```
 
 runs it with the Python library and the kernel only (set `FIELDES_DIR` to the folder with `fieldes.dll`
@@ -117,6 +107,6 @@ if it is not found): prints appear in the console, nothing is drawn.
 ## Where to go next
 
 - The [tutorial](tutorial.md): the idea, the controls that matter, habits that pay off.
-- Open the scripts in `examples/` in order; each is commented (01–13 and 15 start from an imported part; 14 and 16–22 need no file).
+- Open the scripts in `examples/`; each is commented, and every one makes its own geometry.
 - [Scripting](scripting.md) for the language of shapes and fields.
-- [Analysis](analysis.md) and [Lattices](lattices.md) for the two big toolboxes.
+- [Meshes](meshes.md) for models that come in as files and go out as files.

@@ -1,15 +1,15 @@
 # Fields and regressions
 
 Every shape in FielDes is a **field**: a number at every point in space. A solid is where its field is
-negative. But any other field — a distance, a ramp, the stress of an analysis, a regression of measured
+negative. But any other field — a distance, a ramp, noise, a regression of measured
 data — is a shape too, and can be used anywhere a number or a shape is used. That is the point of the
 program: *anything can drive anything*.
 
 ```python
 part  = sphere(30)
 depth = depth_below(part)                      # 0 at the surface, 30 at the centre
-t     = ramp(depth, (0, 30), (2.0, 0.6))       # 2 mm walls at the skin -> 0.6 mm inside
-lat   = lattice(part, cell_periodic('gyroid'), cell_size=8, thickness=t, skin=1.5)
+r     = ramp(depth, (0, 30), (2.0, 0.6))       # 2 mm at the skin -> 0.6 mm deep inside
+soft  = smooth(part, r)                        # a smoothing whose radius is a field
 ```
 
 Fields are evaluated lazily and exactly: nothing is sampled onto a grid (except where a function says it
@@ -42,22 +42,18 @@ anchor = point(52, 8, 6)                         # a point: a model, and a value
 swell  = ramp(distance_to_point(anchor), (0, 60), (4.0, 0.3))
 grown  = offset(plate, swell)                    # 4 mm near the anchor, 0.3 mm far from it
 joined = smooth_union(post, block, ramp(x_field(), (80, 140), (0.5, 8.0)))   # a blend that is sharp here and round there
-foam   = lattice(core, cell_periodic('gyroid'), cell_size=ramp(x_field(), (160, 220), (16, 6)), thickness=1.0)
 ```
 
-(`examples/18_fields_everywhere.py` runs these three.) In the [model tree](interface.md#the-model-tree) you do not have to type it:
+(`examples/18_fields_everywhere.py` runs these two, and a smoothing whose radius is a field.) In the [model tree](interface.md#the-model-tree) you do not have to type it:
 **drag a field's row onto an operation** and it takes the place of one of the operation's numbers. Where it works, in short:
 
 | | A field is accepted for |
 |---|---|
 | **Geometry** | every dimension of every primitive and every transform (`sphere`, `box`, `cylinder`, `move`, `rotate*`, `scale_*`, ...: they are tree arithmetic, a field is a tree); `offset`, `thicken`, `shell_*`, `offset_exact`, `shell_exact`, `round_edges`, `fillet` (the size), `smooth` (the radius), `smooth_union` / `smooth_intersection` / `smooth_difference` and `union_all` / `intersection_all` (the radius or blend), `repeat` (the spacing), `twist_z`, `bend_z` |
 | **Fields** | `ramp`, `normalize` (the ranges), `attractor` (the radius, and a point or several points as the centre), `noise_field` (the scale and the amplitude), `distance_to_point`, `distance_to_plane`, `radial_field`, `angle_field`, `polar_field` (the centres, a point works too), `mass_properties` (the density) |
-| **Lattices** | `thickness`, `radius`, `density`, `skin`, `blend`, `skin_blend`, and **`cell_size`**: a graded cell size blends lattices a factor of two apart (it may change by a factor of up to 16 over the part), for any periodic cell including `cell_custom` |
-| **Analyses** | `Material(E=..., density=..., conductivity=..., expansion=...)` (the property at every point of the part), `force(region, ..., profile=field)` (how the total is spread over the surface), `fixed_temperature(region, field)`, `convection(region, h_field, ambient_field)`, `heat_input` / `heat_generation(..., profile=field)`: tetrahedral elements, see [Analysis](analysis.md#fields-in-analyses) |
 
-**What can never be a field** — a number that is not a *length-like value at a place*: counts (`array_x(shape, 3, ...)`, the
-number of modes, iterations, steps), resolutions and element sizes, tolerances, seeds, a Poisson's ratio or a yield
-strength, the numbers of a flow (its fluid, inlets, outlets and walls: the flow solver takes numbers). A function says so
+**What can never be a field** — a number that is not a *length-like value at a place*: counts (`array_x(shape, 3, ...)`, octaves,
+steps), resolutions, tolerances and seeds. A function says so
 when it is given a field there (`TypeError: ... is a number`), never silently.
 A **constant field through every numeric slot of the library gives exactly what the number gives** (checked on 98 slots).
 
@@ -78,8 +74,7 @@ can **drag a point onto an operation** to put it in the place of a position writ
 
 A **surface** is the zero set of a field with no body behind it: `plane(point, normal)`, `sphere_surface(radius, center)`,
 `cylinder_surface(radius, axis, center)`, `wave_surface(amplitude, period, axis, height)`. It is drawn as the sheet itself (one layer of triangles, no thickness),
-and the right-click menu makes them (*Primitives → New surface*). A surface is a field like any other: `distance_to_surface(sheet)`,
-or `lattice_surface_conform(sheet, ...)` for a lattice that follows it.
+and the right-click menu makes them (*Primitives → New surface*). A surface is a field like any other: `distance_to_surface(sheet)` is the distance to it.
 
 Both are in the right-click menu of the viewport: *Primitives → New point* and *Primitives → New surface* write the call where you clicked.
 
@@ -109,7 +104,7 @@ Both are in the right-click menu of the viewport: *Primitives → New point* and
 **How good a distance is a shape?** Primitives are exact. Booleans, blends and warps give fields that are
 only *roughly* a distance (flat or square-cornered outside a box's edges). `gradient_magnitude(shape)` is
 1 for an exact distance and far from 1 where it is not. Where it matters, `exact_distance(shape)` turns it
-into a true one (see [below](#exact-distances)). Imported STEP parts are accurate near their faces.
+into a true one (see [below](#exact-distances)). An imported mesh is the exact distance to its triangles.
 
 ## Value maps
 
@@ -137,8 +132,8 @@ and the arithmetic of [Scripting](scripting.md#arithmetic-on-fields) (`+ - * / *
 
 | | |
 |---|---|
-| `offset_by(shape, distance)` | offset by a distance that **may be a field**: `offset_by(part, 0.02 * stress)` |
-| `thicken(field, thickness)` | a wall centred on the zero surface of a field (a plane, a TPMS, a skin); thickness may be a field |
+| `offset_by(shape, distance)` | offset by a distance that **may be a field**: `offset_by(part, ramp(z_field(), (0, 40), (0, 2)))` |
+| `thicken(field, thickness)` | a wall centred on the zero surface of a field (a plane, a wave, a skin); thickness may be a field |
 | `shell_inside / shell_outside / shell_centered(shape, t)` | hollow shell inward, skin outward, or straddling the surface |
 | `smooth_union / smooth_intersection / smooth_difference(a, b, radius)` | rounded booleans |
 | `chamfer_union(a, b, size)` | 45° chamfered union |
@@ -171,36 +166,6 @@ gripped = texture(part, 'grit', depth=0.3, size=0.8, region=top, fade=1.5)     #
 `depth` is the height from a pit to a bump (mm). `side='both'` puts the bumps outside and the pits inside the surface, `'in'` only cuts into it -- the part stays inside its size -- and `'out'` only adds. `region` is a
 selected surface (`select_surface`, `surface_from_bodies`), or a body or a field that holds the places to texture; the texture fades out over `fade` mm (the size, by default). In FielDes, select the body (and a surface)
 and choose *Operations → Texturing → texture*. The `size` is a number; the `depth` can be a field, so a part can be rougher where another field says.
-
-## Excluded regions: exclude()
-
-`exclude(shape, region, ...)` locks the places of a shape that lie inside the regions (any shapes: where their field is
-negative). It cuts the shape into **two fields that are always united again**: the *free field*, the shape outside the
-region, which every later operation reshapes, and the *locked field*, the shape inside the region, which none of them
-touches. It works on **every shape and every field** — a box, a lattice, a result of other operations. For a part
-imported from a STEP file the locked field is the part's own exact surface, meshed directly from the file and made a
-field, instead of the import's fit; see [STEP import](step-import.md#putting-the-exact-surface-back-exclude).
-
-```python
-part = exclude(part, sphere(12, (0, 0, 6)))       # inside the sphere the part is locked
-light = shell(part, 2)                            # shelled everywhere else; the sphere's part is as it was
-final = union(light, bracket)                     # the bracket is not added inside the sphere either
-```
-
-What an excluded shape does with the rest of the library:
-
-| Operation | What happens |
-|---|---|
-| `offset`, `shell`, `thicken`, `shell_*`, `offset_by`, `offset_exact`, `shell_exact`, `round_edges`, `fillet`, `smooth`, `inverse`, `lattice`, `fill`, `topology_optimization` and the other topology optimisations | works on the whole shape, then the locked field is put back: inside the region the shape is as it was |
-| `union`, `intersection`, `blend*`, `morph`, `smooth_*`, `chamfer_union`, `union_all`, `intersection_all` | the same, for the locked fields of every excluded shape given |
-| `difference(a, b)`, `clearance`, `blend_difference`, `smooth_difference` | the locked fields of `a` (a tool that is excluded is only subtracted) |
-| `move`, `rotate*`, `scale_*`, `reflect_*`, `gizmo()` | the whole thing moves: the locked field and its region go with the shape |
-| `array_*`, `symmetric_*`, `repeat*`, `mirror_*`, `loft*`, `extrude`, `twist_z`, `bend_z`, `taper_*`, `shear_x_y`, `attract_*`, `repel_*`, `twirl_*`, `revolve_y`, `handles` | would separate the two fields (copy or deform them differently), so they raise an `ExcludedError` — do them first and `exclude()` the result |
-| analyses, `colored`, `render_cache`, `lock`, queries (`volume_of`, `evaluate`, ...) | see the whole shape; `colored` and `lock` keep it excluded |
-
-Raw field arithmetic (`a + b`, `a.min(b)`, `a.max(b)`) is not an operation of the library: it works on the whole field
-and gives a plain shape. The table lives in `fieldes/stdlib/excluded.py`, and every
-function of the library is in it.
 
 ## Exact distances
 
@@ -237,17 +202,13 @@ is how far from the surface the distance is made; an offset, a shell and a round
 |---|---|
 | `mass_properties(shape, density, lower, upper, resolution)` | a dict: `volume` (mm³), `mass` (density in g/cm³ → g), `centroid`, `fill_fraction`, `samples` |
 | `volume_of(shape, lower, upper, resolution)` | volume in mm³ by grid sampling |
-| `wall_thickness(shape, max_thickness=20)` | local wall thickness: the chord through the material along the normal |
-| `overhang_angle(shape, build_direction)` | angle (degrees) between each downward-facing surface and the build plate: 0 = worst overhang, 90 = vertical or up |
-| `overhang_mask(shape, limit=45, build_direction)` | 1 where a surface overhangs more than `limit`, else 0 |
 | `curvature_field(shape, step)` | mean curvature (1/mm; positive where convex) |
 | `normal_field(shape)`, `gradient_field(shape)`, `gradient_magnitude(shape)` | the unit normal and gradient as three fields / the gradient's length |
 | `field_range(field, body, lower, upper, n=24)` | (min, max) of a field over a box (only inside `body` if given) |
 | `evaluate(field, point_or_points)`, `sample_grid(field, lower, upper, n)` | numbers |
 
-Colour a part by `wall_thickness` or `overhang_angle` and read values with the mouse
-([Legends and probing](interface.md#legends-and-probing)); `examples/02_inspect_a_part.py` does exactly
-that.
+Colour a part by `curvature_field` or `depth_below` and read values with the mouse
+([Legends and probing](interface.md#legends-and-probing)).
 
 ## Data as fields
 
@@ -260,8 +221,7 @@ Measured or simulated data become fields so they can drive geometry:
 | `interpolate_field(points, values, smoothing=0, method='rbf'\|'idw')` | passes through the samples (radial basis functions, up to a few hundred points, or IDW) |
 | `fit_field(points, values, degree=2)` | least-squares polynomial in x, y, z → `FieldFit` with `.field`, `.r2`, `.rmse` |
 
-Exported stresses or temperatures from another simulator, a pressure map, a CT scan's density: all are a
-CSV away from being a field.
+Measured values, a painted weight map, a scan's density: all are a CSV away from being a field.
 
 ## Regressions
 
@@ -291,12 +251,12 @@ to unphysical values. The result has `model`, `params`, `r2`, `rmse`, `equation`
 ## Colouring by a field
 
 ```python
-colored(part, wall_thickness(part), range=(0.8, 3.0), label="wall thickness, mm")
+colored(part, depth_below(part), range=(0, 10), label="depth below the skin, mm")
 ```
 
 `colored(shape, field, range=None, label=None, colormap='turbo')` makes the viewport paint the shape by the
 field — geometry is unchanged. The colour bar appears as a legend bottom right; hover the model to read
-the field's value. Analysis results and the STEP fit deviation use it.
+the field's value.
 
 ## Evaluating fields in a script
 

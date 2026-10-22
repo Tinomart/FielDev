@@ -19,7 +19,7 @@ be tried on it.
 - [4. The model tree](#4-the-model-tree)
 - [5. Every number can be a field](#5-every-number-can-be-a-field)
 - [6. Your own blocks](#6-your-own-blocks)
-- [7. Real parts and real analysis](#7-real-parts-and-real-analysis)
+- [7. Meshes, sections and fields you can see](#7-meshes-sections-and-fields-you-can-see)
 - [Words worth knowing](#words-worth-knowing)
 - [The controls that matter](#the-controls-that-matter)
 - [Habits that pay off](#habits-that-pay-off)
@@ -38,9 +38,9 @@ every drag in the viewport is an *edit of that script* — you can read it, undo
 change it by hand. There is no hidden state and nothing to "rebuild".
 
 **Everything is a field.** A shape is a number at every point of space (negative inside the body, positive outside). So is a
-distance, a ramp, noise, a temperature, the stress an analysis finds. They all combine with ordinary arithmetic, and any of
-them can stand wherever a number stands: *offset this part by a thickness that depends on where you are*, *make the cells of
-this lattice smaller where the stress is high*, *load this face harder at one end*. Anything can drive anything.
+distance, a ramp, noise. They all combine with ordinary arithmetic, and any of
+them can stand wherever a number stands: *offset this part by a thickness that depends on where you are*, *blend these two shapes with a
+radius that grows along x*, *make the texture deeper near the top*. Anything can drive anything.
 
 **Direct manipulation, written down.** Drag a surface, or a gizmo, in the viewport, and the numbers in the script change;
 change a number in the script, and the viewport follows. You get the immediacy of a modeller and the precision and
@@ -52,7 +52,7 @@ repeatability of code.
 |---|---|
 | **Left: the editor** | the script, with colouring, completion (`Ctrl+Space`), call tips, go to definition (`Ctrl+click`, `F12`, also into the library: it opens in a tab), find (`Ctrl+F`). Below it, the **output**: what the script printed, and errors, with the line underlined |
 | **Right: the viewport** | the model, drawn by meshing the script's fields. Rotate: `Shift`+left-drag or middle-drag. Pan: right-drag. Zoom: the wheel. Double-click a model to frame it, the background to frame all (`Home`) |
-| **Top left of the viewport: the model tree** | one row per thing the script makes, each with the icon of what it is: a 3D shape, a 2D shape, a field, a surface, a point, a simulation ... |
+| **Top left of the viewport: the model tree** | one row per thing the script makes, each with the icon of what it is: a 3D shape, a 2D shape, a curve, a field, a surface, a point ... |
 | **Top: the menus** | *File* (open, import, save, export), *Edit*, *View*, *Settings* (shortcuts, the blocks folder), *Help* (this tutorial, the guide `Shift+F1`, the library reference `F1`) |
 
 ## 1. The script is the model
@@ -106,9 +106,6 @@ Right-click empty space in the viewport:
 - **Operations** works on the selected model: offsets and walls, rounding, moving, repeating, combining. Right-click a
   *model* for the same list written with that model as its input. With several models selected, *union*, *difference*,
   *intersection* act on all of them, in the order you selected them (hold `Ctrl` to select more than one).
-
-- **Engineering** (on a model): *static_analysis*, *modal_analysis*, *topology_optimization*, *thermal_analysis*, *fluid_analysis*,
-  written with that model as the part and a first set of supports and loads laid on its ends, for you to change.
 
 The same menu opens **on a line of the script that defines a model, and on its row in the model tree** -- right-click there and it
 is as if you had right-clicked the model in the viewport. (On a line that defines no model it is the menu of empty space, and what
@@ -171,11 +168,10 @@ The fields to start with:
 | `distance_to_point(p)`, `distance_to_plane(...)`, `depth_below(shape)` | distances |
 | `ramp(field, (a, b), (va, vb))` | map a field linearly (clamped): the workhorse |
 | `noise_field(scale)` | organic variation (`kind='ridged'`, `'cellular'` ... for other looks) |
-| `result.von_mises`, `result.temperature` | the stress or temperature an analysis found |
 
 Every function of the library follows the rule — see [Fields everywhere](fields.md#fields-everywhere) for where, and for the
-few numbers (counts, tolerances, the Poisson's ratio) that can only be numbers. A lattice whose cells get smaller towards a
-corner is one line: `lattice(body, cell_periodic('gyroid'), cell_size=ramp(x_field(), (0, 80), (16, 6)), thickness=1)`.
+few numbers (counts, tolerances, the Poisson's ratio) that can only be numbers. A plate that swells towards one end is one
+line: `offset(plate, ramp(x_field(), (0, 80), (0.5, 4.0)))`.
 
 ## 6. Your own blocks
 
@@ -193,23 +189,17 @@ def perforate(body, hole_radius=2.0, spacing=10.0):
 **Settings → Blocks folder…** chooses the folder; save the file and the scripts that use it run again. Models made by a block
 carry a small **f** in the tree. See [Custom blocks](blocks.md).
 
-## 7. Real parts and real analysis
+## 7. Meshes, sections and fields you can see
 
-- **File → Import model…** (`Ctrl+I`) brings in a STEP file (every solid becomes a field; an assembly arrives assembled) or a
-  mesh (STL, OBJ, PLY, 3MF, glTF). The script gets the import line, and each part gets a row in the tree.
-  See [Importing STEP files](step-import.md).
-- **Analysis** is script too: `static_analysis(part, supports=[fixed(region)], loads=[force(region, (0, 0, -200))], material=aluminium)` --
-  every kind of condition is an input of its own, and every condition a model of its own, with its own eye in the tree. Supports and loads are *regions* — shapes you place — not
-  clicked faces. The result is a field: stated on its own it is drawn on the part, with the **result card** (the field to
-  show, the load step, the deformation, the elements); `part - 0.02 * result.von_mises` uses it as geometry.
-  Materials and loads take fields too: `Material('graded', ramp(x_field(), (0, 100), (69e3, 7e3)), 0.33)`. See
-  [Analysis](analysis.md).
+- **File → Import model…** (`Ctrl+I`) brings in a triangle mesh (STL, OBJ, PLY, 3MF, glTF, FBX, OFF, DXF): it becomes an exact distance
+  field, so everything else works on it. The script gets the import line, and the part gets a row in the tree. **File → Export mesh…**
+  writes what is shown back out. See [Meshes](meshes.md).
 - The **section card** (`Shift+X`) cuts the model and paints the field on the plane; **hover** a coloured model to read
   the value under the cursor. It is a viewer you switch on yourself. A *field* has an **icon** in the viewport, with its name over it: click it (or its row in the
   model tree) and the **field viewer** opens beside it, showing the field on a disc with a radius slider (move it with its arrows and dot): the two are separate, and
   both can be open at once.
 
-The `examples/` folder has a script for each of these. The ones that need no STEP file are 14, 16, 17, 18, 19, 20, 21 and 26 to 28 (profiles and sweeps, copies and linked copies, a profile on a plane).
+The `examples/` folder has a script for each of these: every example makes its own geometry, `12` writes a mesh and reads it back, `22` exports every format.
 
 The **guided tour** (Help ▸ Guided tour) has the newer tools too: a shape drawn on a **work plane** (`Shift+W`; a **right click stops drawing**, `E` brings the kind of drawing back), a point **pulled out of an edge**, a **corner turned into a spline point**, the gizmo of a point, **a line through points and a tube swept along it** (`path_extrude`, which you can play with), and
 the one you get with **Shift**, **`Shift+D` and `Ctrl+D`** (a copy and a linked copy), and the keys worth knowing.
@@ -226,7 +216,7 @@ A few words mean something particular in FielDes, and some mean something else i
 | **Copy / linked copy** | `Shift+D` writes the statements of a model again under new names; `Ctrl+D` makes `instance(model)`, which *is* the model -- it follows every change of its shape and has a place of its own. |
 | **Images** | what a symmetry makes of a model (`symmetry_images(model, mirror)`): one row for all of them, drawn and meshed apart, with no numbers of their own -- drag one and the original moves. |
 | **Shadow** | a faded row in the tree and a `# shadow:` comment in the script: a model that another statement uses, held by reference, without moving it out of its place. |
-| **Field** | a number at every point of space: a shape is one (negative inside), and so is a ramp, a noise, a distance or a result. Wherever a number goes, a field goes. |
+| **Field** | a number at every point of space: a shape is one (negative inside), and so is a ramp, a noise or a distance. Wherever a number goes, a field goes. |
 
 ## The controls that matter
 
@@ -256,7 +246,7 @@ A few words mean something particular in FielDes, and some mean something else i
 - **Hide, do not delete,** what you may want back: the eye writes a `# hidden:` comment.
 - **Put what you reuse in a block.** A block is the shortest way from "I did this twice" to a function.
 - **Let a field do the work.** Before writing a dozen exceptions ("thicker here, thinner there"), ask what single field
-  describes the rule: a distance, a ramp, a stress.
+  describes the rule: a distance, a ramp, a noise.
 - **Read what FielDes wrote.** It writes ordinary script — the quickest way to learn the library is to make something from
   the menu, look at the line, and edit it.
 
@@ -271,7 +261,5 @@ A few words mean something particular in FielDes, and some mean something else i
 | [Apps](apps.md) | a script as a program for other people: a form, a Run button, one `.fieldesapp` file |
 | [Handles](handles.md) | the gizmo, the handles on the surfaces, `gizmo()` and `handles()` |
 | [Profiles](profiles.md) | 2D, 1D and 3D shapes made of points: `profile`, `curve`, `extrude`, `path_extrude` |
-| [Analysis](analysis.md) | static, modal, thermal, topology optimization, flow |
-| [Lattices](lattices.md) | cells, graded and conformal lattices |
-| [Importing STEP files](step-import.md) | how a CAD part becomes a field |
+| [Meshes](meshes.md) | importing and exporting triangle meshes |
 | [Library reference](reference.md) | every function, from its docstring |

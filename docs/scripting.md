@@ -6,8 +6,8 @@ FielDes scripts are ordinary Python. A script begins with
 from fieldes import *
 ```
 
-which brings in the whole library (shapes, CSG, transforms, STEP and mesh import, fields, regressions,
-lattices, analysis, caching helpers) and `view`, the viewport settings. The full list of functions with
+which brings in the whole library (shapes, CSG, transforms, mesh import and export, fields, regressions,
+points, curves and profiles, caching helpers) and `view`, the viewport settings. The full list of functions with
 their documentation is in the [library reference](reference.md); this page is the language around them.
 
 - [A shape is a field](#a-shape-is-a-field)
@@ -73,7 +73,7 @@ sphere(r)
 
 The argument must be a constant (`var(3)`, `var(-2.5)`). Shapes made from `var()`s are dragged natively:
 the viewport finds the `var` numbers that place the surface under the cursor. For everything else —
-a part imported from STEP, a shape written with plain numbers — use [handles](handles.md):
+an imported mesh, a shape written with plain numbers — use [handles](handles.md):
 `gizmo(part, …)` (a gizmo) and `handles(part, [var(..), …])` (the surfaces of the part as draggable
 numbers), which the model tree writes for you; `lock(part)` makes a shape undraggable again.
 
@@ -96,7 +96,7 @@ the region is exactly what you wrote.
 For imports,
 `view.set_bounds(*roi(parts))` sets the region to enclose them and
 `view.set_resolution(roi_resolution(parts))` picks a resolution for the parts (each part is meshed at
-its own); see [Region and resolution](step-import.md#region-and-resolution).
+its own); see [Resolution and quality](caching-and-performance.md#resolution-and-quality).
 
 ## Primitives
 
@@ -129,9 +129,7 @@ and the field-based ones in [Fields](fields.md): `smooth_union`, `smooth_differe
 
 `move`, `rotate`, `rotate_x/y/z`, `scale_x/y/z`, `scale_xyz`, `reflect_*`, `symmetric_*`, `shear_x_y`,
 `taper_x_y`, `taper_xy_z`, `twirl_*`, `attract_*`, `repel_*`, `revolve_y`; array helpers `array_x`,
-`array_xy`, `array_xyz`, `array_polar`, `array_polar_z`. A part imported from STEP can be moved, rotated,
-scaled or mirrored with them and remembers where it came from, so `exclude()` (the exact STEP surface)
-follows it.
+`array_xy`, `array_xyz`, `array_polar`, `array_polar_z`.
 
 ## Arithmetic on fields
 
@@ -140,7 +138,7 @@ Shapes support `+ - * / **`, unary minus, `abs`, and the methods `.min(other)`, 
 `difference(a, b)` is `a.max(-b)`:
 
 ```python
-thick = part - 0.02 * result.von_mises      # grow the part where it is highly stressed
+bumpy = part - 0.3 * noise_field(4)         # grow the part where the noise is high
 ```
 
 Numbers and shapes mix freely, and sequences of three numbers are points
@@ -168,7 +166,7 @@ always make a **field**, also from bodies: `add_fields(a, b, ...)`, `subtract_fi
 **A body keeps its true scale.** The values of a body are a distance to its surface, which a factor would stretch: `2 * sphere(5)`
 is not a sphere of any size. To compute with the values of a body, make a field of it: **`field_from_body(part)`** has the same
 number at every point as the body, but it is a *field* -- it is not drawn, it is not a part, and it can be multiplied, divided or
-powered and still be a valid field to give to a lattice, an offset or an analysis. (Display it, and its icon in the viewport opens
+powered and still be a valid field to give to an offset or a blend. (Display it, and its icon in the viewport opens
 the [field viewer](interface.md#the-field-viewer), which shows its values.)
 
 **A field goes wherever a number goes** — that is the rule of the library, not a feature of a few functions:
@@ -236,11 +234,11 @@ twisted
   300-sphere field draw 6 % faster and need a quarter of the memory.
 - **A shape is a function and a tree you can look at**: `cube(10, 0, 0)` with numbers is a number (4.0), `print(cube)` the tree,
   `.optimized()` a simplified copy, `Shape.var()` a free number (the numbers you can drag are `var(...)`).
-- What comes out is an **ordinary body** (or a field, if you use it as one): `union`, `difference`, `move`, a lattice, an analysis take it
+- What comes out is an **ordinary body** (or a field, if you use it as one): `union`, `difference` and `move` take it
   as they take a box. A shape made from a `max` is not an exact distance, so the operations that expect a distance (`offset`,
   `shell_inside`) give a size that is about right, not exact.
 
-`examples/21_low_level.py` does this for a cube, a twist, a ball and a torus joined by a smooth minimum of its own, and a gyroid lattice.
+`examples/21_low_level.py` does this for a cube, a twist, a ball and a torus joined by a smooth minimum of its own, and a gyroid cut to a cube.
 
 ## Your own functions: custom blocks
 
@@ -250,9 +248,9 @@ function of that script, or a module next to it: `from bracket import make_brack
 
 ## Units
 
-Everything is millimetres, except where the function says otherwise. A STEP file's own units are
-converted on import (`units='mm'` by default); STL/OBJ/PLY files are assumed to be millimetres
-(`file_units=`); analyses use N, mm and MPa, and thermal analyses W, mm and °C.
+Everything is millimetres, except where the function says otherwise. A mesh file's own units are
+converted on import (`units='mm'` by default); STL/OBJ/PLY/OFF files carry none and are assumed to be millimetres
+(`file_units=`).
 
 ## Errors, printing, long computations
 
@@ -260,10 +258,10 @@ converted on import (`units='mm'` by default); STL/OBJ/PLY files are assumed to 
   expression that is not a shape.
 - An error shows its traceback there and underlines the line in the editor; what ran before it is
   still displayed.
-- Operations that take time report progress: imports, analyses and optimisations show a bar, and
+- Operations that take time report progress: imports and long constructions show a bar, and
   `progress(fraction, "text")` does the same for your own loops.
 - Most expensive constructions are [cached](caching-and-performance.md), so editing the last line of a
-  script does not redo the import or the analysis above it.
+  script does not redo the import above it.
 - **Breakpoints** (`F9`) stop the run before a statement so you can look at what has been built.
 
 ## Using the library outside the application
@@ -273,9 +271,9 @@ import os
 os.add_dll_directory(r"C:\path\to\FielDes")       # the folder holding fieldes.dll
 from fieldes import *
 
-part, (lo, hi) = import_model("bracket.step")[0]
+part, (lo, hi) = import_model("bracket.stl")[0]
 print(mass_properties(part, density=2.7, lower=lo, upper=hi)["mass"], "g")
-part.save_stl("bracket.stl", lo, hi, resolution=4)
+part.save_stl("bracket_out.stl", lo, hi, resolution=4)
 ```
 
 `view.set_*` are remembered in `view.settings` and used by nothing. `python scripts/run_example.py

@@ -4,7 +4,6 @@ FielDes models with fields, and moves between fields and triangle meshes in both
 
 - [Importing meshes](#importing-meshes)
 - [Exporting and importing meshes](#exporting-and-importing-meshes)
-- [Analyses: models and results](#analyses-models-and-results)
 - [Fields on a grid](#fields-on-a-grid)
 - [Getting a mesh in a script](#getting-a-mesh-in-a-script)
 - [Round trip](#round-trip)
@@ -23,12 +22,11 @@ view.set_resolution(roi_resolution(bracket))
 view.set_quality(8)
 ```
 
-`import_model(path, units='mm', file_units=None, rev=None)` is the one importer for every model (see
-[Importing models](step-import.md)); given a mesh it reads **STL** (binary or ASCII), **OBJ**, **PLY**
+`import_model(path, units='mm', file_units=None, rev=None)` is the importer: it reads **STL** (binary or ASCII), **OBJ**, **PLY**
 (ASCII or binary), **3MF**, **glTF** (`.glb`, `.gltf`), **FBX** (binary or ASCII), **OFF** and **DXF** (`3DFACE` entities
 and polyface meshes). The mesh becomes an **exact signed distance
 field** (negative inside), so it works with everything else: CSG with other shapes, `offset`, `shell`,
-blends, transforms, lattices, analyses.
+blends, transforms.
 
 Before that the triangles are cleaned: duplicate vertices welded, degenerate triangles dropped, windings made
 consistent, inside-out shells flipped. A mesh **with holes** still imports: near a hole, inside and outside
@@ -83,44 +81,6 @@ its own files: STL, OBJ, PLY, 3MF and glTF are the safer ways to hand a model on
 
 When no `bounds` is given a body is meshed in its own extent plus one cell all round (a face that lies exactly on the edge of the region meshed is not found by it).
 
-Other files of a body: `export_print(result, "part.3mf")` (the part, its supports and no-support volumes as separate objects: see [manufacturing](manufacturing.md)), `export_layers(part, "layers.dxf", layer_height=0.2)` (the
-contours of each layer as closed polylines) and `export_slice(part, "slice.svg", z)` (one layer as a picture). The layers are read from the body's field, not from a mesh, and are not G-code.
-
-## Analyses: models and results
-
-A static analysis can be handed to another solver, and what any analysis found can be taken out as files:
-
-```python
-result = static_analysis(bracket, supports=[support], loads=[load], material=steel, element_size=2)
-
-export_fea(result, "bracket.inp")        # Abaqus and CalculiX: C3D4 tetrahedra, *MATERIAL, *NSET of each support and load, *BOUNDARY, *CLOAD
-export_fea(result, "bracket.bdf")        # Nastran: CTETRA, MAT1, SPC1, FORCE (solution 101)
-export_fea(result, "bracket.msh")        # Gmsh 2.2: the mesh with the displacement, the supports and every field of the result as data
-
-export_results(result, "bracket.vtu")    # VTK / ParaView: the mesh, the displacement and every field at the nodes, every field in each element
-export_results(result, "bracket.csv")    # the nodes and (next to it, bracket_elements.csv) the elements as tables
-export_results(result, "bracket.txt")    # the key numbers as text
-```
-
-The model is the one FielDes solved (the same nodes and tetrahedra; every tetrahedron right-handed). A force is spread over the nodes of the surface it
-acts on **by the area each one carries**, so the loads add up to the force. Units are millimetres, newtons, megapascals and tonnes. A material with
-a **field** (a graded stiffness) is refused (a model file holds numbers), and a `thermal_expansion` load is said in a note, not written. The `.vtu`, `.csv`
-files hold the tetrahedral results of a static analysis; **`.txt` works for every result**:
-
-```
-FielDes results: static analysis (steel)
-
-maximum von Mises stress    42.33 MPa
-maximum displacement        0.0549 mm
-safety factor               5.906
-support reaction (x, y, z)  (-6.406e-05, 8.735e-06, 300) N
-```
-
-`result_summary(result)` returns the same numbers as `[(label, text, unit)]`, and the result card prints the first few of them on the screen. A flow has
-`drag_force`, `lift_force` and `drag_coefficient`, `lift_coefficient` when its inlets say which way the fluid goes (`inlet(..., velocity=(vx, vy, vz))`, or
-a `speed=` between the inlets' and the outlets' middles): the force on the walls along the flow, and along the direction across it that is most nearly Z,
-divided by the dynamic pressure of the mean inlet speed and the area of the body's bounding box seen along the flow.
-
 ## Fields on a grid
 
 ```python
@@ -138,5 +98,5 @@ are slower but more robust on awkward fields).
 
 ## Round trip
 
-`examples/12_mesh_export_and_import.py` exports an imported STEP part as STL and reads it back with
+`examples/12_mesh_export_and_import.py` writes a cup as an STL file and reads it back with
 `import_model`.

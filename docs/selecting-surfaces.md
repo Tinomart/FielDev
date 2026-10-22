@@ -1,7 +1,7 @@
 # Selecting surfaces
 
-Pick a face of a model, the way a CAD program does with a flood fill, and use it as a **region** — for supports and
-loads, for a lattice that follows it, for colouring — without leaving the idea that everything here is a field.
+Pick a face of a model, the way a CAD program does with a flood fill, and use it as a **region** — for a texture,
+for an offset that works on one part of a body, for colouring — without leaving the idea that everything here is a field.
 
 - [In the viewport](#in-the-viewport)
 - [In a script](#in-a-script)
@@ -30,7 +30,7 @@ Nothing else is stored: the script is the selection. Change the angle in the tex
 the two lines (or use the bin in the model tree) and it is gone. The new selection is the selected model in the tree, and it
 is shown as the **patch lit up in magenta on the model**: the vertices of the model's surface mesh (the viewport's, made to
 draw it) that belong to the patch are coloured, every other part of the surface is not drawn at all (the edge of the patch
-runs between the vertices, as fine as the viewport's mesh, and a step of the walk). What `fixed()`, `force()` and `lattice_surface_conform()` use is the surface of the patch itself;
+runs between the vertices, as fine as the viewport's mesh, and a step of the walk). What `texture()` and the other users of a selection read is the surface of the patch itself;
 the viewport draws it by lighting the model's own surface, because a surface has no thickness to draw at the resolution of the viewport. The row in the model tree has an eye like any other.
 
 ## In a script
@@ -47,8 +47,8 @@ the viewport draws it by lighting the model's own surface, because a surface has
 **It is made from the field alone.** The surface is where the shape's field is zero and its normal is the field's gradient;
 the walk steps over it from the seed — eight steps from every sample, each carried back onto the surface along the
 gradient — and keeps a step where the normal there is within the angle (of the seed's, for flat; for smooth, of the sample
-about 10 mm back along the walk, the angle being allowed for every 10 mm of the way between them). No mesh of the shape is made or read, so it does the same on anything: a reconstructed or a tessellated
-part, a mesh, a CSG model, a lattice, a result. A thin wall is no harder than a thick one: the walk follows the surface,
+about 10 mm back along the walk, the angle being allowed for every 10 mm of the way between them). No mesh of the shape is made or read, so it does the same on anything: an imported mesh, a CSG model, a shape
+with noise in it. A thin wall is no harder than a thick one: the walk follows the surface,
 not the space, so a wall thinner than a step is still one face on each side, and a step past an edge finds no surface to
 land on (or the face on the other side of the edge, which turns by the angle of the edge).
 
@@ -69,8 +69,7 @@ skin = surface_from_bodies(plate)                     # all of the plate's surfa
   than it is a gap. The default is half a percent of the size of the first body. If the bodies do not meet, nothing is selected (a
   note says so when their boxes are apart).
 - The selection ends where the other body does -- it follows no face to its edges -- so a block over half of a face selects that half.
-- It is a surface like the one `select_surface` makes (below), and used the same way: a region for `fixed()` and `force()`, a surface
-  for `lattice_surface_conform()`. It is made from the fields alone, so it follows a body that is dragged or has `var()` numbers.
+- It is a surface like the one `select_surface` makes (below), and used the same way: a region for `texture()`. It is made from the fields alone, so it follows a body that is dragged or has `var()` numbers.
 
 In the viewport: **select several models** in the model tree (Ctrl or Shift click; or Ctrl-click them in the viewport), right-click one of them, and choose
 **Operation → Surfaces → surface_from_bodies**. The first model selected is the body; the others are what meets it. With one
@@ -95,16 +94,11 @@ on the other side of an edge, is counted in.
 ## Using a selection
 
 ```python
-foot = select_surface(part, seed=(57.8, 20.4, -60.0), angle=5)
 top = select_surface(part, seed=(30.7, -10.0, 28.0), angle=5)
 
-# supports and loads act on it
-result = static_analysis(part, supports=[fixed(foot)], loads=[force(top, (0, 0, -500))], material=aluminium, element_size=4)
-
-# a lattice standing on it, following it: the selection is the surface
-ribs = lattice_surface_conform(foot, cell_periodic('octet'), cell_thickness=5, cell_size=5, radius=0.5)
+# a pattern on that face only, faded out towards its edges
+gripped = texture(part, 'grit', depth=0.3, size=0.8, region=top, fade=1.5)
 ```
 
-A selection is a surface, so a `fixed()` or `force()` on it acts on the surface nodes of the analysis that lie within it
-(about a hundredth of the model): on a coarse analysis, thicken it by an element or two with `offset_by(selection, mm)`.
-See [Analysis](analysis.md#boundary-conditions) and [Lattices](lattices.md#lattices-that-follow-a-surface).
+A selection is a surface, so it is shown, hidden, combined (`union`, `intersection`, `offset_by`) and coloured like any other model; as a `region` it says where
+a [texture](fields.md#surface-texture-texture) goes.
