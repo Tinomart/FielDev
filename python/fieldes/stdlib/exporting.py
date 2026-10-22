@@ -269,6 +269,84 @@ _MATERIAL_FORMATS = ('.obj', '.glb', '.gltf')           # (the formats that carr
 _COLOR_FORMATS = ('.obj', '.ply', '.glb', '.gltf')      # (and vertex colours)
 
 
+_UV_FORMATS = ('.obj', '.ply', '.glb', '.gltf')         # (and texture coordinates)
+
+# The six faces of the box projection: the axis the normal of a triangle is mostly along and its side (+x -x +y -y +z -z) -> (u, v) of a point (x, y, z), seen
+# from outside with v up, so that a texture reads the same way on every side and is not mirrored on the back ones
+_BOX_UV = (
+    lambda x, y, z: (y, z),
+    lambda x, y, z: (-y, z),
+    lambda x, y, z: (-x, z),
+    lambda x, y, z: (x, z),
+    lambda x, y, z: (x, y),
+    lambda x, y, z: (x, -y),
+)
+
+
+def _uv_spec(uvs):
+    ''' The size in mm of one repeat of the texture (None: the texture fits the model once) from "box" or ("box", 500); False for no UVs '''
+    if uvs is None or uvs is False:
+        return False
+    size = None
+    if isinstance(uvs, (tuple, list)):
+        if len(uvs) != 2:
+            raise ValueError('export_mesh: uvs is "box" or ("box", the millimetres of one repeat of the texture)')
+        uvs, size = uvs
+    if str(uvs).strip().lower() != 'box':
+        raise ValueError('export_mesh: uvs={!r} -- the projection there is, is "box"'.format(uvs))
+    if size is not None:
+        size = float(size)
+        if not size > 0:
+            raise ValueError('export_mesh: the size of one repeat of the texture is above 0 mm, not {!r}'.format(size))
+    return size
+
+
+def _box_uvs(xyz, tri, size):
+    ''' The mesh with a u and a v for every vertex by the BOX projection: each triangle is projected along the axis its normal is mostly along, seen from outside.  A vertex
+        that is in triangles of different projections is made again for each (a seam of the texture), the others are shared.  `size` is the millimetres that one repeat of the
+        texture covers, from one common origin, so that the texture goes on from one surface to the next in the world; None: the texture fits each side once -- u and v start at 0
+        on each side, and the largest side of the model is 1.  Returns (the vertices, the triangles, u and v of each vertex) '''
+    fit = size is None
+    if fit:
+        size = max(max(xyz[c::3]) - min(xyz[c::3]) for c in range(3)) or 1.0
+    out_xyz, out_tri, raw, side = array('f'), array('I'), array('f'), array('B')
+    made = {}
+    for t in range(0, len(tri), 3):
+        corners = (tri[t], tri[t + 1], tri[t + 2])
+        p = [(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]) for i in corners]
+        ux, uy, uz = (p[1][c] - p[0][c] for c in range(3))
+        vx, vy, vz = (p[2][c] - p[0][c] for c in range(3))
+        nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+        ax, ay, az = abs(nx), abs(ny), abs(nz)
+        if az >= ax and az >= ay:
+            face = 4 if nz >= 0 else 5
+        elif ax >= ay:
+            face = 0 if nx >= 0 else 1
+        else:
+            face = 2 if ny >= 0 else 3
+        for i, q in zip(corners, p):
+            j = made.get((i, face))
+            if j is None:
+                j = made[(i, face)] = len(out_xyz) // 3
+                out_xyz.extend(q)
+                raw.extend(_BOX_UV[face](*q))
+                side.append(face)
+            out_tri.append(j)
+    us, vs = raw[0::2], raw[1::2]
+    if fit:
+        low = {}
+        for u, v, f in zip(us, vs, side):
+            lu, lv = low.get(f, (u, v))
+            low[f] = (min(lu, u), min(lv, v))
+        shift_u, shift_v = [low[f][0] for f in side], [low[f][1] for f in side]
+    else:
+        shift_u, shift_v = [min(us)] * len(us), [min(vs)] * len(vs)
+    uv = array('f', [0.0]) * len(raw)
+    uv[0::2] = array('f', [(u - s) / size for u, s in zip(us, shift_u)])
+    uv[1::2] = array('f', [(v - s) / size for v, s in zip(vs, shift_v)])
+    return out_xyz, out_tri, uv
+
+
 def _triangle_materials(xyz, tri, materials):
     ''' (the list of materials, the number of the material of each triangle: the last whose `where` is negative at the middle of the triangle, -1 for none) '''
     materials = list(materials) if isinstance(materials, (list, tuple)) else [materials]
@@ -329,7 +407,7 @@ def _half_of(symmetric):
     return 'xyz'.index(text), float(plane), sign
 
 
-def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None):
+def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None):
     ''' Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
             .stl (binary; ascii=True for text), .obj, .ply, .3mf, .glb, .gltf, .fbx (Autodesk FBX, ASCII 7.4: see fbx.py), .off, .dxf (3DFACE)
@@ -349,6 +427,10 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         materials   a list of `material(...)`s (see materials.py), painted in the order given: each triangle has the LAST one whose `where` field is negative at the
                     middle of the triangle (a material with no `where` covers everything: it goes first).  .obj (a .mtl file is written beside it), .glb, .gltf
         colors      (r, g, b), each a number or a field from 0 to 1, evaluated at every vertex: vertex colours.  .obj, .ply, .glb, .gltf
+        uvs         "box": texture coordinates by the box projection -- each triangle is projected along the axis its normal is mostly along, seen from outside, so a
+                    texture is not mirrored on the back faces; the vertices on a seam are made again for each side of it.  The texture fits each side once (the
+                    largest side of the model is 0 to 1), or ("box", 500) repeats it every 500 mm of the model, going on from one surface to the next (world-scaled
+                    tiling).  .obj (vt), .ply (s, t), .glb, .gltf (TEXCOORD_0).  The images are the `texture=` of the materials
 
         Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
         (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path. '''
@@ -362,6 +444,9 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         raise ValueError('export_mesh: materials are written in {} files, not {}'.format(', '.join(_MATERIAL_FORMATS), ext))
     if colors is not None and ext not in _COLOR_FORMATS:
         raise ValueError('export_mesh: vertex colours are written in {} files, not {}'.format(', '.join(_COLOR_FORMATS), ext))
+    uv_size = _uv_spec(uvs)
+    if uv_size is not False and ext not in _UV_FORMATS:
+        raise ValueError('export_mesh: texture coordinates are written in {} files, not {}'.format(', '.join(_UV_FORMATS), ext))
     if max_triangles is not None and int(max_triangles) < 4:
         raise ValueError('export_mesh: max_triangles={!r} -- a closed surface has at least four'.format(max_triangles))
     from fieldes.stdlib.fields import _shape_bounds
@@ -372,6 +457,10 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         xyz, tri = _meshes(bodies, bounds, resolutions, 1.0, half)
     else:
         xyz, tri = _within_budget(bodies, bounds, resolutions, half, max_triangles)
+    # (the texture coordinates split the vertices along the seams of the projection: the materials and the colours are asked of the vertices that are written)
+    uv = None
+    if uv_size is not False:
+        xyz, tri, uv = _box_uvs(xyz, tri, uv_size)
     # (the materials and the colours are asked of the fields where the model is: before the numbers are turned into another unit and another up axis)
     tri_material = None
     if materials:
@@ -381,7 +470,7 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
     note = '%s%s' % (_UNIT_NAMES[units], ', Y up' if up == 'y' else '')
-    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note, materials=materials or None, tri_material=tri_material, colors=vertex_colors)
+    meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note, materials=materials or None, tri_material=tri_material, colors=vertex_colors, uvs=uv)
     return path
 
 

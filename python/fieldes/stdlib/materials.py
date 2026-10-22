@@ -24,13 +24,14 @@ __all__ = ['material', 'Material']
 class Material:
     ''' A material for `export_mesh(..., materials=[...])`: see `material` '''
 
-    def __init__(self, name, color, roughness, metallic, emissive, where):
+    def __init__(self, name, color, roughness, metallic, emissive, where, texture=None):
         self.name = name
         self.color = color
         self.roughness = roughness
         self.metallic = metallic
         self.emissive = emissive
         self.where = where
+        self.texture = texture
 
     def __repr__(self):
         return 'material(%r, color=(%.3g, %.3g, %.3g), roughness=%g, metallic=%g%s)' % (
@@ -56,7 +57,7 @@ def _rgb(value, what):
     return tuple(min(1.0, max(0.0, c)) for c in (r, g, b))
 
 
-def material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=None, where=None):
+def material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=None, where=None, texture=None):
     ''' A material of a mesh export (`export_mesh(part, "hero.glb", materials=[...])`).
 
         name       what the file calls it (letters, digits, - and _)
@@ -65,6 +66,8 @@ def material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=
         metallic   0 (a dielectric) to 1 (a metal)
         emissive   (r, g, b) or "#rrggbb" for a surface that glows, or None
         where      a body or a field: the material is on the triangles whose middle is inside it (where its value is negative).  None: everywhere
+        texture    the file name of an image (a path relative to the mesh file, "skin.png"): the colour of the surface, mapped with the UVs of the export
+                   (`export_mesh(..., uvs="box")`).  The image is not copied or checked: it is the name the file says
 
         The materials of an export are layers: each triangle takes the LAST one that covers it, so the base material (no `where`) goes first. '''
     name = ''.join(c if (c.isalnum() or c in '_-') else '_' for c in str(name or ''))
@@ -75,5 +78,7 @@ def material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=
             raise ValueError('material %s: %s is a number from 0 to 1, not %r' % (name, what, v))
     if where is not None and not isinstance(where, Shape):
         raise TypeError('material %s: where is a body or a field, not %r' % (name, type(where).__name__))
+    if texture is not None and (not isinstance(texture, str) or not texture.strip() or any(c in texture for c in ' \t\r\n')):
+        raise ValueError('material %s: texture is the name of an image file without spaces ("skin.png"), not %r' % (name, texture))
     return Material(name, _rgb(color, 'material %s' % name), float(roughness), float(metallic),
-                    None if emissive is None else _rgb(emissive, 'material %s' % name), where)
+                    None if emissive is None else _rgb(emissive, 'material %s' % name), where, texture)

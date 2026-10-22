@@ -117,6 +117,28 @@ export_mesh(hero, "hero.glb", materials=[skin, metal], colors=(0.8, 0.8, 1 - z_f
 
 [`examples/34_materials.py`](../examples/34_materials.py) writes all of it for a figure, reads the files back and checks that each material is where it says.
 
+### Texture coordinates (UVs)
+
+```python
+skin = material("skin", color=(0.93, 0.74, 0.62), texture="skin.png")           # the image is a file name: it is not copied
+export_mesh(hero, "hero.glb", uvs="box", materials=[skin])                       # the texture fits each side of the model once
+export_mesh(wall, "wall.obj", uvs=("box", 500))                                  # one repeat of the texture for every 500 mm of the model
+```
+
+- **`uvs="box"`** is the box projection: each triangle is projected along the axis its normal is mostly along (+x, -x, +y, -y, +z, -z), seen from outside, so a
+  texture reads the same way on every side and is not mirrored on the back ones. A vertex that is in triangles of different projections is made again for each
+  of them -- that is the seam of the texture -- and the vertices that are not on a seam are shared. A triangle that faces right is never turned over in the
+  texture.
+- **The size of the texture.** `uvs="box"` puts the texture once over each side: u and v start at 0 on each side and the largest side of the model is 1.
+  `uvs=("box", 500)` is *world-scaled*: one repeat of the texture for every 500 mm of the model, with one origin, so the texture goes on from one surface to
+  the next (walls, floors and rocks of a game world that share a texture).
+- **Where it is written.** OBJ (`vt`, and the faces say `v/vt`), PLY (`s` and `t`), glTF (`TEXCOORD_0`; v is down from the top of the image there, as glTF has
+  it). The other formats have no texture coordinates: asking for them is an error.
+- **`material(..., texture="skin.png")`** names the image that is the colour of the material: `map_Kd` in the `.mtl`, the `baseColorTexture` of the material
+  in glTF (with the file name as the URI of an image). The image itself is yours to put beside the mesh.
+
+[`examples/35_uvs.py`](../examples/35_uvs.py) checks it by reading the files back: the areas in the texture against the areas in space, the seams, the tiling.
+
 **FBX is a proprietary format** of Autodesk, whose SDK is available under its own licence and whose files have no published specification. FielDes
 reads and writes FBX **without the Autodesk SDK**, from the structure of the files as the community documents it (the node tree, the property types,
 the objects and their connections), and handles **meshes only**: geometry, the transform of the models that hold it, the scene's unit and up axis -- no

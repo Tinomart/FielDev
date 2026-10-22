@@ -518,7 +518,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 
 A material for `export_mesh(..., materials=[...])`: see `material`
 
-### `material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=None, where=None)`
+### `material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=None, where=None, texture=None)`
 
 A material of a mesh export (`export_mesh(part, "hero.glb", materials=[...])`).
 
@@ -528,6 +528,8 @@ roughness  0 (a mirror) to 1 (chalk)
 metallic   0 (a dielectric) to 1 (a metal)
 emissive   (r, g, b) or "#rrggbb" for a surface that glows, or None
 where      a body or a field: the material is on the triangles whose middle is inside it (where its value is negative).  None: everywhere
+texture    the file name of an image (a path relative to the mesh file, "skin.png"): the colour of the surface, mapped with the UVs of the export
+           (`export_mesh(..., uvs="box")`).  The image is not copied or checked: it is the name the file says
 
 The materials of an export are layers: each triangle takes the LAST one that covers it, so the base material (no `where`) goes first.
 
@@ -557,7 +559,7 @@ resolution  samples per mm (the scene's resolution by default, limited to 2 mill
 
 A field is not a mesh: this is the sampling of it that other programs work with, at the resolution asked for.  Returns the path.
 
-### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None)`
+### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None)`
 
 Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
@@ -578,6 +580,10 @@ symmetric   "x", "y" or "z" (or ("x", 12.5): the plane at that position): the ha
 materials   a list of `material(...)`s (see materials.py), painted in the order given: each triangle has the LAST one whose `where` field is negative at the
             middle of the triangle (a material with no `where` covers everything: it goes first).  .obj (a .mtl file is written beside it), .glb, .gltf
 colors      (r, g, b), each a number or a field from 0 to 1, evaluated at every vertex: vertex colours.  .obj, .ply, .glb, .gltf
+uvs         "box": texture coordinates by the box projection -- each triangle is projected along the axis its normal is mostly along, seen from outside, so a
+            texture is not mirrored on the back faces; the vertices on a seam are made again for each side of it.  The texture fits each side once (the
+            largest side of the model is 0 to 1), or ("box", 500) repeats it every 500 mm of the model, going on from one surface to the next (world-scaled
+            tiling).  .obj (vt), .ply (s, t), .glb, .gltf (TEXCOORD_0).  The images are the `texture=` of the materials
 
 Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
 (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path.
