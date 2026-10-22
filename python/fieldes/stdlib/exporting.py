@@ -22,7 +22,7 @@ from fieldes.stdlib import meshfiles
 from fieldes.stdlib.materials import Material
 from fieldes.stdlib.rigging import Joint
 
-__all__ = ['export_mesh', 'export_field']
+__all__ = ['export_mesh', 'export_lods', 'export_field']
 
 
 def _host(name, default=None):
@@ -477,6 +477,36 @@ def _vertex_colors(xyz, colors):
     return out
 
 
+def _pivot_of(pivot, xyz):
+    ''' Where the origin of the file is, as a place of the model: the origin as it is modelled, the middle of the bottom of the model ("base": a character stands on the
+        ground with its feet at 0), the middle of its box ("center"), or a place (x, y, z) '''
+    if pivot is None or (isinstance(pivot, str) and pivot.strip().lower() == 'origin'):
+        return (0.0, 0.0, 0.0)
+    if isinstance(pivot, str):
+        lo = [min(xyz[c::3]) for c in range(3)]
+        hi = [max(xyz[c::3]) for c in range(3)]
+        if pivot.strip().lower() == 'base':
+            return ((lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, lo[2])
+        if pivot.strip().lower() == 'center':
+            return tuple((lo[c] + hi[c]) / 2.0 for c in range(3))
+    else:
+        try:
+            place = tuple(float(v) for v in pivot)
+            if len(place) == 3:
+                return place
+        except (TypeError, ValueError):
+            pass
+    raise ValueError('export_mesh: pivot={!r} -- "origin" (as modelled), "base" (the middle of the bottom), "center", or a place (x, y, z)'.format(pivot))
+
+
+def _shifted(xyz, shift):
+    ''' The vertices moved by -shift: the place `shift` of the model becomes the origin '''
+    out = array('f', xyz)
+    for c in range(3):
+        out[c::3] = array('f', [v - shift[c] for v in xyz[c::3]])
+    return out
+
+
 def _half_of(symmetric):
     ''' (axis, plane, sign) from "x", "-y", ("z", 12.5) ...: the axis the mirror is across, where it is, and which side is kept '''
     if symmetric is None or symmetric is False:
@@ -494,7 +524,7 @@ def _half_of(symmetric):
     return 'xyz'.index(text), float(plane), sign
 
 
-def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None):
+def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None, pivot=None):
     ''' Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
             .stl (binary; ascii=True for text), .obj, .ply, .3mf, .glb, .gltf, .fbx (Autodesk FBX, ASCII 7.4: see fbx.py), .off, .dxf (3DFACE)
@@ -521,6 +551,8 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         skeleton    a list of `joint(...)`s (see rigging.py), one root, each after its parent: written as the nodes and the skin of a glTF, with the four joints that
                     move each vertex and their weights (JOINTS_0, WEIGHTS_0) made from the distance of the vertex to the bones.  .glb, .gltf
         skin_falloff  how far, in mm, a bone can be behind the nearest one and still move a vertex (the width of the blend at a joint); None: 4 % of the model
+        pivot       where the origin of the file is: "origin" (default: as modelled), "base" (the middle of the bottom of the model: a character stands on the ground, its feet
+                    at 0), "center" (the middle of its box), or a place (x, y, z) of the model.  The skeleton moves with it
 
         Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
         (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path. '''
@@ -563,12 +595,41 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
     if joints is not None:
         ids, weights = _skin_weights(xyz, joints, skin_falloff)
         skin = (joints, ids, weights)
+    shift = _pivot_of(pivot, xyz)
+    if any(shift):
+        xyz = _shifted(xyz, shift)
+        if skin is not None:
+            skin = ([Joint(j.name, tuple(j.position[c] - shift[c] for c in range(3)), j.parent, j.tip) for j in skin[0]], skin[1], skin[2])
     xyz = _convert(xyz, units, up)
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
     note = '%s%s' % (_UNIT_NAMES[units], ', Y up' if up == 'y' else '')
     meshfiles.write_mesh(path, xyz, tri, name=name, ascii=ascii, note=note, materials=materials or None, tri_material=tri_material, colors=vertex_colors, uvs=uv, skin=skin)
     return path
+
+
+def export_lods(part, path, triangles, **options):
+    ''' Writes levels of detail of a body, each a mesh of at most so many triangles (see `max_triangles` of export_mesh): `export_lods(hero, "hero.glb", [8000, 2000, 500])` writes
+        hero_lod0.glb with at most 8000 triangles, hero_lod1.glb with 2000 and hero_lod2.glb with 500.  `triangles` is the budgets, the finest first and each smaller than the
+        one before; None for a level with no budget.  The other options are those of export_mesh (units, up, symmetric, materials, skeleton, pivot ...), the same for every
+        level.  Returns the paths written '''
+    if 'max_triangles' in options:
+        raise TypeError('export_lods: the budgets are the list of triangles, not max_triangles')
+    budgets = list(triangles) if isinstance(triangles, (list, tuple)) else [triangles]
+    if not budgets:
+        raise ValueError('export_lods: a list of budgets of triangles, the finest first')
+    last = None
+    for n in budgets:
+        if n is not None:
+            if int(n) < 4:
+                raise ValueError('export_lods: a budget of {!r} triangles -- a closed surface has at least four'.format(n))
+            if last is not None and int(n) >= last:
+                raise ValueError('export_lods: each level is smaller than the one before: {} after {}'.format(int(n), last))
+            last = int(n)
+        elif budgets.index(n) != 0:
+            raise ValueError('export_lods: only the first level (the finest) can have no budget')
+    base, ext = os.path.splitext(os.fspath(path))
+    return [export_mesh(part, '{}_lod{}{}'.format(base, k, ext), max_triangles=n, **options) for k, n in enumerate(budgets)]
 
 
 def _eval_at(shape, xyz, count):

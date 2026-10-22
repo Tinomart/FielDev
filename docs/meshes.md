@@ -161,6 +161,25 @@ export_mesh(hero, "hero.glb", skeleton=bones)                              # ski
   default), none beyond. A bone that is only *near* -- the other leg -- never moves a vertex.
 - It can be written with the materials, the colours and the texture coordinates in the same file.
 
+### The origin of the asset, and levels of detail
+
+```python
+export_mesh(hero, "hero.glb", pivot="base")                      # the middle of the bottom of the model is the origin: the feet are at z = 0
+export_mesh(hero, "hero.glb", pivot=(0, 0, 92))                  # a place of your own: here the hips
+export_lods(hero, "hero.glb", [8000, 2000, 500])                 # hero_lod0.glb, hero_lod1.glb, hero_lod2.glb
+```
+
+- **`pivot=`** says where the origin of the file is: `"origin"` (the default: as modelled), `"base"` (the middle of the bottom of the model: a character or a prop
+  that stands on the ground), `"center"` (the middle of its box), or a place `(x, y, z)` of the model. It is done last, so that the materials (`where`), the
+  skin weights and the symmetry are made where the model is; the skeleton moves with it.
+- **`export_lods(part, path, triangles, **options)`** writes a level of detail for each budget, `hero_lod0.glb` for the first: at most that many triangles
+  (see `max_triangles`), the finest first and each smaller than the one before; `None` for a first level with no budget. The other options -- units, up
+  axis, symmetry, materials, skeleton, pivot -- are the same for every level. It returns the paths. The levels are meshes of their own resolution, not decimations,
+  so each is an even mesh of the same body.
+
+[`examples/37_pivot_and_lods.py`](../examples/37_pivot_and_lods.py) writes them and reads them back: the box of each pivot, the skeleton that follows it, the
+budgets of three levels.
+
 [`examples/36_skeleton.py`](../examples/36_skeleton.py) reads the file back and checks the nodes and the hierarchy, the inverse bind matrices, that the tip of the
 hand, the head, the forearms, the shin and the foot are moved by their joints, that no joint of the left half moves a vertex of the right, and the refusals.
 

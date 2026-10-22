@@ -599,7 +599,14 @@ resolution  samples per mm (the scene's resolution by default, limited to 2 mill
 
 A field is not a mesh: this is the sampling of it that other programs work with, at the resolution asked for.  Returns the path.
 
-### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None)`
+### `export_lods(part, path, triangles, **options)`
+
+Writes levels of detail of a body, each a mesh of at most so many triangles (see `max_triangles` of export_mesh): `export_lods(hero, "hero.glb", [8000, 2000, 500])` writes
+hero_lod0.glb with at most 8000 triangles, hero_lod1.glb with 2000 and hero_lod2.glb with 500.  `triangles` is the budgets, the finest first and each smaller than the
+one before; None for a level with no budget.  The other options are those of export_mesh (units, up, symmetric, materials, skeleton, pivot ...), the same for every
+level.  Returns the paths written
+
+### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None, pivot=None)`
 
 Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
@@ -627,6 +634,8 @@ uvs         "box": texture coordinates by the box projection -- each triangle is
 skeleton    a list of `joint(...)`s (see rigging.py), one root, each after its parent: written as the nodes and the skin of a glTF, with the four joints that
             move each vertex and their weights (JOINTS_0, WEIGHTS_0) made from the distance of the vertex to the bones.  .glb, .gltf
 skin_falloff  how far, in mm, a bone can be behind the nearest one and still move a vertex (the width of the blend at a joint); None: 4 % of the model
+pivot       where the origin of the file is: "origin" (default: as modelled), "base" (the middle of the bottom of the model: a character stands on the ground, its feet
+            at 0), "center" (the middle of its box), or a place (x, y, z) of the model.  The skeleton moves with it
 
 Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
 (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path.
