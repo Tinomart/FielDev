@@ -1,12 +1,12 @@
 # Notices
 
-## FielDes
+## FielDev
 
-FielDes — field-driven design. Copyright © the FielDes authors.
+FielDev — field-driven modelling for game development, a fork of FielDes. Copyright © the FielDes authors and the FielDev authors.
 
-FielDes is built on **libfive**, copyright © Matt Keeter and contributors
+FielDev is built on **libfive**, copyright © Matt Keeter and contributors
 ([github.com/libfive/libfive](https://github.com/libfive/libfive)), and on its GUI **Studio**. The parts of
-libfive that FielDes still contains are marked in their file headers and keep their licence; the work
+libfive that FielDev still contains are marked in their file headers and keep their licence; the work
 added on top is offered under the same licence as the files it belongs to.
 
 | Part | Licence | File |
@@ -15,13 +15,13 @@ added on top is offered under the same licence as the files it belongs to.
 | `app/` (the Qt application) | **GNU General Public License, version 2 or (at your option) any later version** | [LICENSE-GPL-2.0](LICENSE-GPL-2.0) |
 | `examples/*.py`, `docs/`, `scripts/` | Mozilla Public License 2.0 | [LICENSE-MPL-2.0](LICENSE-MPL-2.0) |
 
-A combined work (the `FielDes.exe` application together with the kernel and the Python library) is
+A combined work (the `FielDev.exe` application together with the kernel and the Python library) is
 distributed under the terms of the GPL, which the MPL-2.0 permits for files of the kernel and the library
 (MPL-2.0 §3.3 secondary-licence compatibility).
 
 ## Third-party components
 
-Distributed in the portable folder, or needed to build FielDes. Each keeps its own licence; the libraries
+Distributed in the portable folder, or needed to build FielDev. Each keeps its own licence; the libraries
 shipped as DLLs are used dynamically and can be replaced by a compatible build.
 
 | Component | Used for | Licence |
@@ -46,4 +46,4 @@ and the STEP importer that read it, are not part of FielDev.)
 
 ## No warranty
 
-FielDes is provided **as is**, without warranty of any kind.
+FielDev is provided **as is**, without warranty of any kind.

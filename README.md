@@ -1,24 +1,25 @@
 <p align="center">
-  <img src="app/deploy/icon/fieldes.png" width="96" alt="FielDes">
+  <img src="app/deploy/icon/fieldev.png" width="96" alt="FielDev">
 </p>
 
-# FielDes
+# FielDev
 
 **Field-driven modelling.** A scriptable modelling workbench in which every shape and every design parameter is a *field* — a value at
 every point in space — so that **anything can drive anything**: a point you drag moves a whole swelling of a plate, a noise field roughens a
 rock, a ramp over the distance to an anchor sets the radius of a blend.
 
-> **This repository is FielDev**, a fork of FielDes that is being trimmed for **modelling for game development**: the world of a game
+> **FielDev** is a fork of [FielDes](https://github.com/Tinomart) trimmed for **modelling for game development**: the world of a game
 > from primitives, its characters from points. What is here is the modelling core. The engineering side of FielDes (finite-element
-> analysis, flow, topology optimisation, lattices, STEP/CAD import, manufacturing checks) has been taken out, and the game outputs
-> (symmetrical meshing, materials and shaders, textures and UVs, bone mapping) are not built yet. The product still carries the name
-> FielDes everywhere (the name, the `fieldes` package, the environment variables); renaming it is the last step of the trim.
+> analysis, flow, topology optimisation, lattices, STEP/CAD import, manufacturing checks) has been taken out, and what a game engine asks of a
+> model has been added: units and axes, triangle budgets and levels of detail, exactly symmetric meshes, materials and vertex colours, UVs, a
+> skeleton with skin weights. FielDev shares nothing with an installed FielDes: its own name, Python package (`fieldev`), environment variables
+> (`FIELDEV_*`) and file type (`.fieldevapp`).
 
-Wherever a number goes in FielDes, **a field goes**: `offset(part, 1.0)` grows a part by a millimetre everywhere;
+Wherever a number goes in FielDev, **a field goes**: `offset(part, 1.0)` grows a part by a millimetre everywhere;
 `offset(part, ramp(distance_to_point(anchor), (0, 60), (4.0, 0.3)))` grows it by 4 mm near the anchor and 0.3 mm far from
 it. The two are written alike, and the field is evaluated exactly where it is needed — never sampled onto a grid.
 
-FielDes models with implicit functions (signed distance fields), reads triangle meshes as exact distance fields, writes meshes out,
+FielDev models with implicit functions (signed distance fields), reads triangle meshes as exact distance fields, writes meshes out,
 and keeps the script and the viewport in step: every button in the viewport edits the script, and every edit of the script re-renders
 the viewport. **A mesh is only ever the output**: the field is the model.
 
@@ -33,7 +34,7 @@ the viewport. **A mesh is only ever the output**: the field is the model.
 - **Your own building blocks.** A function in a file of the blocks folder is there in every script, with completion, call
   tips and a place in the menus.
 
-New here? A welcome card offers a **guided tour** the first time FielDes starts (**Help → Guided tour** any time after): short cards over the
+New here? A welcome card offers a **guided tour** the first time FielDev starts (**Help → Guided tour** any time after): short cards over the
 program itself that point at what they talk about and let you try it. The [tutorial](docs/tutorial.md) is the written version.
 **File → Open example file** has 19 scripts (`00_START_HERE.py` says where everything is); the [examples README](examples/README.md) lists them.
 
@@ -47,7 +48,7 @@ program itself that point at what they talk about and let you try it. The [tutor
 | **Your own primitives** | *Primitives → Manage primitives…* chooses which shapes the menus offer as primitives, under their kind, adds a model of your own to the list, and renames any of them. [Your own primitives](docs/interface.md#your-own-primitives) |
 | **Fields you can see** | A field is not a body, so it is not drawn: it is **an icon in the viewport with its name over it**, where the object it was made from is (an eye in the tree shows or hides it). Click the icon -- or select the field in the tree -- and its **field viewer** opens: a disc of the field, coloured by its value at every point, with a radius slider and arrows to move it. Arithmetic works on fields as it does on numbers (`a * b`, `2 ** a`, ...), and `field_from_body(body)` turns a body into a field you may multiply freely. |
 | **Custom blocks** | A few lines in a file of the blocks folder make a function that is in every script — completion, call tips, menu entries, hot reload. [Custom blocks](docs/blocks.md) |
-| **Apps for everyone else** | A script declares its inputs (`app.number`, `app.file`, `app.save_as`, ...) and is exported as **one `.fieldesapp` file**; whoever double-clicks it sees **a form, a Run button, a log and the files that were made** — no editor, no code. It runs without a window too (`FielDes run tool.fieldesapp --Radius 7`) and, with Watch, runs again by itself when an input file changes. [Apps](docs/apps.md) |
+| **Apps for everyone else** | A script declares its inputs (`app.number`, `app.file`, `app.save_as`, ...) and is exported as **one `.fieldevapp` file**; whoever double-clicks it sees **a form, a Run button, a log and the files that were made** — no editor, no code. It runs without a window too (`FielDev run tool.fieldevapp --Radius 7`) and, with Watch, runs again by itself when an input file changes. [Apps](docs/apps.md) |
 | **Model with fields** | Primitives, CSG, smooth and chamfered booleans, offsets, shells, twists, bends, repeats, extrusions, revolves, helical and parametric surfaces — all of them fields, composable with ordinary arithmetic. |
 | **Edit by dragging** | A gizmo (`gizmo()`: move, rotate, scale), handles on the surfaces of a shape (`handles()`), and `var()` numbers — what you drag is written back into the script. Every primitive (box, sphere, cylinder, cone, torus, pyramid, prism, rounded box, and the flat circle, rectangle, ring, polygon and triangle) has handles that move the face you pull and no other. |
 | **Python, as it is** | The script is plain Python and the model tree shows it: an `if`, a loop, `with`, `try`, a function or a class is a row, with the variables and statements in it under it (locked there: the code is edited in the editor), and a block moves by drag. What you add from the tree goes to the **insertion point** -- click between two rows -- which follows the text cursor of the editor. `Ctrl+E` extrudes the selected 2D shape. [Python in the tree](docs/interface.md#python-in-the-tree) |
@@ -65,7 +66,7 @@ program itself that point at what they talk about and let you try it. The [tutor
 1. FielDev has **no release and no installer yet**: build it from source with `scripts/build-linux.sh` or `scripts/build-windows.ps1`
    (see [Building](docs/building.md)). There is no macOS version.
 
-   FielDes speaks English, Spanish, French, German, Japanese, Chinese and Russian (the language of the system by default; **Settings → Language**).
+   FielDev speaks English, Spanish, French, German, Japanese, Chinese and Russian (the language of the system by default; **Settings → Language**).
 2. Open a script from `examples/` (every one runs as it is and makes its own geometry), or write one: `import_model("rock.obj")` brings in a mesh.
 3. Right-click empty space to make a shape; click a row in the model tree and drag the gizmo; open the section card
    (`Shift+X`); hover the model.
@@ -74,7 +75,7 @@ program itself that point at what they talk about and let you try it. The [tutor
 The smallest script:
 
 ```python
-from fieldes import *
+from fieldev import *
 
 view.set_bounds([-35, -25, -8], [35, 25, 30], auto_scale=True)    # the region the viewport meshes
 view.set_resolution(6)                           # samples per mm
@@ -125,7 +126,7 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [Scripting](docs/scripting.md) | Shapes, fields, `var()`, view settings, what gets displayed |
 | [Fields and regressions](docs/fields.md) | **Fields everywhere**, points and surfaces, distance fields, maps, `fit()`, coloring |
 | [Custom blocks](docs/blocks.md) | Your own functions, in every script |
-| [Apps](docs/apps.md) | A script as a program for other people: inputs, the form, `.fieldesapp`, `FielDes run`, watch |
+| [Apps](docs/apps.md) | A script as a program for other people: inputs, the form, `.fieldevapp`, `FielDev run`, watch |
 | [Handles](docs/handles.md) | The gizmo, the handles on the surfaces, `gizmo()` and `handles()` |
 | [The symmetry](docs/interface.md#the-symmetry) | A symmetry is a model of the script -- mirror planes through a centre (`symmetry_planes`); select it and everything you make is made at its images too (`symmetry_images`: all the images of a model are one model), which follow both the model and the symmetry; `Shift+S` |
 | [Profiles, lines and extrusions](docs/profiles.md) | Shapes made of points: `profile`, `polyline`, `spline`, `extrude`, `path_extrude`; pull a point out of an edge, double-click a point for a spline, rotate and scale a point to shape the curve and the sweep |
@@ -150,9 +151,9 @@ What is a rough edge rather than a limit of the design is in [KNOWN_ISSUES.md](K
 ## Project layout
 
 ```
-kernel/       the C++ kernel: field evaluation, meshing, mesh import  (fieldes.dll)
-python/       the Python library  (import fieldes)
-app/          the Qt application  (FielDes.exe)
+kernel/       the C++ kernel: field evaluation, meshing, mesh import  (fieldev.dll)
+python/       the Python library  (import fieldev)
+app/          the Qt application  (FielDev.exe)
 blocks/       the custom blocks folder: sample blocks, and where yours go
 examples/     example scripts
 tests/        what checks the work: tests/verification/00_START_HERE.py is the file to open (the walkthroughs)
@@ -163,13 +164,13 @@ installer/    the Windows setup program
 
 ## Credits and licence
 
-FielDes was created by its author ([Tinomart](https://github.com/Tinomart)) **with the help of Claude Code**
+FielDev is a fork of **FielDes**, which was created by its author ([Tinomart](https://github.com/Tinomart)) **with the help of Claude Code**
 (Anthropic's AI coding assistant): the author set the direction and the design, tested the result and decided what
-stays; much of the code was written together with Claude Code.
+stays; much of the code was written together with Claude Code. The changes that make FielDev were made together with Claude Code too.
 
-FielDes stands on **libfive** by Matt Keeter ([github.com/libfive/libfive](https://github.com/libfive/libfive)):
+FielDev, like FielDes, stands on **libfive** by Matt Keeter ([github.com/libfive/libfive](https://github.com/libfive/libfive)):
 its kernel (`kernel/`, namespace `libfive`) and Python bindings (`python/`) are under the
 **Mozilla Public License 2.0** (`LICENSE-MPL-2.0`), and the application (`app/`) derives from its
 **Studio** GUI and is under the **GNU General Public License, version 2 or later** (`LICENSE-GPL-2.0`).
-Files added for FielDes carry the licence of the part they belong to. See [`NOTICE.md`](NOTICE.md) for the
+Files added for FielDev carry the licence of the part they belong to. See [`NOTICE.md`](NOTICE.md) for the
 list of third-party components (Qt, Eigen, Boost, Manifold, libpng, Python, the Inconsolata font).
