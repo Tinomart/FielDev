@@ -7,9 +7,9 @@ Thanks for looking. FielDes is a young program, so reports of what does not work
 Include:
 
 - what you did, and what you expected;
-- the **script** (or the smallest part of it that shows the problem) and, for an import problem, the STEP
+- the **script** (or the smallest part of it that shows the problem) and, for an import problem, the mesh
   file if you may share it;
-- the **output pane** text (a traceback, or the fit report) and your Windows version;
+- the **output pane** text (a traceback) and your system (Windows or Linux);
 - a screenshot (`Ctrl+Shift+E`) for anything visual.
 
 ## Building and testing
@@ -17,9 +17,7 @@ Include:
 See [docs/building.md](docs/building.md). There is no automated test suite yet; the checks used so far are:
 
 - `python scripts/run_example.py examples/<n>.py` for every example (they must all finish without error);
-- opening each example in the application and looking at the viewport;
-- for the STEP exact mesher, comparing the volume and watertightness of `exclude()` pieces with another
-  CAD kernel on a set of parts.
+- opening each example in the application and looking at the viewport.
 
 A test suite that automates those is the most useful contribution there is.
 
@@ -38,5 +36,4 @@ A test suite that automates those is the most useful contribution there is.
 
 ## Ideas that would help
 
-A test suite, contact in the analyses, more STEP entity types, exact B-spline faces in
-the field, a package manager recipe for the dependencies.
+A test suite, and a package manager recipe for the dependencies.

@@ -17,7 +17,7 @@ FielDes models with fields, and moves between fields and triangle meshes in both
 bracket = import_model(r"C:\models\bracket.stl", file_units="mm")
 bracket_0 = bracket[0][0]
 bracket_0
-view.set_bounds(*roi(bracket))
+view.set_bounds(*roi(bracket), auto_scale=True)
 view.set_resolution(roi_resolution(bracket))
 view.set_quality(8)
 ```
@@ -84,7 +84,7 @@ When no `bounds` is given a body is meshed in its own extent plus one cell all r
 ## Fields on a grid
 
 ```python
-export_field(result.von_mises, "stress.vti", bounds=((0, 0, 0), (60, 20, 10)), resolution=1)   # VTK image data
+export_field(swell, "swell.vti", bounds=((0, 0, 0), (60, 20, 10)), resolution=1)   # VTK image data
 export_field(swell, "swell.csv", bounds=(lo, hi))                                                 # x, y, z, value
 ```
 

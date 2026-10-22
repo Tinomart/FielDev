@@ -37,7 +37,7 @@ ball = sphere(5)
 ball(1, 2, 3)                                 # evaluate: a number (≈ -1.26)
 ```
 
-Nothing is computed until something asks: the viewport meshes the shape, an analysis samples it, a
+Nothing is computed until something asks: the viewport meshes the shape, an export samples it, a
 regression reads it. That is why an expression such as `ramp(depth_below(part), (0, 30), (1.6, 0.5))`
 costs nothing to write and can be used anywhere a number is wanted.
 
@@ -108,7 +108,7 @@ shape. Free-form and analytic surfaces: `ellipsoid`, `elliptic_cylinder`, `hyper
 `coil_spring`, `wave_block`.
 
 **Every shape has one primitive, with that shape and nothing else.** `box(a, b)` is the box between two opposite corners (a true distance
-outside it, which matters for offsets and analyses); there is no centred box, no cube, no mitered box -- a `box` is a box. The 3D shapes stand
+outside it, which matters for offsets and shells); there is no centred box, no cube, no mitered box -- a `box` is a box. The 3D shapes stand
 along z (`cylinder(radius, height, base)` stands on `base`), the 2D shapes lie in the plane z = 0; one that stands another way is turned with
 `rotate_x` / `rotate_y` / `rotate_z`, one that sits somewhere else is moved with `move`.
 

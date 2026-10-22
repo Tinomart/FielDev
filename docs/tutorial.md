@@ -176,7 +176,7 @@ line: `offset(plate, ramp(x_field(), (0, 80), (0.5, 4.0)))`.
 ## 6. Your own blocks
 
 When you write something you will want again, make it a **block**: put a function in a `.py` file of the blocks folder and it
-is there in *every* script, like `sphere()` or `lattice()`, with its call tip, completion and menu entry.
+is there in *every* script, like `sphere()` or `offset()`, with its call tip, completion and menu entry.
 
 ```python
 # blocks/my_blocks.py

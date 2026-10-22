@@ -11,12 +11,12 @@
 | **A part is 1000× too small or large** | Units: STL, OBJ, PLY and OFF carry none and are read as millimetres: pass `file_units='m'` (or `'in'`). 3MF, FBX, DXF and glTF say what they are. See [Units](meshes.md#importing-meshes). |
 | **The import looks stale after editing the mesh file** | Imported files are watched and re-read when saved by another program. If it does not happen, press **⟳ Reimport** on the import, or give `import_model` another `rev=`. |
 | **A strange result that goes away when the cache is deleted** | `clear_caches()` forgets the in-memory ones, **Settings → Clear the caches** the ones on disk: do that, and report it. |
-| **The program does not start ("missing DLL")** | Use the portable folder as a whole (the DLLs next to `FielDes.exe`), not the exe alone. The folder includes the MSVC runtime; if you still see the error, install the *Microsoft Visual C++ 2015–2022 Redistributable (x64)*. |
+| **The program does not start ("missing DLL")** | Run the program from its build folder as a whole (the DLLs are next to `FielDes.exe`), not the exe alone; if you still see the error, install the *Microsoft Visual C++ 2015–2022 Redistributable (x64)*. |
 | **"FielDes cannot load its Python library"** | `FielDes.exe` looks for `runtime\python3` and `python\fieldes` around itself. Keep the folder structure intact (see [Building](building.md#the-portable-folder)). |
 
 ## Reading the timing
 
-Start FielDes from a terminal with `FIELDES_TIMING=1` to see where render and analysis time goes on stderr
+Start FielDes from a terminal with `FIELDES_TIMING=1` to see where render time goes on stderr
 (the lines start with `[fieldes]` and `[bar-render]`).
 
 ## Reporting

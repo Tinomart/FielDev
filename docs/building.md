@@ -4,6 +4,11 @@ FielDes is built with CMake. The tested platform is **Windows 10/11 x64 with MSV
 files are portable (Qt, C++17, Eigen, Boost) and other platforms should work with little change, but they
 have not been tried.
 
+**FielDev:** the scripts below are those of FielDes and still build the program. Nothing in this repository has built a release, an installer or a
+package for FielDev (the rename comes first). On Linux the program has been built, and not run in a window, with
+`scripts/build-linux.sh --jobs 4 --build-dir <folder>` on Ubuntu with Qt 5, Boost, Eigen, libpng, the Python 3 development files, TBB and the GL development
+packages installed from apt.
+
 - [Windows](#windows)
 - [The portable folder](#the-portable-folder)
 - [What the build needs](#what-the-build-needs)
@@ -63,7 +68,7 @@ folder is refused, with the reason.)
 FielDes.exe, fieldes.dll, fieldes-stdlib.dll, manifold.dll, Qt5*.dll, plugins\, …
 runtime\python3\        the private Python runtime
 python\fieldes\         the Python library
-examples\               the examples and their STEP files (without caches)
+examples\               the examples
 blocks\                 the custom blocks folder (the sample blocks; see docs\blocks.md)
 translations\           the program's texts in Spanish, French, German, Japanese, Chinese and Russian (see translations\README.md)
 docs\                   these documents
@@ -71,8 +76,6 @@ README.md, LICENSE, LICENSE-MPL-2.0, NOTICE.md, CHANGELOG.md
 ```
 
 plus the MSVC runtime DLLs, so it runs without the VC++ redistributable. Zip the folder to distribute it.
-(Importing a STEP file writes its cache next to the file; if the folder is read-only the import still
-works, just without a cache.)
 
 ## The installer
 
@@ -100,7 +103,7 @@ code-signing certificate and `signtool` at the end of `build-installer.ps1` woul
 | libpng | screenshots | `libpng` |
 | Manifold | polygon triangulation and mesh booleans | `manifold` |
 
-The kernel needs no CAD library: the STEP reader and the tessellator are part of it.
+The kernel needs no CAD library.
 
 The CMake options: `BUILD_APP` (default ON; OFF builds only the kernel and its C++ shapes) and
 `ENABLE_DEBUG` (symbols, non-MSVC).
@@ -112,7 +115,7 @@ folder (`~/FielDes-linux`, and `dist/FielDes-<version>-linux-x64.tar.gz` in the 
 plugins, the kernel's libraries, a Python runtime with its standard library and every other library the program loads are inside the folder
 (`lib/`, `plugins/`, `runtime/python3/`, found through `qt.conf`, the programs' run paths and `PYTHONHOME`, which the program sets itself); only the C library and the
 graphics driver of the machine are used. Unpack it, double-click `FielDes` (or run `./FielDes`; `run.sh` does the same). The packages of a release are
-made on **Ubuntu 22.04** (glibc 2.35, the system the release workflow uses), so they open on Ubuntu 22.04, Debian 12 and everything newer; they were tested under WSL2 (Windows 11, WSLg shows the window).
+made on **Ubuntu 22.04** (glibc 2.35), so they open on Ubuntu 22.04, Debian 12 and everything newer; they were tested under WSL2 (Windows 11, WSLg shows the window).
 
 **The installers.** `--package` also makes `dist/FielDes-<version>-linux-x64-installer.run` (`scripts/make-linux-installer.sh`: a shell script with the package appended -- it needs only a shell and
 tar) and `dist/FielDes_<version>_amd64.deb` (`scripts/make-deb.sh`, written with `ar` and `tar`, so `dpkg-deb` is not needed). `sh FielDes-<version>-linux-x64-installer.run` installs for the current user into
@@ -122,8 +125,7 @@ the system's. The installer was tried under WSL (install, upgrade over it, refus
 
 **The one thing a package cannot bring is the C library.** A program asks for a glibc as new as the one it was built with, so a package built on a new system (Fedora 44, glibc 2.43)
 opens only on a system that new. The script says at its end which glibc the package asks for (`it needs GLIBC_2.35 or newer` for the packages of a release); to open on nearly everything **build on an old
-system** -- Ubuntu 22.04 (glibc 2.35) is what `.github/workflows/release.yml` uses: run it on GitHub (Actions → Release builds → Run workflow, or push a tag
-such as `v1.0.0`), and the Linux package comes out as an artifact, after a check that starts it in a bare Ubuntu with only a virtual display. The same script on an Ubuntu 22.04 of your own
+system** : Ubuntu 22.04 (glibc 2.35) is the oldest system the packages of FielDes were made on. The script on an Ubuntu 22.04 of your own
 (a WSL distribution does) makes the same packages. Install once:
 
 ```
@@ -159,7 +161,7 @@ The Python library needs only `fieldes.dll` (and its dependencies: `manifold.dll
 
 ```
 set FIELDES_DIR=C:\dev\fieldes-build\app\Release
-python scripts\run_example.py examples\05_static_analysis.py
+python scripts\run_example.py examples\04_handles.py
 ```
 
 `run_example.py` runs a script statement by statement with its own folder as the working directory. It prints
@@ -172,10 +174,10 @@ what the script prints and the time it took; nothing is drawn, `view.set_*` call
 python scripts\cold_vs_warm.py
 ```
 
-Runs every example three times -- with the caches as they are shipped beside the STEP files, with every cache deleted, and again right after that, with the caches the second run made --
+Runs every example three times -- with the caches as they are, with every cache deleted, and again right after that, with the caches the second run made --
 each in a copy of the examples folder with cache folders of its own, so nothing of yours is read or written, and compares what each run prints and a hash of the field of every shape it made
 (`run_example.py --digest`). A difference means a cache that does not give back what the program makes now (or a result that is not repeatable): the stale-cache class of bug, which no test of a single
-run finds. It takes a while (the analyses and the optimisations run three times); `python scripts\cold_vs_warm.py 05_static_analysis 16_fluid_flow` runs the ones named. The exit code is 1 when anything differs or fails.
+run finds. `python scripts\cold_vs_warm.py 04_handles 18_fields_everywhere` runs the ones named. The exit code is 1 when anything differs or fails.
 
 ## Regenerating the library reference
 
@@ -183,7 +185,7 @@ run finds. It takes a while (the analyses and the optimisations run three times)
 python scripts\gen_reference.py
 ```
 
-writes `docs/reference.md` from the docstrings of the library. Run it after changing a docstring.
+writes `docs/reference.md` from the docstrings of the library (`FIELDES_DIR` must point at the folder that holds `fieldes.dll` and `fieldes-stdlib.dll`). Run it after changing a docstring.
 
 ## The scripted GUI (automation)
 

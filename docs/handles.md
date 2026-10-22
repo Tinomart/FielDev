@@ -22,7 +22,7 @@ there again when you unlock it.
 
 Selecting a shape makes it ready to be dragged: it gets the numbers its gizmo moves it by (a `gizmo(...)` call, in
 the mode it is in) and, when it has none, the numbers that place its surfaces (a `handles(...)` call), if they are no more than
-**120**: a bigger one (an imported part can have a thousand) would be pages of script. A model whose surfaces cannot be pulled
+**120**: a bigger one (a complicated part can have hundreds) would be pages of script. A model whose surfaces cannot be pulled
 has an **orange dot** in the model tree, right after its name, and the dot's tooltip says why: it is a mesh (tessellated: no faces
 to pull), or too many numbers place its faces. Its gizmo moves it all the same. Selecting such a model says it under the tree too.
 A primitive made from the viewport's right-click menu is selected as it is made, so it is ready at once.
@@ -74,7 +74,7 @@ curve and the red and green move it across. The numbers written are the same thr
 
 A `point(...)` has no surface, so it is drawn as the dot alone, **always** -- whatever the gizmo's mode, selected or not -- while it is shown
 (its eye in the model tree: a point whose eye is off draws nothing). **Click the dot to select the point**; then its full gizmo shows (the arrows; `mode='never'`
-keeps the dot only) and the dot, or an arrow, drags it. A locked point is a dot that cannot be moved. In an [app](apps.md) the same: `app.viewport({'Load point': p})`
+keeps the dot only) and the dot, or an arrow, drags it. A locked point is a dot that cannot be moved. In an [app](apps.md) the same: `app.viewport({'Pull point': p})`
 shows the dot, with its name over it.
 
 - [`var()`: a number you can drag](#var-a-number-you-can-drag)
@@ -122,9 +122,7 @@ stand = gizmo(
 one argument per line, like the arguments of an operation, so each is easy to find and change (the `handles(...)` call is the exception: see below). What you drag is written into those
 `var()` numbers. The shape is `stand` scaled about its centre, rotated (x, then y, then z; degrees) and moved. `about=` sets another
 centre. `mode=` says when the gizmo is shown: `'click'` (the default, left out), `'never'` or `'always'`; the placement stays
-whatever the mode. (`mode='gizmo'` and `mode='handles'`, from before surfaces could always be dragged, are refused.) An imported
-part keeps its link to the STEP file through `gizmo()`, so `exclude()` (the exact surface) follows it.
-
+whatever the mode. (`mode='gizmo'` and `mode='handles'`, from before surfaces could always be dragged, are refused.)
 ## Copies: Shift+D and Ctrl+D
 
 Two ways to duplicate a model, with the viewport or the model tree focused:
@@ -144,7 +142,7 @@ plate_2 = gizmo(
   The copy's shape, sizes, colours and every other property are the original's, so **when the original changes the copy changes with it**. All it has of its own is where it is: it can be **moved and rotated** with its gizmo (which has no
   scale knob), and nothing else -- its surfaces cannot be dragged and `gizmo(copy, scale=...)` and `handles(copy, ...)` are refused, because they would change the original's shape. The original is only **referred to**, always (the mark `# shadow: plate`),
   whether it is locked or not: it keeps its own row in the model tree and the copy shows a shadow of it -- taking the original into the copy would move its row away and make it look like what the copy is made of. *Operation → Repeating → instance*
-  writes the same block. A profile or a curve cannot be linked (it is made of its points: link those, or copy it with `Shift+D`); a number, a material or the result of an analysis has no shape to follow.
+  writes the same block. A profile or a curve cannot be linked (it is made of its points: link those, or copy it with `Shift+D`); a number has no shape to follow.
 
 ## Handles: drag a surface
 
@@ -156,8 +154,7 @@ extrusion of a rectangle that you selected (and so has its `handles(...)` and `g
 what changes: the other sides stay where they are, and the rectangle is not scaled, moved or turned. The two end faces of such an extrusion are
 numbers of the extrusion (`extrude_1 = handles(extrude_1, [0, 5])`, written when you select it): pull one and the extrusion gets longer or shorter from that end.
 
-For a shape written with **plain numbers** — a primitive, or a part imported from STEP, which is itself made
-of such primitives — FielDes writes, under the definition,
+For a shape written with **plain numbers** — a primitive — FielDes writes, under the definition,
 
 ```python
 bracket = handles(bracket, [var(6), var(40), var(12.5), …])
@@ -178,14 +175,10 @@ Rules:
   rotate the whole part.
 - A plane through the origin has no number in the shape's expression; FielDes gives it one (a 0), so even
   it can be dragged.
-- If the part changes in the STEP file so that the number of surface numbers differs, `handles()` raises an
-  error telling you to **Reimport** the part.
 - A part with more than 120 surface numbers does not get its `handles()` call by being selected (that would be pages of
   script): its menu has **Make its surfaces draggable**. A part that is too large to have handles at all (over 6 000
-  surface numbers — typical of parts full of free-form faces) is refused with a message. It can still be moved with the
+  surface numbers) is refused with a message. It can still be moved with the
   gizmo.
-- An **excluded** shape (`exclude()`) cannot be dragged by its surfaces (that would move its locked part too); use
-  its gizmo.
 
 ## Primitives and displayed expressions
 
@@ -202,7 +195,7 @@ A bare expression such as `sphere(3)` has no variable to hang a line under. Sele
 button) gives the expression a name — a free one, built from the function's name — `sphere_1 = sphere(3)` and a line
 `sphere_1` under it; and, once the script has run again, the gizmo call (`sphere_1 = gizmo(sphere_1, ...)`) and its
 `handles(...)` call under it. Then hover the sphere and drag its surface: the numbers in the list change. A list of shapes
-(`[part for part, _ in model]`) and a model coloured by a field (`colored(...)`, an analysis result) have no button.
+(`[part for part, _ in model]`) and a model coloured by a field (`colored(...)`) have no button.
 
 ## Lock
 
@@ -211,12 +204,12 @@ bracket = lock(bracket)
 ```
 
 A locked shape cannot be dragged: neither the gizmo nor a surface. Use it when the viewport is for looking, so a
-slip of the mouse cannot change the design. **Any model can be locked**, not only a shape: the result of an analysis,
-a condition, a material, a point (`result = lock(result)`: every row of the model tree has the lock button).
+slip of the mouse cannot change the design. **Any model can be locked**, not only a shape: a point,
+a curve, a field (`anchor = lock(anchor)`: every row of the model tree has the lock button).
 
 **A locked model is read-only, and nothing moves it.** Not a drag, not a menu, not an operation made of it: its line stays
 where it is, whatever is made of it. What is made of a locked model holds a **reference** to it (`# shadow: name`, a shadow),
-written below its `lock(...)` line: a surface picked on it (right-click → *Select Surface*), a `union` or an analysis chosen from
+written below its `lock(...)` line: a surface picked on it (right-click → *Select Surface*), a `union` or an offset chosen from
 its menu, a drop into another call -- the locked model stays at the top level and is not taken into the new call. An edit
 that would have to move it (making room for what is made of it) is refused, and says why. The lock button (or `R`) writes that line under the shape's
 definition and deletes it again; it does not touch `gizmo()` or `handles()`, so the gizmo mode and the placement
@@ -231,12 +224,12 @@ they come in: lock the ones that should stay where the file puts them.
 
 | | |
 |---|---|
-| **⟳ on an import** (model tree) | Reimport: read the STEP file again. The `rev=` of the `import_model` call goes up, which is part of the cache key. |
+| **⟳ on an import** (model tree) | Reimport: read the mesh file again. The `rev=` of the `import_model` call goes up, which is part of the cache key. |
 | **⟳ on a part** | Back to what the file says: the part's `gizmo()` and `handles()` calls are deleted and the file is read again. |
-| **Bin on an import** | Reset: delete the import's cache and the handle edits of all its parts; import afresh. |
-| **Hot reload** | The imported files are watched. Save the STEP file from your CAD program and the script re-runs by itself; the status bar says "Reloading: part.step changed on disk". |
+| **Bin on an import** | Reset: delete the handle edits of all its parts; import afresh. |
+| **Hot reload** | The imported files are watched. Save the mesh file from your modelling program and the script re-runs by itself; the status bar says "Reloading: part.stl changed on disk". |
 
-Nothing is stored anywhere but in the script (and the content-addressed import cache next to the STEP file).
+Nothing is stored anywhere but in the script.
 
 ## Limits
 

@@ -171,7 +171,7 @@ until it crosses one. `roi_resolution` picks resolutions that are whole numbers 
 - **One body that needs more (or less) than the scene**: `custom_resolution(body, 3)` meshes that body at 3 samples per mm
   whatever `set_resolution` says, so a fine part does not make the whole scene fine. It is a **property row under the
   variable** in the model tree (the number is a field of the tree, the bin takes the line away) and an entry of the right-click menu. It is the
-  body's wherever the body is: a body that reaches out of the scene's region (the box of a lattice is an estimate) is drawn at its
+  body's wherever the body is: a body that reaches out of the scene's region (the box of a body is sometimes an estimate) is drawn at its
   own resolution inside the region -- nothing outside the region is drawn, as for every shape. The finest a body can be drawn is
   2000 samples along its longest side; a number above that is not an error: the body is drawn at the finest there is, and the
   row shows what is used (`8 → 7.63`, in amber, with the reason in its tooltip).

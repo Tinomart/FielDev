@@ -1,6 +1,6 @@
 # Custom blocks
 
-A **block** is a function of your own that is there in every script, like `sphere()` or `lattice()`. You write it once, in
+A **block** is a function of your own that is there in every script, like `sphere()` or `offset()`. You write it once, in
 a few lines, in a Python file of the **blocks folder**; from then on any script you open in FielDes can call it — with its
 call tip, completion, a place in the right-click menus and a mark in the model tree.
 
@@ -31,7 +31,7 @@ That is all there is to it: no import, no registration, no manifest. (`examples/
 
 ## The folder
 
-The blocks folder is `blocks` next to FielDes (the repository's `blocks/` in a checkout, `blocks` in the portable folder). It
+The blocks folder is `blocks` next to FielDes (the repository's `blocks/` in a checkout). It
 comes with `sample_blocks.py` (four blocks to start from) and a `README.md`. **Settings → Blocks folder…** chooses another
 folder — one you keep in a shared place, say — and **Settings → Show the blocks folder** opens it in the file manager. The
 choice is remembered; the environment variable `FIELDES_BLOCKS` sets it for runs outside the application
@@ -44,12 +44,11 @@ nothing to restart, nothing to reload by hand. A script that does not use a bloc
 
 - **Every public function** in a `.py` file of the folder is a block, named as the function is. A name that starts with an
   underscore (`_helper`) is private to its file; so is a file whose name starts with one (`_notes.py`).
-- A block is written with **the whole library at hand**: `sphere`, `lattice`, `ramp`, `Shape`, `Material` ... without
+- A block is written with **the whole library at hand**: `sphere`, `smooth_union`, `ramp`, `Shape` ... without
   importing them. It may use the blocks of the files **before it** (files are read in alphabetical order), and plain Python
   — loops, classes, helper functions, `math`.
 - The **first line of the docstring** is what the call tip, the completion list and the menus say about the block.
-- A block may return **anything the library makes**: a shape, a field, a point, a surface, a lattice cell, a material, an
-  analysis result. The model tree shows it with the icon of what it made, plus a small **f** badge for the block.
+- A block may return **anything the library makes**: a shape, a field, a point, a surface, a profile. The model tree shows it with the icon of what it made, plus a small **f** badge for the block.
 - A name that is a function of the library is refused (`union` cannot be redefined); a name used by two files is refused
   for the second one. Both are said in the output.
 
