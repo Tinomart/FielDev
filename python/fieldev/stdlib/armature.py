@@ -99,6 +99,12 @@ def limb(points, radii=None, profile=None, name=None, joints=None, parent=None, 
     for k, (ctl, r) in enumerate(zip(ctrls, radii)):
         r = _radius(r, 'limb: radii[%d]' % k)
         sizes.append(r * ctl.scale_expr if ctl.scale_expr is not None else r)
+        # (the viewport draws the ring of a selected node as a circle of the limb's real radius there: the node's scale times this number)
+        if isinstance(ctl.item, Shape) and isinstance(r, (int, float)) and not isinstance(r, bool):
+            try:
+                ctl.item._limb_factor = float(r)
+            except AttributeError:
+                pass
     label = str(name) if name else 'limb'
     if joints is None:
         joints = ['%s_%d' % (label, k) for k in range(n)]
@@ -146,13 +152,17 @@ def character(limbs, blend=3, symmetric=None):
     if not isinstance(limbs, (list, tuple)) or not limbs:
         raise TypeError('character(limbs): a list of limbs, one or more')
     body = F.union_all(list(limbs), blend)
+    body._parts = list(limbs)               # (the parts the UV map by armature unwraps the body by: limbs and features)
     if symmetric is None:
         return body
     from fieldev.stdlib import transforms
     mirror = {'x': 'symmetric_x', 'y': 'symmetric_y', 'z': 'symmetric_z'}.get(str(symmetric).lower())
     if mirror is None:
         raise ValueError('character: symmetric is "x", "y" or "z", not %r' % (symmetric,))
-    return getattr(transforms, mirror)(body)
+    out = getattr(transforms, mirror)(body)
+    out._parts = list(limbs)
+    out._symmetric_axis = str(symmetric).lower()
+    return out
 
 
 def skeleton_of(limbs, mirror=None, plane=0.0, join=None):
@@ -163,6 +173,8 @@ def skeleton_of(limbs, mirror=None, plane=0.0, join=None):
     by_name = {}
     for k, one in enumerate(limbs):
         info = getattr(one, '_limb', None)
+        if info is None and getattr(one, '_feature', None) is not None:
+            continue                            # (a feature is skin, not bone: it is skinned to the nearest joints)
         if info is None:
             raise TypeError('skeleton_of: limb(...)s, not %r' % (type(one).__name__,))
         anchor = None

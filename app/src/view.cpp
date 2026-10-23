@@ -5619,6 +5619,29 @@ float View::gizmoLength(const QVector3D& pivot) const
     return best > 1e-6 ? float(eps * 80.0 / best) : 0.0f;
 }
 
+double View::ringPx(const Shape* s) const
+{
+    // The ring that scales a point is the same size on the screen for every point -- the factor it scales by is what a drag changes -- except for a node of a limb: its ring IS the
+    // thickness of the limb there, a circle round the node of the limb's real radius (the node's scale times the number `radii` gave), so that it is sized against the picture the
+    // limb is modelled over (the way Dust3D shows the size of a node).  Never smaller than a few pixels, so that it can still be pressed
+    if (!s || !(s->limbFactor() > 0.0f)) return kUniformRingPx;
+    const auto& h = s->gizmo();
+    const auto& vars = s->getVars();
+    double sum = 0;
+    int n = 0;
+    for (int a = 0; a < 3; ++a)
+    {
+        const auto it = h.scale[a] ? vars.find(h.scale[a]) : vars.end();
+        if (it == vars.end()) continue;
+        sum += it->second;
+        ++n;
+    }
+    const double scale = n ? sum / n : 1.0;
+    const float L = gizmoLength(s->gizmoPivot());
+    if (!(L > 0)) return kUniformRingPx;
+    return std::max(9.0, 80.0 * double(s->limbFactor()) * std::max(0.0, scale) / double(L));
+}
+
 int View::selectedShapeCount() const
 {
     // (the images of one statement -- `leg_images = symmetry_images(leg, mirror)` is drawn as a shape for each image, and selecting its row selects them all -- are one selection:
@@ -6028,7 +6051,7 @@ View::GizmoGrip View::gizmoAt(QPoint pos) const
             if (any && !(inPlane && pointStyleOf(s) != 2 && pointStyleOf(s) != 3))             // (the radius of a round corner is the factor of this ring)
             {
                 // (the ring: within a few pixels of the circle round the middle)
-                const double d = std::fabs(std::hypot(at.x() - p0.x(), at.y() - p0.y()) - kUniformRingPx) - 3.5;
+                const double d = std::fabs(std::hypot(at.x() - p0.x(), at.y() - p0.y()) - ringPx(s)) - 3.5;
                 if (d < bestDist) { bestDist = d; best = {s, 2, 0}; }
             }
         }
@@ -6147,7 +6170,7 @@ bool View::gizmoGripPoint(int kind, int axis, QPoint& pos) const
         }
         else if (kind == 2)
         {
-            if (shiftHeld() || s->isPoint()) pos = (toScreen(P) + QPointF(0.7071, -0.7071) * kUniformRingPx).toPoint();         // (the ring of a point and of the Shift gizmo, up and to the right)
+            if (shiftHeld() || s->isPoint()) pos = (toScreen(P) + QPointF(0.7071, -0.7071) * ringPx(s)).toPoint();         // (the ring of a point and of the Shift gizmo, up and to the right)
             else pos = toScreen(P + s->gizmoOrientation().mapVector(unitAxis(axis)) *
                                         (kKnobAt * L)).toPoint();
         }
@@ -6827,6 +6850,15 @@ void View::drawGizmo(QPainter& painter)
                     painter.drawText(box, Qt::AlignCenter, text);
                 }
             }
+            // (a node of a limb in the group keeps the circle of its thickness, faint: the ring of the group scales them all about their middle)
+            for (Shape* m : members)
+            {
+                if (!(m->limbFactor() > 0.0f)) continue;
+                const double r = ringPx(m);
+                painter.setBrush(Qt::NoBrush);
+                painter.setPen(QPen(QColor(kUniformColor.red(), kUniformColor.green(), kUniformColor.blue(), 150), 1.4));
+                painter.drawEllipse(toScreen(m->gizmoPivot()), r, r);
+            }
             dot(p0, hotG(3, 0));
         }
     }
@@ -6921,13 +6953,15 @@ void View::drawGizmo(QPainter& painter)
                 QColor c = kUniformColor;
                 if (on) c = c.lighter(140);
                 // (the ring as pressed, when it is being dragged)
+                // (the radius of the ring as it was pressed: while it is dragged the factor is shown against it)
+                const double ring0 = dragging && gizmo_ring0 > 0 ? gizmo_ring0 : ringPx(s);
                 if (dragging)
                 {
                     painter.setBrush(Qt::NoBrush);
                     painter.setPen(QPen(QColor(kUniformColor.red(), kUniformColor.green(), kUniformColor.blue(), 110), 1.2, Qt::DashLine));
-                    painter.drawEllipse(p0, kUniformRingPx, kUniformRingPx);
+                    painter.drawEllipse(p0, ring0, ring0);
                 }
-                const double radius = dragging ? std::max(6.0, kUniformRingPx * double(gizmo_factor)) : kUniformRingPx;
+                const double radius = dragging ? std::max(6.0, ring0 * double(gizmo_factor)) : ring0;
                 painter.setBrush(Qt::NoBrush);
                 painter.setPen(QPen(QColor(0, 0, 0, 90), on ? 6.0 : 4.5));
                 painter.drawEllipse(p0, radius, radius);
@@ -7125,6 +7159,7 @@ void View::growRegionToHold(const double nlo[3], const double nhi[3])
 
 void View::beginGizmoDrag(const GizmoGrip& g, QPoint pos)
 {
+    gizmo_ring0 = g.shape && !g.group ? ringPx(g.shape) : kUniformRingPx;
     m_regionGrown = false;
     gizmo_oriented = false;
     gizmo_frame_shape = nullptr;

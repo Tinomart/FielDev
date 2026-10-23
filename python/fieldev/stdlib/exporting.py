@@ -440,7 +440,7 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         raise ValueError('export_mesh: materials are written in {} files, not {}'.format(', '.join(_MATERIAL_FORMATS), ext))
     if colors is not None and ext not in _COLOR_FORMATS:
         raise ValueError('export_mesh: vertex colours are written in {} files, not {}'.format(', '.join(_COLOR_FORMATS), ext))
-    uv_maps = uvmaps.as_uv_maps(uvs)
+    uv_maps = uvmaps.bind_parts(uvmaps.as_uv_maps(uvs), part)
     if uv_maps and ext not in _UV_FORMATS:
         raise ValueError('export_mesh: texture coordinates are written in {} files, not {}'.format(', '.join(_UV_FORMATS), ext))
     if len(uv_maps) > 1 and ext not in _SKIN_FORMATS:

@@ -6,6 +6,7 @@ UV maps: how a surface is laid out on a texture.
     export_mesh(crate, "crate.obj", uvs=uv_box(500))                 a texture that repeats every 500 mm, going on from one face to the next
     export_mesh(pole, "pole.obj", uvs=uv_cylinder("z"))              wrapped once round the z axis
     export_mesh(ball, "ball.obj", uvs=[uv_sphere(), uv_unwrap(margin=8)])   two sets: the second one (TEXCOORD_1) is for a lightmap
+    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each limb as a tube along its path, each feature along its loops
 
 A UV map gives every corner of every triangle a place (u, v) on the texture, v up.  The vertices that are in triangles with different places are made again for each
 (a seam of the texture).  Two maps are made at most by an export: the first is the one the baked textures are made for.
@@ -33,7 +34,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 import math
 from array import array
 
-__all__ = ['uv_box', 'uv_planar', 'uv_cylinder', 'uv_sphere', 'uv_unwrap', 'UVMap']
+__all__ = ['uv_box', 'uv_planar', 'uv_cylinder', 'uv_sphere', 'uv_unwrap', 'uv_armature', 'UVMap']
 
 # The six faces of the box projection: the axis the normal of a triangle is mostly along and its side (+x -x +y -y +z -z) -> (u, v) of a point (x, y, z), seen
 # from outside with v up, so that a texture reads the same way on every side and is not mirrored on the back ones
@@ -156,6 +157,14 @@ class UVMap:
 
     def _sphere(self, xyz, tri, axis):
         return self._round(xyz, tri, axis, 1.0, None, True)
+
+    def _armature(self, xyz, tri, parts, margin, size, axis):
+        from fieldev.stdlib import uvparts
+        if parts is None:
+            raise ValueError('uv_armature: the model has no parts to unwrap by -- export a character made of limbs and features (character([limb(...), feature(...)])), '
+                             'or give the parts: uv_armature([arm, face, ...])')
+        out, self.report = uvparts.unwrap_parts(xyz, tri, parts, margin, size, axis)
+        return out
 
     # -- the unwrap --------------------------------------------------------------------------------------------------------------------
 
@@ -512,11 +521,11 @@ class _Free:
     def __init__(self, width, height):
         self.free = [(0.0, 0.0, width, height)]
 
-    def insert(self, w, h):
-        ''' (x, y, turned) where a box of w x h goes, or None '''
+    def insert(self, w, h, turn=True):
+        ''' (x, y, turned) where a box of w x h goes, or None (`turn`: it may go a quarter turn) '''
         best = None
         for fx, fy, fw, fh in self.free:
-            for turned, bw, bh in ((False, w, h), (True, h, w)):
+            for turned, bw, bh in ((False, w, h), (True, h, w)) if turn else ((False, w, h),):
                 if bw <= fw + 1e-12 and bh <= fh + 1e-12:
                     score = (min(fw - bw, fh - bh), max(fw - bw, fh - bh))
                     if best is None or score < best[0]:
@@ -552,8 +561,9 @@ class _Free:
         return x, y, turned
 
 
-def _pack(flat, margin):
-    ''' (the scale, {island: (x, y, turned)}): the boxes of the islands (width, height in mm, margin on every side) in the square, at the largest scale where they all fit '''
+def _pack(flat, margin, turn=True):
+    ''' (the scale, {island: (x, y, turned)}): the boxes of the islands (width, height in mm, margin on every side) in the square, at the largest scale where they all fit
+        (`turn`: they may be put a quarter turn) '''
     order = sorted(range(len(flat)), key=lambda k: -max(flat[k][2], flat[k][3]))
     widest = max(max(f[2], f[3]) for f in flat) or 1.0
     total = sum(f[2] * f[3] for f in flat) or 1.0
@@ -565,7 +575,7 @@ def _pack(flat, margin):
             w, h = flat[k][2] * scale + 2.0 * margin, flat[k][3] * scale + 2.0 * margin
             if max(w, h) > 1.0 + 1e-9:
                 return None
-            spot = pack.insert(w, h)
+            spot = pack.insert(w, h, turn)
             if spot is None:
                 return None
             place[k] = (spot[0] + margin, spot[1] + margin, spot[2])
@@ -580,7 +590,7 @@ def _pack(flat, margin):
         else:
             high = mid
     if best is None:                                    # (so many islands that the margins fill the square: the margins give way)
-        return _pack(flat, margin * 0.5) if margin > 1e-6 else (low, {k: (0.0, 0.0, False) for k in range(len(flat))})
+        return _pack(flat, margin * 0.5, turn) if margin > 1e-6 else (low, {k: (0.0, 0.0, False) for k in range(len(flat))})
     return low, best
 
 
@@ -645,8 +655,40 @@ def uv_unwrap(angle=60, margin=4, size=1024):
     return UVMap('unwrap', angle=float(angle), margin=float(margin), size=int(size))
 
 
+def uv_armature(parts=None, margin=4, size=1024):
+    ''' The surface laid on the texture from the armature it was made of, part by part (see uvparts.py).
+
+            export_mesh(hero, "hero.glb", uvs="armature")
+            export_mesh(hero, "hero.glb", uvs=uv_armature(margin=8, size=2048))
+
+        parts   the limbs and features to unwrap by, or None for the parts of the model that is exported (a `character` knows them)
+        margin  the gap between islands, in texels of a `size` x `size` texture
+        size    the size of the texture in texels that the margin is counted in
+
+        Each triangle belongs to the part whose surface it is nearest to.  A LIMB is unwrapped as a tube along its path: u round the path, v along it, the seam straight along its
+        back, the rounded ends carried on.  A FEATURE (stitched loops) is unwrapped along its loops: u round the loops, v from loop to loop.  Every island is in millimetres,
+        so a texel is the same size everywhere, and none is turned: the texture runs the way the part does '''
+    if parts is not None and (not isinstance(parts, (list, tuple)) or not parts):
+        raise ValueError('uv_armature: parts is a list of limbs and features, or None for the parts of the exported model, not %r' % (parts,))
+    if not isinstance(margin, (int, float)) or isinstance(margin, bool) or margin < 0:
+        raise ValueError('uv_armature: margin is a number of texels, 0 or more, not %r' % (margin,))
+    if not isinstance(size, int) or isinstance(size, bool) or not 16 <= size <= 16384:
+        raise ValueError('uv_armature: size is the texels of the texture across, from 16 to 16384, not %r' % (size,))
+    return UVMap('armature', parts=None if parts is None else list(parts), margin=float(margin), size=int(size), axis=None)
+
+
+def bind_parts(maps, part):
+    """ The UV maps by armature that were not given parts get the parts (and the symmetry) of the model that is exported """
+    from fieldev.stdlib import uvparts
+    for m in maps:
+        if m.kind == 'armature' and m.options.get('parts') is None:
+            m.options['parts'] = uvparts.parts_of(part) or None
+            m.options['axis'] = uvparts.symmetry_axis_of(part)
+    return maps
+
+
 def as_uv_maps(uvs):
-    ''' The list of UV maps (one or two) for what export_mesh was given as `uvs`: a text ("box", "planar", "cylinder", "sphere", "unwrap"), ("box", 500), a UVMap, or a list of them '''
+    ''' The list of UV maps (one or two) for what export_mesh was given as `uvs`: a text ("box", "planar", "cylinder", "sphere", "unwrap", "armature"), ("box", 500), a UVMap, or a list of them '''
     if uvs is None or uvs is False:
         return []
     if isinstance(uvs, UVMap):
@@ -661,7 +703,7 @@ def as_uv_maps(uvs):
             raise ValueError('export_mesh: uvs=(%r, %r) -- the one with a size is ("box", the millimetres of one repeat)' % (name, size))
         return [uv_box(size)]
     name = str(uvs).strip().lower()
-    makers = {'box': uv_box, 'planar': uv_planar, 'cylinder': uv_cylinder, 'sphere': uv_sphere, 'unwrap': uv_unwrap}
+    makers = {'box': uv_box, 'planar': uv_planar, 'cylinder': uv_cylinder, 'sphere': uv_sphere, 'unwrap': uv_unwrap, 'armature': uv_armature}
     if name not in makers:
         raise ValueError('export_mesh: uvs=%r -- the UV maps there are: %s' % (uvs, ', '.join(sorted(makers))))
     return [makers[name]()]

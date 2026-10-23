@@ -996,11 +996,14 @@ protected:
     float gizmo_factor = 1.0f;         // ...and the factor it has scaled by so far (shown beside it)
     QPointF gizmo_centre;              // ...the middle of the ring on the screen, and how far from it the ring was pressed
     double gizmo_press_r = 1.0;
+    double gizmo_ring0 = 0.0;          // ...and the radius of the scale ring of the shape when the drag began (the ring of a limb's node is the size of the limb there)
     QVector3D gizmo_pivot, gizmo_axis, gizmo_vec;   // a ring's
     float gizmo_turn = 0;              // degrees turned so far
     float gizmo_scale0[3] = {1, 1, 1}; // the scale numbers when a scale drag began
     libfive::Tree::Id gizmo_scale_id[3] = {nullptr, nullptr, nullptr};
     float gizmoLength(const QVector3D& pivot) const;
+    /*  The radius on the screen of the ring that scales a point: the same for every point -- except a node of a limb, whose ring is a circle of the limb's real radius there  */
+    double ringPx(const Shape* s) const;
     GizmoGrip gizmoAt(QPoint pos) const;
     /*  Shift held: the move arrows are replaced by flat squares (a drag moves along the plane of the square) and the scale knobs all scale together  */
     bool shiftHeld() const;
