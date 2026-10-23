@@ -13,11 +13,12 @@ UV maps by part: the surface laid on the texture from the armature it was made o
      texture painted on one is not mirrored on the other).
   2. EACH PART LAID FLAT FROM WHAT IT IS.  A LIMB is a tube along its path: u goes round the path (the angle times the distance from the path, so that it is millimetres), v along
      it (the length of the path).  The seam is a straight line along the back of the limb (the side the path's first stretch faces away from -y), and the angle is measured from a
-     frame that is carried along the path without twisting.  A FEATURE is a tube too, along the line through the middles of its loops, but the angle round it is measured against the
-     points of the loop there: u goes round the loops by the mean length of each stretch of a loop, v from loop to loop by the distance between their middles.  The end caps of both
-     are unrolled as a disc beyond the end (the rim at the end of the path, the middle one radius further), so that a flat cap is not a line in the texture.
+     frame that is carried along the path without twisting.  The end caps are unrolled as a disc beyond the end (the rim at the end of the path, the middle one radius further), so
+     that a flat cap is not a line in the texture.  A FEATURE is laid flat as it was drawn: in the picture of the view it was stitched in (u to the right, v up, in millimetres), so
+     that a texture painted over the reference picture of a face lands where it was drawn.  The triangles that face away from the viewer -- the back of a shell, a closed back --
+     are an island of their own, seen from behind.
   3. THE ISLANDS PACKED.  Every island is in millimetres, so a texel is the same size everywhere; they are packed in the square with `margin` texels between them, and are not
-     turned (u is round the part and v along it, so that a texture is painted the way the part runs).
+     turned (a limb's u is round the part and v along it, a feature's the way it was drawn, so that a texture is painted the way the part runs).
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -84,11 +85,6 @@ def _length(a):
 def _unit(a):
     n = _length(a)
     return (a[0] / n, a[1] / n, a[2] / n) if n > 1e-30 else (0.0, 0.0, 1.0)
-
-
-def _middle(points):
-    n = float(len(points))
-    return (sum(p[0] for p in points) / n, sum(p[1] for p in points) / n, sum(p[2] for p in points) / n)
 
 
 # -- a tube along a path ---------------------------------------------------------------------------------------------------------------
@@ -203,92 +199,28 @@ def _tube_params(points, nodes):
     return {i: g[:3] for i, g in got.items()}
 
 
-# -- a feature: a tube along its loops --------------------------------------------------------------------------------------------------
+# -- a feature: flat, as it was drawn ---------------------------------------------------------------------------------------------------------
 
-def _unwrapped(angles):
-    ''' The angles of the points of a loop as one run: each step turns by less than a half turn the same way, so that they increase (or all decrease) round once.  (angles, 1 or -1: the
-        way the points go round) '''
-    out = [angles[0]]
-    for x in angles[1:]:
-        out.append(out[-1] + (x - out[-1] + math.pi) % (2.0 * math.pi) - math.pi)
-    closing = (angles[0] - out[-1] + math.pi) % (2.0 * math.pi) - math.pi
-    way = 1 if (out[-1] - out[0] + closing) >= 0.0 else -1
-    return out, way
-
-
-def _loft_params(points, rings):
-    ''' ({vertex: (u, v, share)} in millimetres, the length of a loop): where each place is on a feature.  A feature is a tube along the line through the middles of its rings; the
-        angle round it is measured against the points of the ring there (between two rings, against the points between them), and u is the share of the way round that the ring's points
-        say.  `share` is 1 on the skin, and less than that on the end caps, which are unrolled as discs (u is then scaled by how far the place is from the middle) '''
-    count = len(rings[0])
-    kept = [rings[0]]
-    for r in rings[1:]:
-        if _length(_sub(_middle(r), _middle(kept[-1]))) > 1e-9:         # (a ring on top of the one before has no stretch of its own)
-            kept.append(r)
-    if len(kept) < 2:
-        raise ValueError('uv_armature: the loops of a feature have the same middle -- it cannot be laid out along its loops')
-    mids = [_middle(r) for r in kept]
-    tube = _Tube(mids)
-    edge = [[_length(_sub(r[(i + 1) % count], r[i])) for i in range(count)] for r in kept]
-    mean = [sum(edge[k][i] for k in range(len(kept))) / len(kept) for i in range(count)]
-    along = [0.0]
-    for m in mean:
-        along.append(along[-1] + max(m, 1e-6))
-    period = along[-1]
-    # the angles of the points of each ring in the frame of the stretch they are an end of: a run that increases (the way the points go round), and +1 or -1 for that way
-    ends = []
-    for k in range(len(kept) - 1):
-        runs = []
-        for ring, mid in ((kept[k], mids[k]), (kept[k + 1], mids[k + 1])):
-            raw = [math.atan2(_dot(_sub(p, mid), tube.v[k]), _dot(_sub(p, mid), tube.u[k])) for p in ring]
-            runs.append(_unwrapped(raw))
-        (a, way), (b, _w2) = runs
-        shift = round((a[0] - b[0]) / (2.0 * math.pi)) * 2.0 * math.pi            # (the second run starts within a half turn of the first)
-        b = [x + shift for x in b]
-        ends.append((a, b, way))
-    got = {i: tube.where(p) for i, p in points.items()}
-    rims = _unroll_caps(tube, got)
-    out = {}
-    for i, (theta, rho, s, end, j, c) in got.items():
-        a, b, way = ends[j]
-        t = c / tube.length[j]
-        if end > 0:
-            t = 1.0
-        elif end < 0:
-            t = 0.0
-        angles = [x * (1.0 - t) + y * t for x, y in zip(a, b)]
-        if way < 0:
-            angles = [-x for x in angles]
-            theta = -theta
-        # the angle of the place, brought into the run of the ring's angles and found between two of them
-        first = angles[0]
-        phi = first + ((theta - first) % (2.0 * math.pi))
-        k = count - 1
-        for n in range(count - 1):
-            if angles[n] <= phi < angles[n + 1]:
-                k = n
-                break
-        nxt = angles[k + 1] if k + 1 < count else angles[0] + 2.0 * math.pi
-        f = (phi - angles[k]) / ((nxt - angles[k]) or 1.0)
-        u = along[k] + f * (along[k + 1] - along[k])
-        share = 1.0
-        if end != 0:
-            share = min(1.0, rho / rims[end])
-        out[i] = (u * share, s, share)
-    return out, period
+def _planar_params(points, info, back):
+    ''' {vertex: (u, v)} in millimetres: where each place is on a feature, laid flat as it is seen in the view the feature was stitched in -- u to the right, v up -- or, for the
+        triangles that face away from the viewer (`back`: the back of a shell, a closed back), as it is seen from behind '''
+    u, v, _ = info.surface.view
+    sign = -1.0 if back else 1.0
+    return {i: (sign * _dot(p, u), _dot(p, v)) for i, p in points.items()}
 
 
 # -- the unwrap -------------------------------------------------------------------------------------------------------------------------
 
 def _describe(part):
-    ''' (name, nodes or rings, kind, on the plane) of a part: a limb has nodes, a feature has rings.  `on the plane`: every place of it is on the plane of symmetry '''
+    ''' (name, nodes or the feature, kind, its places) of a part: a limb has nodes, a feature is what it knows of itself.  The places are what decides whether the part is on the plane
+        of symmetry (all of them are) or off it; a feature that has places on both sides of the plane has its other half in itself, and counts as being on it '''
     info = getattr(part, '_limb', None)
     if info is not None:
         nodes = [tuple(c.pos) for c in info.ctrls]
         return info.name, nodes, 'limb', nodes
     info = getattr(part, '_feature', None)
     if info is not None:
-        return info.name, info.rings, 'feature', [p for r in info.rings for p in r]
+        return info.name, info, 'feature', info.surface.vertices
     raise TypeError('uv_armature: the parts are limb(...)s and feature(...)s, not %r' % (type(part).__name__,))
 
 
@@ -305,7 +237,8 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
         for i in range(nv):
             folded[3 * i + axis] = abs(folded[3 * i + axis])
     # (a part that lies on the plane of symmetry is its own mirror image and is asked at the places themselves; the others are asked across the plane, for the other half)
-    mirrored = [axis is not None and any(abs(p[axis]) > 1e-6 for p in d[3]) for d in described]
+    mirrored = [axis is not None and any(abs(p[axis]) > 1e-6 for p in d[3])
+                and not (d[2] == 'feature' and any(p[axis] > 1e-6 for p in d[3]) and any(p[axis] < -1e-6 for p in d[3])) for d in described]
     values = [_eval_at(p, folded if m else xyz, nv) for p, m in zip(parts, mirrored)]
     owner = [min(range(len(parts)), key=lambda k: values[k][i]) for i in range(nv)]
     groups = {}
@@ -319,9 +252,19 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
         side = 0
         if mirrored[k]:
             side = 0 if sum(xyz[3 * c + axis] for c in corners) >= 0.0 else 1
-        groups.setdefault((k, side), []).append(t)
+        back = 0
+        if described[k][2] == 'feature':
+            # a feature is laid flat as it is seen in its view: the triangles that face away from the viewer are an island of their own, seen from behind.  (Across the plane of
+            # symmetry the triangle is turned inside out by the mirror, and so is the way it faces)
+            q = [(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]) for c in corners]
+            if mirrored[k] and side == 1:
+                q = [tuple(-x if a == axis else x for a, x in enumerate(p)) for p in q]
+            n = _cross(_sub(q[1], q[0]), _sub(q[2], q[0]))
+            facing = _dot(n, described[k][1].surface.view[2]) * (-1.0 if mirrored[k] and side == 1 else 1.0)
+            back = 0 if facing >= 0.0 else 1
+        groups.setdefault((k, side, back), []).append(t)
     islands, names = [], []
-    for (k, side), members in sorted(groups.items()):
+    for (k, side, back), members in sorted(groups.items()):
         name, data, kind, _ = described[k]
         used = sorted({tri[3 * t + c] for t in members for c in range(3)})
         pts = {}
@@ -341,22 +284,17 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
                 for c, a in zip(corners, angles):
                     uv.append((a * par[c][1], par[c][2]))
         else:
-            par, period = _loft_params(pts, data)
+            par = _planar_params(pts, data, back)
             for t in members:
-                corners = [tri[3 * t + c] for c in range(3)]
-                us = [par[c][0] for c in corners]
-                local = period * sum(par[c][2] for c in corners) / 3.0           # (the way round the loop at this place: less on a cap)
-                if max(us) - min(us) > 0.5 * local:
-                    us = [u + local if u < 0.5 * local else u for u in us]
-                for c, u in zip(corners, us):
-                    uv.append((u, par[c][1]))
+                for c in range(3):
+                    uv.append(par[tri[3 * t + c]])
         if mirrored[k] and side == 1:
             uv = [(-u, v) for u, v in uv]                                # (the mirrored half is laid the way round that gives its triangles the winding of the first half)
         lu, lv = min(u for u, v in uv), min(v for u, v in uv)
         uv = [(u - lu, v - lv) for u, v in uv]
         width, height = max(u for u, v in uv), max(v for u, v in uv)
         islands.append((members, uv, width, height))
-        names.append(name + (' (mirrored)' if side else ''))
+        names.append(name + (' (back)' if back else '') + (' (mirrored)' if side else ''))
     margin_uv = float(margin) / float(size)
     scale, place = U._pack(islands, margin_uv, False)
     out = array('f', [0.0]) * (6 * nt)

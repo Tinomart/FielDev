@@ -82,16 +82,27 @@ _FACE = '\n#@@@#\n{var}_face = cut_face({var})\n{var}_face'
 _LIMB = _LINE_POINTS + _CUT + '#@@#\nlimb([' + _LINE_LIST + '], profile={var}_cut, name="{var}")' + _FACE
 
 
+# The loops of a new feature: half a face drawn on the front view, as (x, y, z) in halves of the size from the place -- an outline from the chin to the top of the head (open, its ends
+# on the plane of the mirror), an eye (a ring), a mouth (open, the end on the plane is where it is mirrored) and a nose (open, both ends on the plane, a ridge in front of the face)
+_HALF_FACE = {
+    'o': (False, [(0.0, 0.1, -1.0), (0.55, 0.1, -0.8), (0.85, 0.1, -0.2), (0.8, 0.1, 0.5), (0.45, 0.1, 0.95), (0.0, 0.1, 1.05)]),
+    'e': (True, [(0.4 + 0.2 * math.cos(math.radians(60.0 * i)), 0.0, 0.25 + 0.12 * math.sin(math.radians(60.0 * i))) for i in range(6)]),
+    'm': (False, [(0.0, 0.0, -0.45), (0.2, 0.0, -0.5), (0.4, 0.0, -0.42)]),
+    'n': (False, [(0.0, -0.25, 0.1), (0.12, -0.15, -0.15), (0.0, -0.2, -0.3)]),
+}
+
+
 def _feature_text():
-    ''' A feature made from the menu: three loops of six points, one behind the other, the middle one the widest (a nose, a muzzle, a brow): each point a model of its own with its
-        gizmo, and the call through the loops.  The places of the points are worked out in `_values` (f<loop>x<point>, f<loop>z<point>, fy<loop>) '''
+    ''' A feature made from the menu: half a face (see _HALF_FACE), mirrored across the plane through the place -- each point a model of its own with its gizmo, and the call through
+        the loops with every choice written out, to change in the script.  The places of the points are worked out in `_values` (f<loop><point>x, y, z) '''
     texts, loops = [], []
-    for k in range(3):
-        places = [('{f%dx%d}' % (k, i), '{fy%d}' % k, '{f%dz%d}' % (k, i)) for i in range(6)]
-        pts, listing = _points(*places, base='{var}_l%d' % (k + 1))
+    for key, (closed, rows) in _HALF_FACE.items():
+        places = [('{f%s%dx}' % (key, i), '{f%s%dy}' % (key, i), '{f%s%dz}' % (key, i)) for i in range(len(rows))]
+        pts, listing = _points(*places, base='{var}_%s' % key)
         texts.append(pts)
-        loops.append('[' + listing + ']')
-    return ''.join(texts) + '#@@#\nfeature([' + ', '.join(loops) + '], detail=3, name="{var}")'
+        loops.append('loop([' + listing + ']' + (', closed=True' if closed else '') + ')')
+    return ''.join(texts) + ('#@@#\nfeature([' + ', '.join(loops) + '], view="front", mirror=("x", {x}), snap=0, openings=True, trim=True, fill_holes=8, back=False, thickness={t}, '
+                             'name="{var}")')
 
 
 _FEATURE = _feature_text()
@@ -668,13 +679,12 @@ def _values(r):
         'xm': _num(x - h), 'xp': _num(x + h), 'ym': _num(y - h), 'yp': _num(y + h), 'zm': _num(z - h), 'zp': _num(z + h),
         'body': r.get('body', ''), 'other': r.get('other', ''), 'var': r.get('var') or (name + '_1'),
     }
-    # the three loops of a new feature: in the planes y = (y - h/2, y, y + h/2), the middle one the widest, six points round each
-    for k, (depth, radius) in enumerate(((-0.5, 0.5), (0.0, 0.8), (0.5, 0.4))):
-        values['fy%d' % k] = _num(y + depth * h)
-        for i in range(6):
-            angle = math.radians(60.0 * i)
-            values['f%dx%d' % (k, i)] = _num(x + radius * h * math.cos(angle))
-            values['f%dz%d' % (k, i)] = _num(z + radius * h * math.sin(angle))
+    # the loops of a new feature: half a face at the place (see _HALF_FACE)
+    for key, (_closed, rows) in _HALF_FACE.items():
+        for i, (dx, dy, dz) in enumerate(rows):
+            values['f%s%dx' % (key, i)] = _num(x + dx * h)
+            values['f%s%dy' % (key, i)] = _num(y + dy * h)
+            values['f%s%dz' % (key, i)] = _num(z + dz * h)
     values['others'] = ', ' + values['other'] if values['other'] else ''       # (for a call that may have no other model)
     values['body_info'] = r.get('body_info')
     return values

@@ -3388,8 +3388,9 @@ void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, doub
         auto action = menu->addAction(TypeIcons::icon(p["type"].toString("solid")), stitched ? T("New feature") : T("New limb"), this,
                                       [=]{ emit(createRequested("primitive", name, point, scale, atLine, -1)); });
         action->setToolTip(!p["doc"].toString().isEmpty() ? p["doc"].toString()
-                           : stitched ? T("A surface stitched through three loops of points -- a nose, a muzzle, a brow.  Drag the points of a loop to shape it.  Every loop has the same number "
-                                          "of points, in the same order round; the feature is the skin from one loop to the next, closed at both ends")
+                           : stitched ? T("A surface stitched through loops of points, as the loops of a face are in Dust3D: half a face to start from (an outline, an eye, a mouth, a nose).  Every "
+                                          "point is a vertex of the surface and every loop stays an edge loop; drag the points, add loops.  The mirror, the view the points are joined in, the "
+                                          "openings and the thickness are arguments of the call in the script")
                                       : T("A first limb, three nodes, to change in the script"));
         checkPrimitive(action, name);
     }

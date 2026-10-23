@@ -43,6 +43,11 @@ tint = (0.2 + z_field() / 250, 0.5, 0.9 - z_field() / 250)
 failed = []
 
 
+def linear(channel):
+    # a hex colour is sRGB, as in a paint program: the material -- and the file -- has it linear, as glTF does
+    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+
+
 def check(label, ok, detail=""):
     print(("ok    " if ok else "FAIL  ") + label + (("    " + detail) if detail else ""))
     if not ok:
@@ -86,7 +91,7 @@ check("obj: a .mtl file beside it, four materials used", mtl == "hero.mtl" and o
       "%d triangles: %s" % (total, ", ".join("%s %d" % (k, len(g)) for k, g in sorted(groups.items(), key=lambda kv: str(kv[0])))))
 text = open("meshes/hero.mtl").read()
 kd = [float(t) for t in text.split("newmtl shirt")[1].split("Kd")[1].split("\n")[0].split()]
-check("mtl: a newmtl for each, the colour of the shirt is #3a6ea5", all(("newmtl " + m.name) in text for m in layers) and all(abs(a - b / 255.0) < 1e-6 for a, b in zip(kd, (0x3a, 0x6e, 0xa5))),
+check("mtl: a newmtl for each, the colour of the shirt is #3a6ea5", all(("newmtl " + m.name) in text for m in layers) and all(abs(a - linear(b / 255.0)) < 1e-6 for a, b in zip(kd, (0x3a, 0x6e, 0xa5))),
       "Kd %s" % kd)
 check("obj: the shoes are the triangles whose middle is in the shoes box", all(inside(shoes_box, centre(verts, t)) for t in groups["shoes"]))
 check("obj: the shirt is where the shirt box is and the shoes do not cover it", all(inside(shirt_box, centre(verts, t)) and not inside(shoes_box, centre(verts, t)) for t in groups["shirt"]))
@@ -106,7 +111,7 @@ shirt_gltf = next(m for m in doc["materials"] if m["name"] == "shirt")["pbrMetal
 check("glb: four materials, a primitive for each, vertex colours", magic == b"glTF" and len(doc["materials"]) == 4 and len(prims) == 4 and all("COLOR_0" in p["attributes"] for p in prims)
       and doc["accessors"][prims[0]["attributes"]["COLOR_0"]]["count"] == nverts, "%d vertices" % nverts)
 check("glb: the same triangles as the obj, the shirt's colour and its roughness", sum(doc["accessors"][p["indices"]]["count"] for p in prims) == 3 * total
-      and abs(shirt_gltf["baseColorFactor"][2] - 0.647) < 1e-3 and shirt_gltf["roughnessFactor"] == 0.9 and length == len(data))
+      and abs(shirt_gltf["baseColorFactor"][2] - linear(0xa5 / 255.0)) < 1e-3 and shirt_gltf["roughnessFactor"] == 0.9 and length == len(data))
 
 # 2b. a model shown with its materials carries them: no materials= is needed
 export_mesh(shown, "meshes/hero_shown.glb")

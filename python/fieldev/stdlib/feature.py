@@ -1,57 +1,134 @@
 '''
-Features: stitched loops, for the delicate parts of a character -- a face, an ear, a hand.
+Features: surfaces stitched through loops of points, for the delicate parts of a character -- a face, an ear, a hand.
 
-    nose = feature([bridge, middle, tip, nostrils], name="nose")        # four loops of points, stitched together
-    ear = feature([rim, middle, lobe], detail=3, name="ear")
+    outline = loop([point(0, 0, -10), point(7, 0, -5), point(8, 0, 4), point(0, 0, 10)])      # half of the face: an open path
+    eye = ring((3, -0.4, 3), 1.3, 8)                                                          # a closed loop of 8 points
+    nose = loop([point(0, -1.5, 1), point(0.8, -1.0, -1.5), point(0, -1.6, -2.5)])
+    face = feature([outline, eye, nose], mirror="x", name="face")
 
-A FEATURE is a surface that is stitched through LOOPS: each loop is a ring of points (`point(x, y, z)`, dragged with their gizmos, or tuples of numbers) -- a cross-section of the
-part -- and the feature is the skin that joins one loop to the next, closed at the two ends.  It is what a limb cannot be: a limb has the same cross-section all along, and each loop
-of a feature has the shape the part has at that place, so the loops of a nose are a broad oval at the bridge, a smaller one at the middle, a rounder one at the tip and a pair of
-small ones at the nostrils.  The loops are stacked in the way the part runs (a nose out from the face, an ear out from the side of the head, a finger along the hand) and each faces
-that way, like the cross-sections of a loft; loops that lie across each other, or one beside the other in the plane they face, make skin that folds.  Every loop has the same number
-of points, in the same order round (the first point of one loop is stitched to the first point of the next), and each loop should be a ring that can be seen from its middle: the
-middle of the loop must be inside it.  Every number of the feature is an expression of the points, so that a point dragged in the viewport moves the feature at once.
+A FEATURE is a surface stitched through LOOPS.  A loop is a path of points, closed into a ring or open; every point you place is a vertex of the surface -- none is added, none is moved
+-- and every edge of a loop is an edge of the surface, so the loops you draw are the edge loops of the face, wherever the points are dragged.  This is the method of Dust3D's stitching
+loops, for modelling a part from the outlines of a reference picture: draw the outline of the face, of an eye, of the mouth, and the surface between them is made.
 
-    feature(loops, detail=3, name=None)
+How the points are joined is decided in the plane of a VIEW (`view="front"`: the plane you look at the part in).  The points stay where they are in space -- each has its own depth --
+so the view only decides what is joined to what, and the loops can be dragged in any view of the viewport.  Look at a face from the front, an ear from the side (`view="right"`), or
+along any direction (`view=((0, 1, -1), (0, 0, 1))`: the direction you look along, and which way is up in the picture).
 
-        loops   two or more loops, each a list of three or more points, all with the same number of points
-        detail  how many rings make the stretch between two loops: 1 is the loops themselves, joined with straight skin; more rings are laid on a smooth curve through the loops
-                (a Catmull-Rom curve, as the nodes of a limb are), so that the skin bends smoothly across a loop and the feature is not faceted
-        name    what the UV map and the model tree call the feature
+Nothing is automatic unless the arguments ask for it:
 
-`ring(center, radius, count, facing)` makes the points of a round loop, to start a feature from.  The feature joins a character with the rest of the parts, as a limb does:
+    feature(loops, view="front", mirror=None, snap=0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1, back_sharpness=0, thickness=0.2, name=None)
+
+        loops        the loops: `loop(...)`, `ring(...)`, a polyline or spline, a profile, or a plain list of points (an open loop)
+        view         "front", "back", "left", "right", "top", "bottom", or (direction, up): the plane the points are joined in
+        mirror       None: the loops are used as they are.  "x", "y" or "z" (the plane through the origin that the axis is the normal of), ("x", 2) (the plane x = 2) or (point, normal):
+                     the loops are mirrored across that plane.  An open loop is half of a shape: with both its ends on the plane it becomes a ring (A-B-C-D-C'-B'), with one end on it a
+                     path (A-B-C-D-C'-B'-A'), with neither it gets a mirror image of its own; a ring on one side of the plane gets a mirror image; what lies across the plane stays
+        snap         how near the plane an end of an open loop may be to be put onto it (0: only the ends that are on it already)
+        openings     a closed loop with nothing in it that lies inside another closed loop is an opening -- an eye, a nostril -- and not surface.  False: every loop is stitched across
+        trim         drop the triangles that join the points of one loop alone and lie outside every closed loop (False: keep everything the triangulation makes)
+        fill_holes   close the holes of this many edges or fewer (0: none).  An opening is not a hole
+        back         True: close the outer boundary with rings that shrink to a point behind the surface, so that it is a solid.  back_depth is how deep that point is, as a share of the
+                     mean radius of the outline, and back_sharpness (0 to 1) how much the rings keep the shape of the outline and do not follow the surface
+        thickness    an open surface is a shell of this thickness (the surface is its middle); a closed one is a solid and has none
+        name         what the UV map and the model tree call the feature
+
+Each loop can say its own choice and the feature's is then not used for it:
+
+    loop(points, closed=False, mirror=None, opening=None)
+
+        closed       True: a ring (the last point is joined to the first)
+        mirror       None: as the feature says.  False: this loop is not mirrored.  True: across the plane of the feature.  Or a plane of its own
+        opening      None: as `openings` says.  True: this closed loop is an opening, whatever is in it.  False: it is stitched across
+
+`ring(center, radius, count, facing)` makes the points of a round loop.  The feature joins a character with the rest of the parts, as a limb does:
 
     hero = character([spine, arm, face], blend=2)
 
-The UV map of the character (`uvs="armature"`, see uvmaps.py) unwraps a feature along its loops: round a loop is one direction of the texture, and from loop to loop is the other.
+The UV map of the character (`uvs="armature"`, see uvmaps.py) unwraps a feature as it was drawn: flat, in the picture of its view, and the back, if it has one, as an island of its own.
+
+The surface is a mesh, and the feature is the exact distance to that mesh.  It is made when the script runs: points dragged in the viewport change the surface when the script runs
+again, and not while the drag is going on, as the sweep of a limb does.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
+import ctypes
 import math
 
+from fieldev.ffi import lib, libfive_mesh_import_info_t
 from fieldev.kinds import takes as _declare
+from fieldev.shape import Shape
 from fieldev.stdlib import curves as C
-from fieldev.stdlib import fields as F
-from fieldev.stdlib.armature import _catmull
+from fieldev.stdlib import stitching as S
+from fieldev.stdlib.content_cache import cache_for
 
-__all__ = ['feature', 'ring', 'Feature']
+__all__ = ['feature', 'loop', 'ring', 'Loop', 'Feature']
 
-_MOST_PIECES = 6000             # (the tetrahedra a feature is made of: more would be too slow to draw)
+_MOST_NODES = 1500              # (the triangulation is made in plain Python: more nodes than this would take too long)
+_cache = cache_for('feature', 8)
+
+
+class Loop(list):
+    ''' The points of a loop of a feature, and what the loop says of itself (see `loop`) '''
+
+    def __init__(self, points=(), closed=False, mirror=None, opening=None):
+        super().__init__(points)
+        self.closed = bool(closed)
+        self.mirror = mirror
+        self.opening = opening
+
+    def __repr__(self):
+        return 'loop(%d points%s)' % (len(self), ', closed' if self.closed else '')
 
 
 class Feature:
-    ''' What a feature knows of itself, for the UV map: its name and its rings (the numbers they have now, one list of (x, y, z) for each ring, the loops among them) '''
+    ''' What a feature knows of itself, for the UV map and the model tree: its name, the surface that was stitched (a stitching.StitchedSurface: vertices, triangles, which loop and
+        point each vertex comes from, the view) and the thickness of the shell it is made into '''
 
-    def __init__(self, name, rings, loops, detail):
+    def __init__(self, name, surface, loops, thickness):
         self.name = name
-        self.rings = rings
+        self.surface = surface
         self.loops = loops
-        self.detail = detail
+        self.thickness = thickness
 
     def __repr__(self):
-        return 'feature(%r, %d loops of %d points)' % (self.name, self.loops, len(self.rings[0]))
+        return 'feature(%r, %d loops, %d vertices, %d triangles)' % (self.name, self.loops, len(self.surface.vertices), len(self.surface.triangles))
+
+
+def _is_node(item):
+    if getattr(item, 'xyz', None) is not None:
+        return True
+    return isinstance(item, (tuple, list)) and len(item) in (2, 3) and all(isinstance(c, (int, float)) for c in item)
+
+
+def _points_of(item, k):
+    ''' (the points of a loop, whether the thing says it is closed -- or None) '''
+    if isinstance(item, Loop):
+        return list(item), item.closed
+    points = getattr(item, 'points', None)
+    if points is not None and getattr(item, '_kind', None) == 'profile':
+        return list(points), True
+    if points is not None and hasattr(item, 'closed'):
+        return list(points), bool(item.closed)
+    if isinstance(item, (list, tuple)):
+        return list(item), None
+    raise TypeError('feature: loop %d is loop(...), ring(...), a polyline, a spline, a profile or a list of points, not %r' % (k, type(item).__name__))
+
+
+def loop(points, closed=None, mirror=None, opening=None):
+    ''' A loop of a feature: a path of points (`point(x, y, z)`, or tuples of numbers), with what it says of itself.
+
+            eye = loop([point(2, -0.4, 3), point(3, -0.5, 3.6), point(4, -0.4, 3)], closed=True, opening=True)
+
+        points   a list of points, or a polyline, a spline or a profile (their points are the nodes)
+        closed   True: a ring, the last point joined to the first.  None: as the polyline, spline or profile says, and open for a list
+        mirror   None: as the feature says.  False: this loop is not mirrored.  True: across the plane of the feature.  Or a plane of its own ("x", ("x", 2), (point, normal))
+        opening  None: as the feature says (`openings`).  True: this closed loop is an opening, whatever is in it.  False: it is stitched across '''
+    nodes, says = _points_of(points, 0)
+    if closed is None:
+        closed = bool(says)
+    return Loop(nodes, closed, mirror, opening)
 
 
 def _sub(a, b):
@@ -66,10 +143,10 @@ def _dot(a, b):
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 
-def ring(center, radius, count=8, facing=(0, 1, 0), start=None):
-    ''' The points of a round loop, as tuples of numbers: `count` of them on a circle of `radius` (a number, or (wide, high) for an oval) round `center`, in the plane that `facing` is
-        the normal of, the first at the direction `start` (default: up, +z; along x when the loop faces up or down).  The points follow each other counter-clockwise seen from where the
-        loop faces '''
+def ring(center, radius, count=8, facing=(0, -1, 0), start=None):
+    ''' A closed loop of round points, as tuples of numbers: `count` of them on a circle of `radius` (a number, or (wide, high) for an oval) round `center`, in the plane that `facing`
+        is the normal of, the first at the direction `start` (default: up, +z; along x when the loop faces up or down).  The points follow each other counter-clockwise seen from
+        where the loop faces.  The default faces -y, towards the viewer of the front view, with the first point up '''
     if not isinstance(count, int) or isinstance(count, bool) or count < 3:
         raise ValueError('ring: count is the number of points, 3 or more, not %r' % (count,))
     wide, high = (radius if isinstance(radius, (tuple, list)) and len(radius) == 2 else (radius, radius))
@@ -90,103 +167,69 @@ def ring(center, radius, count=8, facing=(0, 1, 0), start=None):
         t = 2.0 * math.pi * k / count
         a, b = math.cos(t) * high, math.sin(t) * wide
         out.append(tuple(float(center[i]) + u[i] * a + v[i] * b for i in range(3)))
-    return out
+    return Loop(out, closed=True)
 
 
-def _tet(corners, numbers):
-    ''' The tetrahedron of four corners (expressions; `numbers` are the places they have now) as a field: the greatest of the distances to the planes of its four faces, each plane
-        taken so that the corner it does not hold is on the inside.  None for a flat one (it has no volume) '''
-    q = (F.X(), F.Y(), F.Z())
-    sides = []
-    for i, j, k, o in ((0, 1, 2, 3), (0, 1, 3, 2), (0, 2, 3, 1), (1, 2, 3, 0)):
-        n = _cross(_sub(numbers[j], numbers[i]), _sub(numbers[k], numbers[i]))
-        length = math.sqrt(_dot(n, n))
-        inside = _dot(_sub(numbers[o], numbers[i]), n)
-        if length < 1e-9 or abs(inside) < 1e-9 * length:
-            return None
-        sign = -1.0 if inside > 0 else 1.0
-        m = _cross(_sub(corners[j], corners[i]), _sub(corners[k], corners[i]))
-        norm = (m[0].square() + m[1].square() + m[2].square() + 1e-12).sqrt()
-        sides.append(_dot(_sub(q, corners[i]), m) * (sign / norm))
-    out = sides[0]
-    for s in sides[1:]:
-        out = out.max(s)
-    return out
+def _surface_field(vertices, triangles):
+    ''' The exact signed distance to a triangle mesh (see mesh_import), made once for the same mesh '''
+    key = (tuple(vertices), tuple(triangles))
+    hit, shape = _cache.get(key)
+    if hit:
+        return shape
+    flat = [float(c) for v in vertices for c in v]
+    ids = [int(i) for t in triangles for i in t]
+    cx = (ctypes.c_float * len(flat))(*flat)
+    ct = (ctypes.c_uint32 * len(ids))(*ids)
+    info = libfive_mesh_import_info_t()
+    ptr = lib.libfive_mesh_from_arrays(cx, len(vertices), ct, len(triangles), 1.0, ctypes.byref(info))
+    if not ptr:
+        raise ValueError('feature: ' + lib.libfive_import_mesh_last_message().decode('utf-8', 'replace'))
+    shape = Shape(ptr)
+    _cache.put(key, shape)
+    return shape
 
 
-def feature(loops, detail=3, name=None):
-    ''' A surface stitched through loops of points: the skin from one loop to the next, closed at the first and the last.
+def feature(loops, view='front', mirror=None, snap=0.0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1.0, back_sharpness=0.0, thickness=0.2, name=None):
+    ''' A surface stitched through loops of points -- see the top of this file for what each argument does.
 
-            nose = feature([bridge, middle, tip], detail=3, name="nose")
+            face = feature([outline, eye, mouth, nose], mirror="x", name="face")
 
-        loops   two or more loops; each is a list of three or more points (`point(x, y, z)`, or tuples of numbers), all with the same number of points, in the same order round
-        detail  the rings of a stretch from one loop to the next: 1 joins the loops with straight skin, more lay the rings on a smooth curve through the loops (3 by default)
-        name    what the UV map calls it ("nose") '''
-    if not isinstance(loops, (list, tuple)) or len(loops) < 2:
-        raise TypeError('feature(loops): a list of two or more loops, each a list of points')
-    sets = []
+        Returns a shape: the exact distance to the surface, made a shell of `thickness` when the surface is open and a solid when it is closed (`back=True`, with no opening left) '''
+    if not isinstance(loops, (list, tuple)) or not loops:
+        raise TypeError('feature(loops): a list of loops, each a list of points')
+    records, positions = [], []
     for k, one in enumerate(loops):
-        if not isinstance(one, (list, tuple)) or len(one) < 3:
-            raise TypeError('feature: loop %d is a list of three or more points (point(x, y, z) or tuples of numbers)' % k)
-        sets.append(C.controls(list(one)))
-    count = len(sets[0])
-    for k, ctrls in enumerate(sets):
-        if len(ctrls) != count:
-            raise ValueError('feature: loop %d has %d points but the first has %d -- every loop has the same number, in the same order round' % (k, len(ctrls), count))
-    if not isinstance(detail, int) or isinstance(detail, bool) or not 1 <= detail <= 16:
-        raise ValueError('feature: detail is the rings between two loops, from 1 to 16, not %r' % (detail,))
+        if _is_node(one):
+            raise TypeError('feature: loops is a list of loops, each a list of points -- item %d is a point, not a loop' % k)
+        points, says = _points_of(one, k)
+        closed = bool(says)
+        if len(points) < (3 if closed else 2):
+            raise ValueError('feature: loop %d has %d points -- %s' % (k, len(points), 'a closed loop has 3 or more' if closed else 'a loop has 2 or more'))
+        pos = [c.pos for c in C.controls(points)]
+        positions.append(pos)
+        records.append({'nodes': pos, 'closed': closed, 'mirror': getattr(one, 'mirror', None), 'opening': getattr(one, 'opening', None)})
+    if sum(len(p) for p in positions) > _MOST_NODES:
+        raise ValueError('feature: %d points are more than %d -- fewer points, or several features' % (sum(len(p) for p in positions), _MOST_NODES))
+    if not isinstance(thickness, (int, float)) or isinstance(thickness, bool) or not thickness > 0:
+        raise ValueError('feature: thickness is a number above 0, not %r' % (thickness,))
+    surface = S.stitch(records, view=view, mirror=mirror, snap=snap, openings=openings, trim=trim, fill_holes=fill_holes, back=back, back_depth=back_depth,
+                       back_sharpness=back_sharpness)
+    if surface.unforced:
+        places = ', '.join('loop %d after its point %d' % (l, n) for l, n in surface.unforced[:4])
+        raise ValueError('feature: the edges of loops cross in the %s view (%s) -- loops must not cross each other: move a point, or look at the part from another side (view=)'
+                         % (view if isinstance(view, str) else 'chosen', places))
+    if not surface.triangles:
+        raise ValueError('feature: the loops make no surface -- a surface needs two loops to join, or a closed loop to fill (an opening has none)')
     label = str(name) if name else 'feature'
-    # the rings: the loops, and between them the rings of a Catmull-Rom curve through each point's places (the ends doubled) -- the expressions, for the field, and the numbers, for the
-    # UV map and for deciding which side of a face is the inside
-    expr = [[c.expr for c in ctrls] for ctrls in sets]
-    nums = [[tuple(c.pos) for c in ctrls] for ctrls in sets]
-    way_e = [expr[0]] + expr + [expr[-1]]
-    way_n = [nums[0]] + nums + [nums[-1]]
-    rings_e, rings_n = [], []
-    for k in range(len(sets) - 1):
-        for s in range(detail):
-            t = s / float(detail)
-            rings_e.append([_catmull(way_e[k][i], way_e[k + 1][i], way_e[k + 2][i], way_e[k + 3][i], t) for i in range(count)])
-            rings_n.append([_catmull(way_n[k][i], way_n[k + 1][i], way_n[k + 2][i], way_n[k + 3][i], t) for i in range(count)])
-    rings_e.append(expr[-1])
-    rings_n.append(nums[-1])
-    pieces = 3 * count * (len(rings_e) - 1)
-    if pieces > _MOST_PIECES:
-        raise ValueError('feature: %d loops of %d points with detail=%d make %d pieces, more than %d -- fewer points, or a lower detail' % (len(sets), count, detail, pieces, _MOST_PIECES))
-
-    def middle(points, numbers):
-        e = [points[0][c] for c in range(3)]
-        for p in points[1:]:
-            e = [e[c] + p[c] for c in range(3)]
-        return tuple(x * (1.0 / count) for x in e), tuple(sum(p[c] for p in numbers) / count for c in range(3))
-
-    mids = [middle(rings_e[k], rings_n[k]) for k in range(len(rings_e))]
-    tets = []
-    for k in range(len(rings_e) - 1):
-        a, b = rings_e[k], rings_e[k + 1]
-        an, bn = rings_n[k], rings_n[k + 1]
-        (ca, can), (cb, cbn) = mids[k], mids[k + 1]
-        for i in range(count):
-            j = (i + 1) % count
-            # the wedge between the triangle (middle of ring k, point i, point j) and the same of ring k+1, in three tetrahedra whose shared faces are cut the same way in the wedges
-            # on both sides of them (the diagonals run from the middle of ring k to point i of ring k+1, and from point i of ring k to point j of ring k+1)
-            for corners, numbers in (((ca, a[i], a[j], b[j]), (can, an[i], an[j], bn[j])),
-                                     ((ca, a[i], b[i], b[j]), (can, an[i], bn[i], bn[j])),
-                                     ((ca, b[i], cb, b[j]), (can, bn[i], cbn, bn[j]))):
-                t = _tet(corners, numbers)
-                if t is not None:
-                    tets.append(t)
-    if not tets:
-        raise ValueError('feature: the loops are flat or on top of each other -- they enclose no volume')
-    # (the pieces are swollen by a hair, so that where two of them meet the field is below 0 and not exactly 0: a mesher then sees no face inside the feature)
-    flat_all = [p for r in rings_n for p in r]
+    field = _surface_field(surface.vertices, surface.triangles)
+    out = field if surface.closed else field.abs() - 0.5 * float(thickness)
+    # the box the feature fills, for the render region and the export: its vertices, and the thickness and a little more (a box that holds it, not its exact extent)
+    flat_all = surface.vertices
     span = max(max(p[c] for p in flat_all) - min(p[c] for p in flat_all) for c in range(3))
-    out = F.union_all(tets, 0) + (-1e-3 * max(span, 1.0))
-    # the box the feature fills, for the render region and the export: its rings, a little more (a box that holds it, not its exact extent)
-    pad = 0.05 * span + 1e-3
+    pad = 0.5 * float(thickness) + 0.05 * span + 1e-3
     out._bounds = (tuple(min(p[c] for p in flat_all) - pad for c in range(3)), tuple(max(p[c] for p in flat_all) + pad for c in range(3)))
     out._bounds_loose = True
-    out._feature = Feature(label, rings_n, len(sets), detail)
+    out._feature = Feature(label, surface, len(records), float(thickness))
     return out
 
 

@@ -6,7 +6,7 @@ UV maps: how a surface is laid out on a texture.
     export_mesh(crate, "crate.obj", uvs=uv_box(500))                 a texture that repeats every 500 mm, going on from one face to the next
     export_mesh(pole, "pole.obj", uvs=uv_cylinder("z"))              wrapped once round the z axis
     export_mesh(ball, "ball.obj", uvs=[uv_sphere(), uv_unwrap(margin=8)])   two sets: the second one (TEXCOORD_1) is for a lightmap
-    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each limb as a tube along its path, each feature along its loops
+    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each limb as a tube along its path, each feature flat as it was drawn
 
 A UV map gives every corner of every triangle a place (u, v) on the texture, v up.  The vertices that are in triangles with different places are made again for each
 (a seam of the texture).  Two maps are made at most by an export: the first is the one the baked textures are made for.
@@ -666,8 +666,8 @@ def uv_armature(parts=None, margin=4, size=1024):
         size    the size of the texture in texels that the margin is counted in
 
         Each triangle belongs to the part whose surface it is nearest to.  A LIMB is unwrapped as a tube along its path: u round the path, v along it, the seam straight along its
-        back, the rounded ends carried on.  A FEATURE (stitched loops) is unwrapped along its loops: u round the loops, v from loop to loop.  Every island is in millimetres,
-        so a texel is the same size everywhere, and none is turned: the texture runs the way the part does '''
+        back, the rounded ends carried on.  A FEATURE (stitching loops) is laid flat as it was drawn, in the picture of its view: u to the right, v up; what faces away from
+        the viewer is an island of its own.  Every island is in millimetres, so a texel is the same size everywhere, and none is turned: the texture runs the way the part does '''
     if parts is not None and (not isinstance(parts, (list, tuple)) or not parts):
         raise ValueError('uv_armature: parts is a list of limbs and features, or None for the parts of the exported model, not %r' % (parts,))
     if not isinstance(margin, (int, float)) or isinstance(margin, bool) or margin < 0:

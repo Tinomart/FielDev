@@ -126,8 +126,8 @@ export_mesh(hero, "hero.glb", materials=[skin, metal], colors=(0.8, 0.8, 1 - z_f
 - **Fields instead of numbers.** The colour (each channel), the roughness, the metalness, the glow and the opacity can be fields -- noise, a gradient, a pattern. Such a
   material needs the textures baked (below): the picture is the field.
 - **In the viewport.** `with_materials(hero, [skin, metal])` shows the model in the colours of its materials, with a key of their names at the right, and `export_mesh(hero, "hero.glb")` then writes the
-  same materials without being told twice. The viewport shows each material's colour as an engine shows it (the numbers are linear; the screen gets them through the sRGB curve, so a `"#9aa0aa"` is lighter than in a
-  paint program, here and in the engine); a place no material covers is a light grey; roughness, metalness, glow, opacity and textures are in the file, not in the viewport, and a colour that is a field is shown grey.
+  same materials without being told twice. The viewport shows each material's colour as an engine shows it (the numbers are linear and the screen gets them through the sRGB curve; a `"#9aa0aa"` is sRGB, as in a paint
+  program, and is converted when the material is made, so it looks here and in the engine as it does there -- the same colour typed as `(r, g, b)` numbers is linear, and looks lighter); a place no material covers is a light grey; roughness, metalness, glow, opacity and textures are in the file, not in the viewport, and a colour that is a field is shown grey.
 
 [`examples/34_materials.py`](../examples/34_materials.py) writes all of it for a figure, reads the files back and checks that each material is where it says.
 

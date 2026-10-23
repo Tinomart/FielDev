@@ -15,8 +15,8 @@ the README has the design decisions (*Known limitations*).
 
 - **The viewport shows the colour of a material, and nothing else of it.** `with_materials(model, [...])` shows each material's colour, as an engine shows it, with a key of their names; the roughness, metalness, glow,
   opacity, textures and everything else of a material are written when you export (`export_mesh`), and a colour that is a field is shown grey. Bake the textures and look at the `.glb` in a viewer or an engine for the rest. A model
-  that is not given `with_materials` is drawn in neutral shading. The numbers of a material are linear, as glTF has them -- a `"#3a6ea5"` is used as `(0.227, 0.431, 0.647)` and looks lighter in an engine, and in the viewport,
-  than the same hex in a paint program.
+  that is not given `with_materials` is drawn in neutral shading. The numbers of a material are linear, as glTF has them; a `"#3a6ea5"` is sRGB, as in a paint program, and is converted when the material is made, so it looks the same in
+  the viewport and in an engine (the same colour typed as the numbers `(0.227, 0.431, 0.647)` is read as linear and looks lighter).
 - **A reference image follows its handle when you let go, not while you drag.** Its handle is a point with a gizmo (the menu writes it); the picture is drawn from the numbers of the last run of the script, and the script runs again
   when the drag ends. Its `height`, `opacity` and `flip` are numbers in the script.
 - **A limb is not literally `path_extrude` unless it is given a `profile`.** The default round limb is made of round cones along the curve (exact, and a dragged node moves it at once); `profile=` sweeps a 2D shape with `path_extrude`.

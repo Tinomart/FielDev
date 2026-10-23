@@ -92,23 +92,44 @@ The **Character** section of the right-click menu is made for building this by h
 
 ## Features: stitched loops
 
-A limb has the same cross-section all along. For the **delicate parts** -- a nose, a muzzle, an ear, a finger -- use a **feature**: a surface stitched through **loops**, each a ring
-of points that is a cross-section of the part, with the shape the part has at that place. The loops are stacked in the way the part runs and each faces that way.
+A limb has the same cross-section all along. For the **delicate parts** -- a face, an ear, a hand -- use a **feature**: a surface **stitched through loops** of points, the way Dust3D's
+*stitching loops* model a face from a reference picture. You draw the outline of the face, of an eye, of the mouth, over the picture; **every point you place is a vertex of the
+surface** -- none is added, none is moved -- and **every loop is an edge loop of it**, wherever the points are dragged.
 
 ```python
-bridge = ring((0, -5, 1), (3.2, 2.8), 8, (0, -1, 0))        # the points of a loop: a centre, a radius (or wide and high), how many, the way it faces
-tip = ring((0, -9.5, 0), (3.0, 2.6), 8, (0, -1, 0))
-nostrils = ring((0, -10.5, 0), (1.8, 1.5), 8, (0, -1, 0))
-nose = feature([bridge, tip, nostrils], detail=3, name="nose")    # or loops of point(...) models, dragged with their gizmos
-hero = character([head, nose], blend=1)
+outline = loop([point(0, 0.5, -10), point(4, 0.2, -9), point(7, 0, -5), point(8.5, 0, 0), point(8, 0, 5), point(5, 0.2, 9), point(0, 0.5, 10)])   # half of the face
+eye = ring((3.2, -0.4, 3), 1.3, 8)                                    # a closed loop of 8 points: a centre, a radius (or wide and high), how many
+nose = loop([(0, -1.5, 1), (0.8, -1.0, -1.5), (0, -1.6, -2.5)])      # points are tuples of numbers or point(...) models, dragged with their gizmos
+face = feature([outline, eye, nose], mirror="x", name="face")
+hero = character([head, face], blend=1)
 ```
 
-- **`feature(loops, detail=3, name=None)`**: two or more loops, each a list of three or more points (`point(x, y, z)`, or tuples of numbers) -- every loop with the same number of
-  points, in the same order round, the first stitched to the first -- and the skin from one loop to the next, closed at the first and the last. `detail` is the rings of a stretch
-  between two loops: more are laid on a smooth curve through the loops, so that the skin bends across a loop and is not faceted. Each loop should be a ring you can see from its
-  middle (the middle of the loop is inside it). Every number of a feature is an expression of its points, so dragging a point moves the feature at once. **New feature** in the
-  Character section writes three loops of six points to drag.
-- **`ring(center, radius, count, facing)`** makes the points of a round loop as tuples, to start a feature from.
+The points are joined in the plane of a **view** (the front view by default: x to the right, z up): a Delaunay triangulation of the points seen from there, with every loop edge
+forced into it. The points keep their places in space -- each has its own depth, y in the front view -- so the view only decides what is joined to what; a face is stitched from the
+front, an ear from `view="right"`, anything from along any direction. Dust3D has two views; here you drag the points in the whole viewport.
+
+**Nothing is automatic unless the arguments ask for it.** Each is written in the script (the *New feature* entry writes them all, for half a face), and a loop can say its own choice:
+
+| `feature(loops, ...)` | |
+|---|---|
+| `view="front"` | `"front"`, `"back"`, `"left"`, `"right"`, `"top"`, `"bottom"`, or `(direction, up)`: the direction you look along and which way is up in the picture |
+| `mirror=None` | no mirror: the loops are used as they are. `"x"`, `"y"`, `"z"`, `("x", 2)` (the plane x = 2) or `(point, normal)` mirrors them across that plane. An open loop is **half of a shape**: with both ends on the plane it becomes a ring (A-B-C-D-C'-B'), with one end on it a path (A-B-C-D-C'-B'-A'), with neither it gets a mirror image of its own; a ring on one side gets a mirror image; a loop across the plane stays as it is |
+| `snap=0` | how near the plane the end of an open loop may be to be put onto it (0: only the ends on it already) |
+| `openings=True` | a closed loop with nothing in it, inside another closed loop, is an **opening** (an eye, a nostril), not surface. `False`: every loop is stitched across |
+| `trim=True` | drop the triangles that join the points of one loop alone outside every closed loop (`False`: keep all that the triangulation makes) |
+| `fill_holes=8` | close holes of this many edges or fewer (0: none). An opening is not a hole |
+| `back=False` | `True` closes the outer boundary with rings that shrink to a point behind the surface, so it is a solid; `back_depth=1` is how deep (a share of the mean radius), `back_sharpness=0` (0 to 1) how much the rings keep the shape of the outline |
+| `thickness=0.2` | an open surface is a **shell** of this thickness (the surface is its middle); a closed one is a solid |
+| `name=None` | what the UV map and the model tree call it |
+
+`loop(points, closed=None, mirror=None, opening=None)` is one loop: a list of points, or a polyline, spline or profile (their points are the nodes). `closed=True` joins the last point to
+the first. `mirror=False` keeps this loop from being mirrored, `True` mirrors it across the plane of the feature, or give it a plane of its own. `opening=True` makes a closed loop an
+opening whatever is in it; `False` stitches it across. `ring(center, radius, count, facing)` makes a round closed loop.
+
+- If two loops cross, the surface cannot have both as edge loops: the error names the loops and the view -- move a point, or look at the part from another side.
+- A closed back leaves the openings (an eye) open, so such a feature is a shell of `thickness` and not a solid; close it by switching the eye to `opening=False`, or leave the back off.
+- The surface is a mesh, and the feature is the exact distance to it, so it blends with the other parts and is exported with them. It is made when the script runs: dragging a point changes the
+  surface when the script runs again, not while the drag is going on, as the sweep of a limb does.
 - A feature is **skin, not bone**: `skeleton_of` leaves it out, and the export skins it to the nearest joints.
 
 ### UV maps by part
@@ -117,7 +138,8 @@ hero = character([head, nose], blend=1)
 Every triangle belongs to the part -- limb or feature -- whose surface it is nearest to; each part is an **island** of its own, laid flat from what it is:
 
 - a **limb** as a tube along its path: u goes round the path, v along it, the seam straight along the back (the character faces -y), the rounded ends carried on past the first and the last node;
-- a **feature** along its loops: u round the loops, v from loop to loop, the end caps as petals beyond the first and the last loop -- the UV of a face follows the stitching;
+- a **feature** flat, as it was drawn: in the picture of the view it was stitched in (u to the right, v up), so that a texture painted over the reference picture of a face lands where it was
+  drawn; the triangles that face away from the viewer -- the back of a shell, a closed back -- are an island of their own, seen from behind;
 - both halves of a `character(..., symmetric="x")` get an island each, the second mirrored back so that a texture painted on one is not mirrored on the other.
 
 The islands are in millimetres, so a texel is the same size everywhere, and none is turned: the texture runs the way the part runs. Packed into the square with `margin` texels between them.

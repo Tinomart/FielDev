@@ -547,7 +547,7 @@ True when a colour, the roughness, the metalness, the glow or the opacity is a f
 A material of a mesh export (`export_mesh(part, "hero.glb", materials=[...])`).  The physically based one glTF has (metallic and roughness).
 
 name        what the file calls it (letters, digits, - and _)
-color       (r, g, b) from 0 to 1, or "#rrggbb"; each channel can be a field (baked into the textures)
+color       (r, g, b) from 0 to 1 (linear, as glTF has them), or "#rrggbb" (sRGB, as in a paint program: converted to linear); each channel can be a field (baked into the textures)
 roughness   0 (a mirror) to 1 (chalk); a number or a field
 metallic    0 (a dielectric) to 1 (a metal); a number or a field
 emissive    (r, g, b) or "#rrggbb" for a surface that glows, or None
@@ -585,8 +585,9 @@ not given `materials=`.
 The layers are those of an export: each place takes the LAST material whose `where` is negative there (a body: inside it; a field: where it is below zero), and a material
 without a `where` covers everything, so the base goes first.  A place no material covers is a light grey.  The edge between two materials is as fine as the viewport's mesh.
 
-The viewport shows the colour of each material, as an engine shows it (the numbers of a material are linear; the screen gets them through the sRGB curve, so a "#3a6ea5" is
-lighter here, and in the engine, than the same hex is in a paint program), with a key of the names.  Roughness, metalness, glow, opacity and textures are in the exported
+The viewport shows the colour of each material, as an engine shows it (the numbers of a material are linear and the screen gets them through the sRGB curve, so a "#3a6ea5" --
+sRGB, converted to linear when the material is made -- looks here, and in the engine, as it does in a paint program, and the same colour typed as linear numbers would look
+lighter), with a key of the names.  Roughness, metalness, glow, opacity and textures are in the exported
 file, not here; a colour that is a field is shown grey.  Hovering shows no value.
 
 ## Skeletons of an export
@@ -654,7 +655,7 @@ UV maps: how a surface is laid out on a texture.
     export_mesh(crate, "crate.obj", uvs=uv_box(500))                 a texture that repeats every 500 mm, going on from one face to the next
     export_mesh(pole, "pole.obj", uvs=uv_cylinder("z"))              wrapped once round the z axis
     export_mesh(ball, "ball.obj", uvs=[uv_sphere(), uv_unwrap(margin=8)])   two sets: the second one (TEXCOORD_1) is for a lightmap
-    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each limb as a tube along its path, each feature along its loops
+    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each limb as a tube along its path, each feature flat as it was drawn
 
 A UV map gives every corner of every triangle a place (u, v) on the texture, v up.  The vertices that are in triangles with different places are made again for each
 (a seam of the texture).  Two maps are made at most by an export: the first is the one the baked textures are made for.
@@ -711,8 +712,8 @@ margin  the gap between islands, in texels of a `size` x `size` texture
 size    the size of the texture in texels that the margin is counted in
 
 Each triangle belongs to the part whose surface it is nearest to.  A LIMB is unwrapped as a tube along its path: u round the path, v along it, the seam straight along its
-back, the rounded ends carried on.  A FEATURE (stitched loops) is unwrapped along its loops: u round the loops, v from loop to loop.  Every island is in millimetres,
-so a texel is the same size everywhere, and none is turned: the texture runs the way the part does
+back, the rounded ends carried on.  A FEATURE (stitching loops) is laid flat as it was drawn, in the picture of its view: u to the right, v up; what faces away from
+the viewer is an island of its own.  Every island is in millimetres, so a texel is the same size everywhere, and none is turned: the texture runs the way the part does
 
 ### `uv_box(size=None)`
 
@@ -1576,31 +1577,55 @@ A limb that is not on any joint hangs from the joint it names with `parent=`.  `
 
 ## Features: stitched loops
 
-Features: stitched loops, for the delicate parts of a character -- a face, an ear, a hand.
+Features: surfaces stitched through loops of points, for the delicate parts of a character -- a face, an ear, a hand.
 
-    nose = feature([bridge, middle, tip, nostrils], name="nose")        # four loops of points, stitched together
-    ear = feature([rim, middle, lobe], detail=3, name="ear")
+    outline = loop([point(0, 0, -10), point(7, 0, -5), point(8, 0, 4), point(0, 0, 10)])      # half of the face: an open path
+    eye = ring((3, -0.4, 3), 1.3, 8)                                                          # a closed loop of 8 points
+    nose = loop([point(0, -1.5, 1), point(0.8, -1.0, -1.5), point(0, -1.6, -2.5)])
+    face = feature([outline, eye, nose], mirror="x", name="face")
 
-A FEATURE is a surface that is stitched through LOOPS: each loop is a ring of points (`point(x, y, z)`, dragged with their gizmos, or tuples of numbers) -- a cross-section of the
-part -- and the feature is the skin that joins one loop to the next, closed at the two ends.  It is what a limb cannot be: a limb has the same cross-section all along, and each loop
-of a feature has the shape the part has at that place, so the loops of a nose are a broad oval at the bridge, a smaller one at the middle, a rounder one at the tip and a pair of
-small ones at the nostrils.  The loops are stacked in the way the part runs (a nose out from the face, an ear out from the side of the head, a finger along the hand) and each faces
-that way, like the cross-sections of a loft; loops that lie across each other, or one beside the other in the plane they face, make skin that folds.  Every loop has the same number
-of points, in the same order round (the first point of one loop is stitched to the first point of the next), and each loop should be a ring that can be seen from its middle: the
-middle of the loop must be inside it.  Every number of the feature is an expression of the points, so that a point dragged in the viewport moves the feature at once.
+A FEATURE is a surface stitched through LOOPS.  A loop is a path of points, closed into a ring or open; every point you place is a vertex of the surface -- none is added, none is moved
+-- and every edge of a loop is an edge of the surface, so the loops you draw are the edge loops of the face, wherever the points are dragged.  This is the method of Dust3D's stitching
+loops, for modelling a part from the outlines of a reference picture: draw the outline of the face, of an eye, of the mouth, and the surface between them is made.
 
-    feature(loops, detail=3, name=None)
+How the points are joined is decided in the plane of a VIEW (`view="front"`: the plane you look at the part in).  The points stay where they are in space -- each has its own depth --
+so the view only decides what is joined to what, and the loops can be dragged in any view of the viewport.  Look at a face from the front, an ear from the side (`view="right"`), or
+along any direction (`view=((0, 1, -1), (0, 0, 1))`: the direction you look along, and which way is up in the picture).
 
-        loops   two or more loops, each a list of three or more points, all with the same number of points
-        detail  how many rings make the stretch between two loops: 1 is the loops themselves, joined with straight skin; more rings are laid on a smooth curve through the loops
-                (a Catmull-Rom curve, as the nodes of a limb are), so that the skin bends smoothly across a loop and the feature is not faceted
-        name    what the UV map and the model tree call the feature
+Nothing is automatic unless the arguments ask for it:
 
-`ring(center, radius, count, facing)` makes the points of a round loop, to start a feature from.  The feature joins a character with the rest of the parts, as a limb does:
+    feature(loops, view="front", mirror=None, snap=0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1, back_sharpness=0, thickness=0.2, name=None)
+
+        loops        the loops: `loop(...)`, `ring(...)`, a polyline or spline, a profile, or a plain list of points (an open loop)
+        view         "front", "back", "left", "right", "top", "bottom", or (direction, up): the plane the points are joined in
+        mirror       None: the loops are used as they are.  "x", "y" or "z" (the plane through the origin that the axis is the normal of), ("x", 2) (the plane x = 2) or (point, normal):
+                     the loops are mirrored across that plane.  An open loop is half of a shape: with both its ends on the plane it becomes a ring (A-B-C-D-C'-B'), with one end on it a
+                     path (A-B-C-D-C'-B'-A'), with neither it gets a mirror image of its own; a ring on one side of the plane gets a mirror image; what lies across the plane stays
+        snap         how near the plane an end of an open loop may be to be put onto it (0: only the ends that are on it already)
+        openings     a closed loop with nothing in it that lies inside another closed loop is an opening -- an eye, a nostril -- and not surface.  False: every loop is stitched across
+        trim         drop the triangles that join the points of one loop alone and lie outside every closed loop (False: keep everything the triangulation makes)
+        fill_holes   close the holes of this many edges or fewer (0: none).  An opening is not a hole
+        back         True: close the outer boundary with rings that shrink to a point behind the surface, so that it is a solid.  back_depth is how deep that point is, as a share of the
+                     mean radius of the outline, and back_sharpness (0 to 1) how much the rings keep the shape of the outline and do not follow the surface
+        thickness    an open surface is a shell of this thickness (the surface is its middle); a closed one is a solid and has none
+        name         what the UV map and the model tree call the feature
+
+Each loop can say its own choice and the feature's is then not used for it:
+
+    loop(points, closed=False, mirror=None, opening=None)
+
+        closed       True: a ring (the last point is joined to the first)
+        mirror       None: as the feature says.  False: this loop is not mirrored.  True: across the plane of the feature.  Or a plane of its own
+        opening      None: as `openings` says.  True: this closed loop is an opening, whatever is in it.  False: it is stitched across
+
+`ring(center, radius, count, facing)` makes the points of a round loop.  The feature joins a character with the rest of the parts, as a limb does:
 
     hero = character([spine, arm, face], blend=2)
 
-The UV map of the character (`uvs="armature"`, see uvmaps.py) unwraps a feature along its loops: round a loop is one direction of the texture, and from loop to loop is the other.
+The UV map of the character (`uvs="armature"`, see uvmaps.py) unwraps a feature as it was drawn: flat, in the picture of its view, and the back, if it has one, as an island of its own.
+
+The surface is a mesh, and the feature is the exact distance to that mesh.  It is made when the script runs: points dragged in the viewport change the surface when the script runs
+again, and not while the drag is going on, as the sweep of a limb does.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -1608,23 +1633,37 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ### `Feature`
 
-What a feature knows of itself, for the UV map: its name and its rings (the numbers they have now, one list of (x, y, z) for each ring, the loops among them)
+What a feature knows of itself, for the UV map and the model tree: its name, the surface that was stitched (a stitching.StitchedSurface: vertices, triangles, which loop and
+point each vertex comes from, the view) and the thickness of the shell it is made into
 
-### `feature(loops, detail=3, name=None)`
+### `Loop`
 
-A surface stitched through loops of points: the skin from one loop to the next, closed at the first and the last.
+The points of a loop of a feature, and what the loop says of itself (see `loop`)
 
-    nose = feature([bridge, middle, tip], detail=3, name="nose")
+### `feature(loops, view='front', mirror=None, snap=0.0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1.0, back_sharpness=0.0, thickness=0.2, name=None)`
 
-loops   two or more loops; each is a list of three or more points (`point(x, y, z)`, or tuples of numbers), all with the same number of points, in the same order round
-detail  the rings of a stretch from one loop to the next: 1 joins the loops with straight skin, more lay the rings on a smooth curve through the loops (3 by default)
-name    what the UV map calls it ("nose")
+A surface stitched through loops of points -- see the top of this file for what each argument does.
 
-### `ring(center, radius, count=8, facing=(0, 1, 0), start=None)`
+    face = feature([outline, eye, mouth, nose], mirror="x", name="face")
 
-The points of a round loop, as tuples of numbers: `count` of them on a circle of `radius` (a number, or (wide, high) for an oval) round `center`, in the plane that `facing` is
-the normal of, the first at the direction `start` (default: up, +z; along x when the loop faces up or down).  The points follow each other counter-clockwise seen from where the
-loop faces
+Returns a shape: the exact distance to the surface, made a shell of `thickness` when the surface is open and a solid when it is closed (`back=True`, with no opening left)
+
+### `loop(points, closed=None, mirror=None, opening=None)`
+
+A loop of a feature: a path of points (`point(x, y, z)`, or tuples of numbers), with what it says of itself.
+
+    eye = loop([point(2, -0.4, 3), point(3, -0.5, 3.6), point(4, -0.4, 3)], closed=True, opening=True)
+
+points   a list of points, or a polyline, a spline or a profile (their points are the nodes)
+closed   True: a ring, the last point joined to the first.  None: as the polyline, spline or profile says, and open for a list
+mirror   None: as the feature says.  False: this loop is not mirrored.  True: across the plane of the feature.  Or a plane of its own ("x", ("x", 2), (point, normal))
+opening  None: as the feature says (`openings`).  True: this closed loop is an opening, whatever is in it.  False: it is stitched across
+
+### `ring(center, radius, count=8, facing=(0, -1, 0), start=None)`
+
+A closed loop of round points, as tuples of numbers: `count` of them on a circle of `radius` (a number, or (wide, high) for an oval) round `center`, in the plane that `facing`
+is the normal of, the first at the direction `start` (default: up, +z; along x when the loop faces up or down).  The points follow each other counter-clockwise seen from
+where the loop faces.  The default faces -y, towards the viewer of the front view, with the first point up
 
 ## Reference images
 

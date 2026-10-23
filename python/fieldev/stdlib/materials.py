@@ -90,8 +90,13 @@ def _channel(v, what):
         raise ValueError('%s: a colour channel is a number from 0 to 1 or a field, not %r' % (what, v))
 
 
+def _linear(channel):
+    ''' A channel from 0 to 1 as sRGB -- what a paint program, a web page and an engine's colour picker show -- as linear, which is what glTF has '''
+    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+
+
 def _rgb(value, what):
-    ''' (r, g, b), each a number from 0 to 1 or a field, from those or from a text like "#c8a064" '''
+    ''' (r, g, b) in linear numbers, each a number from 0 to 1 or a field, from those -- or from a text like "#c8a064", which is sRGB as in a paint program and is converted '''
     if isinstance(value, str):
         text = value.strip().lstrip('#')
         if len(text) == 3:
@@ -99,7 +104,7 @@ def _rgb(value, what):
         if len(text) != 6:
             raise ValueError('%s: a colour is (r, g, b) from 0 to 1 or "#rrggbb", not %r' % (what, value))
         try:
-            return tuple(int(text[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+            return tuple(_linear(int(text[i:i + 2], 16) / 255.0) for i in (0, 2, 4))
         except ValueError:
             raise ValueError('%s: a colour is (r, g, b) from 0 to 1 or "#rrggbb", not %r' % (what, value))
     try:
@@ -130,7 +135,7 @@ def material(name, color=(0.8, 0.8, 0.8), roughness=0.5, metallic=0.0, emissive=
     ''' A material of a mesh export (`export_mesh(part, "hero.glb", materials=[...])`).  The physically based one glTF has (metallic and roughness).
 
         name        what the file calls it (letters, digits, - and _)
-        color       (r, g, b) from 0 to 1, or "#rrggbb"; each channel can be a field (baked into the textures)
+        color       (r, g, b) from 0 to 1 (linear, as glTF has them), or "#rrggbb" (sRGB, as in a paint program: converted to linear); each channel can be a field (baked into the textures)
         roughness   0 (a mirror) to 1 (chalk); a number or a field
         metallic    0 (a dielectric) to 1 (a metal); a number or a field
         emissive    (r, g, b) or "#rrggbb" for a surface that glows, or None
@@ -237,8 +242,9 @@ def with_materials(model, materials):
         The layers are those of an export: each place takes the LAST material whose `where` is negative there (a body: inside it; a field: where it is below zero), and a material
         without a `where` covers everything, so the base goes first.  A place no material covers is a light grey.  The edge between two materials is as fine as the viewport's mesh.
 
-        The viewport shows the colour of each material, as an engine shows it (the numbers of a material are linear; the screen gets them through the sRGB curve, so a "#3a6ea5" is
-        lighter here, and in the engine, than the same hex is in a paint program), with a key of the names.  Roughness, metalness, glow, opacity and textures are in the exported
+        The viewport shows the colour of each material, as an engine shows it (the numbers of a material are linear and the screen gets them through the sRGB curve, so a "#3a6ea5" --
+        sRGB, converted to linear when the material is made -- looks here, and in the engine, as it does in a paint program, and the same colour typed as linear numbers would look
+        lighter), with a key of the names.  Roughness, metalness, glow, opacity and textures are in the exported
         file, not here; a colour that is a field is shown grey.  Hovering shows no value. '''
     from fieldev.stdlib.fields import colored
     if not isinstance(model, Shape):
