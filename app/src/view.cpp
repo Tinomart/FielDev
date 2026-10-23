@@ -3384,9 +3384,13 @@ void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, doub
         const auto p = v.toObject();
         if (p["group"].toString() != "Character") continue;
         const QString name = p["name"].toString();
-        auto action = menu->addAction(TypeIcons::icon(p["type"].toString("solid")), T("New limb"), this,
+        const bool stitched = name == "feature";
+        auto action = menu->addAction(TypeIcons::icon(p["type"].toString("solid")), stitched ? T("New feature") : T("New limb"), this,
                                       [=]{ emit(createRequested("primitive", name, point, scale, atLine, -1)); });
-        action->setToolTip(p["doc"].toString().isEmpty() ? T("A first limb, three nodes, to change in the script") : p["doc"].toString());
+        action->setToolTip(!p["doc"].toString().isEmpty() ? p["doc"].toString()
+                           : stitched ? T("A surface stitched through three loops of points -- a nose, a muzzle, a brow.  Drag the points of a loop to shape it.  Every loop has the same number "
+                                          "of points, in the same order round; the feature is the skin from one loop to the next, closed at both ends")
+                                      : T("A first limb, three nodes, to change in the script"));
         checkPrimitive(action, name);
     }
     menu->addSeparator();

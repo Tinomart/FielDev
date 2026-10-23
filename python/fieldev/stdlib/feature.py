@@ -2,13 +2,15 @@
 Features: stitched loops, for the delicate parts of a character -- a face, an ear, a hand.
 
     nose = feature([bridge, middle, tip, nostrils], name="nose")        # four loops of points, stitched together
-    face = feature([brow, eyes, cheeks, mouth, chin], detail=3, name="face")
+    ear = feature([rim, middle, lobe], detail=3, name="ear")
 
-A FEATURE is a surface that is stitched through LOOPS: each loop is a ring of points (`point(x, y, z)`, dragged with their gizmos, or tuples of numbers) round one place of the
-part -- the brow, the eyes, the mouth -- and the feature is the skin that joins one loop to the next, closed at the two ends.  It is what a limb cannot be: a limb has the same round
-cross-section all along, and a loop has the shape of the place it is at, so the loops of a face are an oval at the brow, a wide shape at the eyes, a slit at the mouth.  Every loop has
-the same number of points, in the same order round (the first point of one loop is stitched to the first point of the next), and each loop should be a ring that can be seen from its
-middle: the middle of the loop must be inside it.  Every number of the feature is an expression of the points, so that a point dragged in the viewport moves the feature at once.
+A FEATURE is a surface that is stitched through LOOPS: each loop is a ring of points (`point(x, y, z)`, dragged with their gizmos, or tuples of numbers) -- a cross-section of the
+part -- and the feature is the skin that joins one loop to the next, closed at the two ends.  It is what a limb cannot be: a limb has the same cross-section all along, and each loop
+of a feature has the shape the part has at that place, so the loops of a nose are a broad oval at the bridge, a smaller one at the middle, a rounder one at the tip and a pair of
+small ones at the nostrils.  The loops are stacked in the way the part runs (a nose out from the face, an ear out from the side of the head, a finger along the hand) and each faces
+that way, like the cross-sections of a loft; loops that lie across each other, or one beside the other in the plane they face, make skin that folds.  Every loop has the same number
+of points, in the same order round (the first point of one loop is stitched to the first point of the next), and each loop should be a ring that can be seen from its middle: the
+middle of the loop must be inside it.  Every number of the feature is an expression of the points, so that a point dragged in the viewport moves the feature at once.
 
     feature(loops, detail=3, name=None)
 
@@ -176,11 +178,14 @@ def feature(loops, detail=3, name=None):
                     tets.append(t)
     if not tets:
         raise ValueError('feature: the loops are flat or on top of each other -- they enclose no volume')
-    out = F.union_all(tets, 0)
-    if all(isinstance(p, (tuple, list)) and all(isinstance(c, (int, float)) for c in p) for one in loops for p in one):             # (tuples of numbers: the box is known)
-        from fieldev.stdlib.shapes import _bounded
-        flat = [p for r in rings_n for p in r]
-        _bounded(out, [min(p[c] for p in flat) for c in range(3)], [max(p[c] for p in flat) for c in range(3)])
+    # (the pieces are swollen by a hair, so that where two of them meet the field is below 0 and not exactly 0: a mesher then sees no face inside the feature)
+    flat_all = [p for r in rings_n for p in r]
+    span = max(max(p[c] for p in flat_all) - min(p[c] for p in flat_all) for c in range(3))
+    out = F.union_all(tets, 0) + (-1e-3 * max(span, 1.0))
+    # the box the feature fills, for the render region and the export: its rings, a little more (a box that holds it, not its exact extent)
+    pad = 0.05 * span + 1e-3
+    out._bounds = (tuple(min(p[c] for p in flat_all) - pad for c in range(3)), tuple(max(p[c] for p in flat_all) + pad for c in range(3)))
+    out._bounds_loose = True
     out._feature = Feature(label, rings_n, len(sets), detail)
     return out
 

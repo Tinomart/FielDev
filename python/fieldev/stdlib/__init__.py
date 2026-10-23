@@ -16,7 +16,7 @@ from fieldev.stdlib.mesh_import import *
 from fieldev.stdlib.importing import *
 from fieldev.stdlib.materials import *
 from fieldev.stdlib.rigging import *
-from fieldev.stdlib.uvmaps import uv_box, uv_planar, uv_cylinder, uv_sphere, uv_unwrap
+from fieldev.stdlib.uvmaps import uv_box, uv_planar, uv_cylinder, uv_sphere, uv_unwrap, uv_armature
 from fieldev.stdlib.texturing import bake
 from fieldev.stdlib.exporting import *
 from fieldev.stdlib.selection import *

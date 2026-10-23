@@ -8086,6 +8086,28 @@ ScenePanel::OnPlan ScenePanel::planDropOn(const QList<QJsonObject>& models, cons
         p.what = T("Use %1 instead of %2 (%3) in %4").arg(names[0], slot["text"].toString(), slot["label"].toString(), tname);
         return p;
     }
+    if (models.size() == 1 && models[0]["type"].toString() == "profile")
+    {
+        // A profile dropped on a model that is made with one -- the cross-section of a limb, what an extrusion is pulled from -- takes the place of it there: the profile is swapped
+        // without touching anything else, the dropped one is used wherever the old one was
+        for (const auto iv : inputs)
+        {
+            const auto in = iv.toObject();
+            if (in["deep"].toBool() || in["in_list"].toBool()) continue;
+            const QString used = in["name"].toString();
+            if (itemBefore(used, target["line"].toInt())["type"].toString() != "profile") continue;
+            if (used == names[0])
+            {
+                p.why = T("'%1' is already the profile '%2' is given, so dropping it here changes nothing.").arg(names[0], tname);
+                return p;
+            }
+            p.ok = true;
+            p.replace = in["span"].toArray();
+            p.text = names[0];
+            p.what = T("Use %1 instead of %2 in %3").arg(names[0], used, tname);
+            return p;
+        }
+    }
     // A model that is not of a kind the call works on is no argument of it (`path_extrude` works on a 2D shape and a curve, an offset on geometry -- not on a material or a
     // condition): what the library says of the call.  Where it says nothing, the run says if the model does not fit
     {

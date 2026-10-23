@@ -50,17 +50,23 @@ of a skeleton, so one armature is the body and the rig.
 ```python
 spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
 head = limb([(0, 0, 147), (0, 2, 163)], radii=[5, 11], name="head")                  # begins on the neck: a branch of it
-arm = limb([shoulder, elbow, hand], radii=[6, 4.5, 3.5], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
+arm = limb([shoulder, elbow, hand], radii=4.5, name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
 hero = character([spine, head, arm], blend=4, symmetric="x")                        # the limbs joined with a blend; the left half a mirror image
 bones = skeleton_of([spine, head, arm], mirror="x")                                 # a joint at each node, each hanging from the one before it
 export_mesh(hero, "hero.glb", symmetric="x", skeleton=bones)
 ```
 
-- **`limb(points, radii, profile, name, joints, parent, detail, twist)`**. The nodes are points or tuples; the thickness at a node is its `radii` times the size of
-  the point, as in `chain`. With no `profile` the cross-section is round and the sweep is made of round cones along a Catmull-Rom spline through the nodes (`detail`
-  of them between two nodes) -- every number in it is an expression of the nodes, so a node dragged in the viewport moves the limb at once. With `profile=` any
-  2D shape -- a square, a polygon, a profile of your own -- the limb is `path_extrude(profile, spline(nodes), twist)`: the cross-section keeps its shape along the
-  path, and the point's rotation twists it.
+- **`limb(points, radii, profile, name, joints, parent, twist)`**. A limb is a **path extrude**: a cross-section swept along a Catmull-Rom spline through the nodes -- every
+  number in it is an expression of the nodes, so a node dragged in the viewport moves the limb at once. The nodes are points or tuples. **The size of a node -- the gold
+  ring of its gizmo -- is how thick the limb is there**, and while a node is selected that ring is drawn as a circle round it of the limb's **real radius**: size it against
+  the picture you model over, by dragging the ring out or in (the radius is the size of the profile times the node's size). The cross-section is a **profile**: by default
+  one made for the limb, a **square whose corners are spline points** (so it is nearly round) with the radius `radii` (a number, 1 by default; for nodes that are tuples, a list
+  with one number for each node); or any 2D shape of your own, `profile=my_profile` -- a profile made of points, a polygon, a rectangle -- with its own size, so `radii`
+  and `profile=` are not given together. The same profile is swept along the whole limb, from the first node wherever the profile is, and the point's rotation twists it.
+- **`cut_face(limb)`** shows the profile of a limb at its **first node**, as a linked clone of it (`instance`) turned the way the limb leaves the node, with a dot for
+  each of the profile's points: pull a dot, double click it, or press the outline to put a point on it, and it is the profile that changes -- and with it the limb. A limb
+  made from the menu is written with it: the profile above the limb (a model of its own, `limb_1_cut`), the limb with `profile=limb_1_cut`, and `limb_1_face = cut_face(limb_1)` under it.
+  To use another cross-section, **drop a profile on the limb** in the model tree (or on the profile the limb uses): it takes its place in the call.
 - **`character(limbs, blend=3, symmetric=None)`** joins the limbs into one body with a smooth blend where they meet, and with `symmetric="x"` adds the mirror image.
 - **`skeleton_of(limbs, mirror=None, plane=0.0, join=None)`** makes a joint at each node, named by the limb's `joints` (or `name_0`, `name_1` ...). A limb whose first
   node is the same place as a joint of an earlier limb (within half a millimetre: the same point, or the same place typed again) is a **branch** of it: that
@@ -83,6 +89,39 @@ The **Character** section of the right-click menu is made for building this by h
    `limb(...)` of points with gizmos. A node's scale is how thick the limb is there; drag a node to move it (`Ctrl+Shift+W` makes a work plane from another view, to move the nodes over the side picture).
 3. Start a limb on a joint of another to branch it (the arm on the chest); **character** (right-click a limb, or select several) joins them with a blend, `symmetric="x"` adds the mirror image, and **skeleton_of** makes
    the joints for the export.
+
+## Features: stitched loops
+
+A limb has the same cross-section all along. For the **delicate parts** -- a nose, a muzzle, an ear, a finger -- use a **feature**: a surface stitched through **loops**, each a ring
+of points that is a cross-section of the part, with the shape the part has at that place. The loops are stacked in the way the part runs and each faces that way.
+
+```python
+bridge = ring((0, -5, 1), (3.2, 2.8), 8, (0, -1, 0))        # the points of a loop: a centre, a radius (or wide and high), how many, the way it faces
+tip = ring((0, -9.5, 0), (3.0, 2.6), 8, (0, -1, 0))
+nostrils = ring((0, -10.5, 0), (1.8, 1.5), 8, (0, -1, 0))
+nose = feature([bridge, tip, nostrils], detail=3, name="nose")    # or loops of point(...) models, dragged with their gizmos
+hero = character([head, nose], blend=1)
+```
+
+- **`feature(loops, detail=3, name=None)`**: two or more loops, each a list of three or more points (`point(x, y, z)`, or tuples of numbers) -- every loop with the same number of
+  points, in the same order round, the first stitched to the first -- and the skin from one loop to the next, closed at the first and the last. `detail` is the rings of a stretch
+  between two loops: more are laid on a smooth curve through the loops, so that the skin bends across a loop and is not faceted. Each loop should be a ring you can see from its
+  middle (the middle of the loop is inside it). Every number of a feature is an expression of its points, so dragging a point moves the feature at once. **New feature** in the
+  Character section writes three loops of six points to drag.
+- **`ring(center, radius, count, facing)`** makes the points of a round loop as tuples, to start a feature from.
+- A feature is **skin, not bone**: `skeleton_of` leaves it out, and the export skins it to the nearest joints.
+
+### UV maps by part
+
+`export_mesh(hero, "hero.glb", uvs="armature")` (or `uv_armature(margin, size)`) lays the texture out from the **armature the character was made of**, not from the mesh alone.
+Every triangle belongs to the part -- limb or feature -- whose surface it is nearest to; each part is an **island** of its own, laid flat from what it is:
+
+- a **limb** as a tube along its path: u goes round the path, v along it, the seam straight along the back (the character faces -y), the rounded ends carried on past the first and the last node;
+- a **feature** along its loops: u round the loops, v from loop to loop, the end caps as petals beyond the first and the last loop -- the UV of a face follows the stitching;
+- both halves of a `character(..., symmetric="x")` get an island each, the second mirrored back so that a texture painted on one is not mirrored on the other.
+
+The islands are in millimetres, so a texel is the same size everywhere, and none is turned: the texture runs the way the part runs. Packed into the square with `margin` texels between them.
+`uvs="unwrap"` (the surface cut into islands where it turns) stays for models that are not made of an armature.
 
 ## The other half
 

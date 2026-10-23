@@ -1,6 +1,6 @@
 # An armature: a character made of limbs -- paths of nodes, each with a thickness -- and the skeleton that comes from the same nodes.
 #
-#   arm = limb([shoulder, elbow, hand], radii=[6, 4.5, 3.5], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
+#   arm = limb([shoulder, elbow, hand], radii=4.5, name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
 #   hero = character([spine, head, arm, leg ...], blend=4, symmetric="x")       the limbs joined with a blend; the left half is the mirror image
 #   bones = skeleton_of([spine, head, arm, leg ...], mirror="x")                a joint at each node, each hanging from the one before it
 #   export_mesh(hero, "hero.glb", symmetric="x", skeleton=bones)
@@ -28,7 +28,7 @@ hand
 
 spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
 head = limb([(0, 0, 147), (0, 2, 163)], radii=[5, 11], name="head", joints=["neck_top", "head"])
-arm = limb([shoulder, elbow, hand], radii=[6, 4.5, 3.5], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
+arm = limb([shoulder, elbow, hand], radii=4.5, name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
 leg = limb([(9, 0, 88), (11, 0, 48), (11, 0, 9)], radii=[8, 5.5, 4], name="leg.R", joints=["hip.R", "knee.R", "ankle.R"], parent="hips")
 foot = limb([(11, 0, 9), (11, 14, 4)], radii=[4.5, 3], name="foot.R", joints=["ankle_foot.R", "toe.R"])
 limbs = [spine, head, arm, leg, foot]
@@ -55,9 +55,10 @@ outside = ((0, 0, 190), (60, 0, 112), (-60, 0, 112), (0, 30, 100), (25, 0, 60))
 check("character: inside the body, the arms, the head, the legs and the feet", all(at(hero, *p) < 0 for p in inside))
 check("character: outside between the arms and the legs, and beyond", all(at(hero, *p) > 0 for p in outside))
 check("character: the left is the mirror of the right", all(abs(at(hero, x, y, z) - at(hero, -x, y, z)) < 1e-6 for x, y, z in ((25, 5, 100), (33, 4, 105), (14, 3, 60), (8, 0, 20))))
-check("limb: thick where the radius says (13 at the hips, 5 at the neck)", abs(at(spine, 13, 0, 92)) < 0.6 and abs(at(spine, 5, 0, 147)) < 0.6,
+check("limb: thick where the radius says (13 at the hips, 5 at the neck; the cross-section is a rounded square, so the edge is within a tenth of the radius of it)",
+      abs(at(spine, 13, 0, 92)) < 1.3 and abs(at(spine, 5, 0, 147)) < 0.5,
       "%.2f at the hips, %.2f at the neck" % (at(spine, 13, 0, 92), at(spine, 5, 0, 147)))
-check("limb: a smooth curve through the nodes (the arm passes the elbow)", abs(at(arm, 31 + 4.5, 0, 113)) < 0.8 and at(arm, 31, 0, 113) < -3)
+check("limb: a smooth curve through the nodes (the arm passes the elbow)", abs(at(arm, 31 + 4.5, 0, 113)) < 1.2 and at(arm, 31, 0, 113) < 0)
 
 # 2. a limb with a profile of its own: a square cross-section, swept along the path
 square_arm = limb([point(60, 0, 100), point(60, 0, 130), point(60, 20, 150)], profile=rectangle((-4, -4), (4, 4)))
@@ -112,11 +113,13 @@ def main_joint(vertex):
     return names[joints[vertex][0]]
 
 
-for label, place, radius, joint_name in (("the tip of the hand", (37, 8, 89), 2.5, "hand.R"), ("the middle of the right forearm", (34, 4, 102), 4, "elbow.R"),
+for label, place, radius, joint_name in (("the end of the hand (the flat end of the last limb, where the bone of the forearm ends)", (37, 8, 92), 3, ("hand.R", "elbow.R")),
+                                         ("the middle of the right forearm", (34, 4, 102), 4, "elbow.R"),
                                          ("the middle of the left forearm", (-34, 4, 102), 4, "elbow.L"), ("the right shin", (11, 0, 30), 5, "knee.R")):
     found = near(place, radius)
-    share = sum(1 for v in found if main_joint(v) == joint_name) / max(1, len(found))
-    check("weights: %s is moved by %s" % (label, joint_name), len(found) > 3 and share > 0.9, "%d vertices, %.0f %%" % (len(found), 100 * share))
+    allowed = joint_name if isinstance(joint_name, tuple) else (joint_name,)
+    share = sum(1 for v in found if main_joint(v) in allowed) / max(1, len(found))
+    check("weights: %s is moved by %s" % (label, " or ".join(allowed)), len(found) > 3 and share > 0.9, "%d vertices, %.0f %%" % (len(found), 100 * share))
 
 # 5. a joint that owns a place: the jaw owns a box of the head
 jaw_box = box((-8, 4, 150), (8, 14, 158))

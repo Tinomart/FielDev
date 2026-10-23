@@ -50,18 +50,19 @@ HINTS = {
 
 # A profile or a curve made from the menu: its points are made with it (each a model of its own, drawn as a dot, with the gizmo that moves and
 # rotates it), in the horizontal plane at the place of the click
-def _gizmoed_point(name, x, y, z):
-    ''' The statements of a point that is a model of its own, with its gizmo (so that it can be dragged) '''
+def _gizmoed_point(name, x, y, z, shown=True):
+    ''' The statements of a point that is a model of its own, with its gizmo (so that it can be dragged).  `shown` False: the line that shows the point where it is is left out
+        (the points of the profile of a limb are shown by the clone of it at the limb's first node, not at the origin) '''
     return ('%s = point(%s, %s, %s)\n%s = gizmo(\n    %s,\n    move=(var(0), var(0), var(0)),\n    rotate=(var(0), var(0), var(0)),\n'
-            '    scale=(var(1), var(1), var(1)),\n)\n%s\n' % (name, x, y, z, name, name, name))
+            '    scale=(var(1), var(1), var(1)),\n)\n%s' % (name, x, y, z, name, name, ('%s\n' % name) if shown else ''))
 
 
-def _points(*places, base='{var}'):
+def _points(*places, base='{var}', shown=True):
     ''' The points a profile or a line made from the menu is made of: each a model of its own, with its gizmo (so that it can be dragged, and the face or the line
         with all of them), written above the call.  `places` are the (x, y, z) texts of the template '''
     out = []
     for k, (x, y, z) in enumerate(places, 1):
-        out.append(_gizmoed_point('%s_p%d' % (base, k), x, y, z))
+        out.append(_gizmoed_point('%s_p%d' % (base, k), x, y, z, shown))
     return ''.join(out), ', '.join('%s_p%d' % (base, k) for k in range(1, len(places) + 1))
 
 
@@ -72,7 +73,28 @@ _LINE_POINTS, _LINE_LIST = _points(('{xm}', '{y}', '{z}'), ('{x}', '{yp}', '{z}'
 _POLYLINE = _LINE_POINTS + '#@@#\npolyline([' + _LINE_LIST + '])'
 _SPLINE = _LINE_POINTS + '#@@#\nspline([' + _LINE_LIST + '])'
 _CHAIN = _LINE_POINTS + '#@@#\nchain([' + _LINE_LIST + '], radii={q})'
-_LIMB = _LINE_POINTS + '#@@#\nlimb([' + _LINE_LIST + '], radii={q}, name="{var}")'
+# The cross-section of a limb made from the menu: a profile of four points -- a square whose corners are spline points, nearly a circle of the radius {q} -- in the plane z = 0 at the
+# origin, written above the limb: each point a model of its own with its gizmo, none drawn there.  The limb is swept along its nodes from it (swap it by dropping another profile on it
+# in the model tree); the clone of it shown at the first node, written under the limb's line, has the dots of its points
+_CUT_POINTS, _CUT_LIST = _points(('{qa}', '{qa}', '0'), ('{qn}', '{qa}', '0'), ('{qn}', '{qn}', '0'), ('{qa}', '{qn}', '0'), base='{var}_cut', shown=False)
+_CUT = _CUT_POINTS + '{var}_cut = profile([' + _CUT_LIST + '], smooth=True)\n'
+_FACE = '\n#@@@#\n{var}_face = cut_face({var})\n{var}_face'
+_LIMB = _LINE_POINTS + _CUT + '#@@#\nlimb([' + _LINE_LIST + '], profile={var}_cut, name="{var}")' + _FACE
+
+
+def _feature_text():
+    ''' A feature made from the menu: three loops of six points, one behind the other, the middle one the widest (a nose, a muzzle, a brow): each point a model of its own with its
+        gizmo, and the call through the loops.  The places of the points are worked out in `_values` (f<loop>x<point>, f<loop>z<point>, fy<loop>) '''
+    texts, loops = [], []
+    for k in range(3):
+        places = [('{f%dx%d}' % (k, i), '{fy%d}' % k, '{f%dz%d}' % (k, i)) for i in range(6)]
+        pts, listing = _points(*places, base='{var}_l%d' % (k + 1))
+        texts.append(pts)
+        loops.append('[' + listing + ']')
+    return ''.join(texts) + '#@@#\nfeature([' + ', '.join(loops) + '], detail=3, name="{var}")'
+
+
+_FEATURE = _feature_text()
 
 # What an entry can be made OF the models selected, as DATA -- the entries that are made of what is selected, each with the words for its tooltip and the WAYS it is made, tried
 # in the order they are listed: (the kinds of model it is made of, the least and the most of them (None: any number), the call it is written as -- `{names}` is those models in
@@ -112,6 +134,7 @@ PRIMITIVES = [
     ('half_space', '3D', 'half_space((0, 0, 1), ({x}, {y}, {z}))'),
     ('chain', '3D', _CHAIN),
     ('limb', 'Character', _LIMB),
+    ('feature', 'Character', _FEATURE),
     ('low_level_body', '3D', _LOW_LEVEL_BODY),
     ('circle', '2D', 'circle({h}, ({x}, {y}))'),
     ('rectangle', '2D', 'rectangle(({xm}, {ym}), ({xp}, {yp}))'),
@@ -579,7 +602,11 @@ def _limb_text(places):
     pts = [tuple(float(c) for c in p) for p in places]
     reach = max((math.dist(a, b) for a, b in zip(pts, pts[1:])), default=10.0)
     points, listing = _points(*places)
-    return points + '#@@#\n' + 'limb([%s], radii=%s, name="{var}")' % (listing, _num(_nice(reach / 6.0)))
+    # (the cross-section of the limb: the square with spline points, whose radius is a sixth of the longest stretch, written above it as a profile of its own, and its clone under the limb)
+    q = _nice(reach / 6.0)
+    plus, minus = _num(0.75 * q), _num(-0.75 * q)
+    cut_points, cut_list = _points((plus, plus, '0'), (minus, plus, '0'), (minus, minus, '0'), (plus, minus, '0'), base='{var}_cut', shown=False)
+    return points + cut_points + '{var}_cut = profile([%s], smooth=True)\n' % cut_list + '#@@#\n' + 'limb([%s], profile={var}_cut, name="{var}")' % listing + _FACE
 
 
 def _symmetry_template(r, values):
@@ -637,9 +664,17 @@ def _values(r):
     h = s / 2.0
     values = {
         'x': _num(x), 'y': _num(y), 'z': _num(z), 's': _num(s), 'h': _num(h), 't': _num(s / 10.0), 'q': _num(s / 6.0),
+        'qa': _num(0.75 * s / 6.0), 'qn': _num(-0.75 * s / 6.0),
         'xm': _num(x - h), 'xp': _num(x + h), 'ym': _num(y - h), 'yp': _num(y + h), 'zm': _num(z - h), 'zp': _num(z + h),
         'body': r.get('body', ''), 'other': r.get('other', ''), 'var': r.get('var') or (name + '_1'),
     }
+    # the three loops of a new feature: in the planes y = (y - h/2, y, y + h/2), the middle one the widest, six points round each
+    for k, (depth, radius) in enumerate(((-0.5, 0.5), (0.0, 0.8), (0.5, 0.4))):
+        values['fy%d' % k] = _num(y + depth * h)
+        for i in range(6):
+            angle = math.radians(60.0 * i)
+            values['f%dx%d' % (k, i)] = _num(x + radius * h * math.cos(angle))
+            values['f%dz%d' % (k, i)] = _num(z + radius * h * math.sin(angle))
     values['others'] = ', ' + values['other'] if values['other'] else ''       # (for a call that may have no other model)
     values['body_info'] = r.get('body_info')
     return values
@@ -657,7 +692,7 @@ def _images_after(r, head, expression):
         return ''
     for n, group, _ in PRIMITIVES:
         if n == r['name']:
-            if group not in _PLACED_GROUPS or n in ('profile', 'polyline', 'spline', 'symmetry_planes', 'limb'):
+            if group not in _PLACED_GROUPS or n in ('profile', 'polyline', 'spline', 'symmetry_planes', 'limb', 'feature'):
                 return ''
             break
     else:

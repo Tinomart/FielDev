@@ -1,18 +1,23 @@
 '''
-Armatures: a character made of parts, each a path of nodes with a thickness, and the skeleton that goes with them.
+Armatures: a character made of parts, each a path of nodes with a cross-section, and the skeleton that goes with them.
 
-    shoulder = point(18, 0, 138)                            # a node: a point, with the size of its gizmo as its thickness
+    shoulder = point(18, 0, 138)                            # a node: a point, with the size of its gizmo (the gold ring) as how thick the limb is there
     elbow = point(31, 0, 113)
     hand = point(37, 8, 92)
-    arm = limb([shoulder, elbow, hand], radii=[6, 4.5, 3.5], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+    arm = limb([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
     spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
+    face = cut_face(arm)                                    # the cross-section of the arm, shown at its first node: its points are the profile's
     hero = character([spine, arm, ...], blend=4, symmetric="x")          # the body: the parts joined with a blend, and the left half as the mirror image
     export_mesh(hero, "hero.glb", symmetric="x", skeleton=skeleton_of([spine, arm, ...], mirror="x"))
 
-A LIMB is a path extruded: the cross-section is swept along a smooth curve through its nodes, thicker or thinner at each node.  By default the cross-section is round and the sweep is
-made of round cones along the curve (the curve is a Catmull-Rom spline through the nodes, so the limb bends smoothly, and every number in it is an expression of the nodes, so that a node
-dragged in the viewport moves the limb with it at once).  With `profile=` -- any 2D shape, a square, a polygon, a profile of your own -- the limb is `path_extrude(profile, spline(nodes))`,
-which keeps the shape of the profile along the curve (and takes longer to draw).
+A LIMB is a path extruded: a cross-section swept along a smooth curve through its nodes (the curve is a Catmull-Rom spline through the nodes, so the limb bends smoothly), thicker or
+thinner at each node, and every number in it is an expression of the nodes, so that a node dragged in the viewport moves the limb with it at once.  The cross-section is a PROFILE:
+by default one that is made for the limb -- a square whose four corners are spline points, so that it is nearly round, with a radius of `radii` (1 by default) -- or any 2D shape of your
+own, `limb([...], profile=my_profile)`: a profile you made from points, a polygon, a rectangle.  The profile is the same for the whole limb, and a node's size (the gold ring of its gizmo)
+makes it bigger or smaller there (keep it near 1: a node's size is also how strongly the path leaves it, and a node many times the size of the profile swings the path out and back on
+itself -- make the profile that size instead); the profile is a model of its own, so a different one is swapped in by dropping it on the profile the limb uses in the model tree.  Where the profile
+is does not matter: the limb is swept from the first node.  `cut_face(limb)` shows the profile there, as a linked clone (`instance`) turned the way the limb leaves the node, with a dot
+for each of the profile's points: pull a dot, and the profile -- and so the whole limb -- changes with it.
 
 The nodes of a limb are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  A limb
 that begins on a node of another limb -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where a limb is joined
@@ -31,35 +36,27 @@ from fieldev.stdlib import fields as F
 from fieldev.stdlib.characters import round_cone, _radius
 from fieldev.stdlib.rigging import Joint, mirror_joints
 
-__all__ = ['limb', 'character', 'skeleton_of', 'Limb']
+__all__ = ['limb', 'cut_face', 'character', 'skeleton_of', 'Limb']
+
+# the corner of the square of an automatic cross-section, as a share of its radius: four spline points here make a curve whose distance from the middle is 1 on average
+_CORNER = 0.75
 
 
 class Limb:
-    ''' What a limb knows of itself, for the skeleton: its name, the nodes (as controls), the names of its joints, and where it is joined '''
+    ''' What a limb knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
+        sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in '''
 
-    def __init__(self, name, ctrls, joints, parent, sizes):
+    def __init__(self, name, ctrls, joints, parent, sizes, profile=None, start=None):
         self.name = name
         self.ctrls = ctrls
         self.joints = joints
         self.parent = parent
         self.sizes = sizes
+        self.profile = profile
+        self.start = start
 
     def __repr__(self):
         return 'limb(%r, %d nodes)' % (self.name, len(self.ctrls))
-
-
-def _width(sizes, i, t):
-    ''' The thickness a fraction t of the way from node i to the next: a Catmull-Rom curve through the nodes' thicknesses (the ends doubled), as the path itself is, so that the thickness changes
-        smoothly across a node and no ring of the body shows where two round cones meet.  Numbers are kept above a hair's width; a thickness that is a field is left as it is '''
-    # (the ends of a limb have no neighbour: the thickness is level there -- the end is round, and a slope would swell the last cone beyond the thickness of its node)
-    n = len(sizes)
-    a = sizes[i - 1] if i > 0 else sizes[i + 1]
-    b, c = sizes[i], sizes[i + 1]
-    d = sizes[i + 2] if i + 2 < n else sizes[i]
-    w = 0.5 * (2.0 * b + (c - a) * t + (2.0 * a - 5.0 * b + 4.0 * c - d) * (t * t) + (3.0 * b - a - 3.0 * c + d) * (t * t * t))
-    if isinstance(w, (int, float)) and isinstance(b, (int, float)) and isinstance(c, (int, float)):
-        w = max(w, 0.05 * min(b, c))
-    return w
 
 
 def _catmull(p0, p1, p2, p3, t):
@@ -70,53 +67,89 @@ def _catmull(p0, p1, p2, p3, t):
     return tuple(out)
 
 
-def limb(points, radii=None, profile=None, name=None, joints=None, parent=None, detail=12, twist=0):
+def _base_profile(radius):
+    ''' The cross-section a limb is given when it has none of its own: a square with spline points at its corners, which is a rounded square that is nearly a circle, `radius` across '''
+    from fieldev.stdlib.profile import profile as make
+    a = _CORNER * radius
+    return make([(a, a), (-a, a), (-a, -a), (a, -a)], smooth=True)
+
+
+def _profile_radius(shape):
+    ''' How big a cross-section is: the mean distance of its outline from the middle of it (1.0 when it cannot be told) '''
+    try:
+        pts = getattr(shape, 'vertices', None)
+        if pts:
+            mid = tuple(0.5 * (min(p[c] for p in pts) + max(p[c] for p in pts)) for c in range(3))
+            return sum(math.dist(p, mid) for p in pts) / len(pts)
+        (x0, y0, _z0), (x1, y1, _z1) = shape._bounds
+        return 0.25 * ((x1 - x0) + (y1 - y0))
+    except Exception:
+        return 1.0
+
+
+def _sized(place, size):
+    ''' A node given as a tuple of numbers, made a point with that size (the scale of its gizmo is how thick the limb is there) '''
+    from fieldev.stdlib.handles import gizmo
+    from fieldev.stdlib.points import point
+    xyz = tuple(place) + (0.0,) * (3 - len(place))
+    return gizmo(point(*xyz), scale=(size, size, size))
+
+
+def limb(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0):
     ''' A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
-            arm = limb([shoulder, elbow, hand], radii=[6, 4.5, 3.5], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+            arm = limb([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
 
-        points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers
-        radii    the thickness at each node: a number for all, or one for each (numbers or fields).  It is that number TIMES the size of the node -- the scale of its gizmo, the gold ring
-                 (1 for a tuple) -- so with no radii the size of a node is its radius
-        profile  None: a round cross-section (made of round cones along the path); or a 2D shape (`rectangle`, `polygon(...)`, a profile): the limb is `path_extrude(profile, spline(points))`,
-                 and then the thickness at a node is the size of the node alone
+        points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a node's gizmo -- the gold ring, 1 for a tuple -- is
+                 how big the cross-section is there: the ring is drawn as a circle of the limb's real radius round the node
+        radii    the size of the cross-section the limb is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or, for nodes that are
+                 tuples of numbers, a list with one number for each node (a point has its own size, in its gizmo)
+        profile  the cross-section: any 2D shape (a profile made of points, a polygon, a rectangle).  None: a square with spline points, made for the limb.  It is swept from the first
+                 node whatever place it is at; a different profile is dropped on this one in the model tree to swap it
         name     what the skeleton calls the limb ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
         parent   the name of the joint this limb hangs from, when its first node is not on a node of another limb
-        detail   how many round cones make a stretch between two nodes: 12 (fewer is faster to draw and shows rings of the cones; more is smoother)
-        twist    degrees, for a profile: the whole cross-section turned about the path '''
+        twist    degrees: the whole cross-section turned about the path '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('limb(points): a list of nodes (points or tuples of numbers), one or more')
-    ctrls = C.controls(list(points))
-    n = len(ctrls)
-    if radii is None:
-        radii = [1.0] * n
-    elif isinstance(radii, (list, tuple)):
+    if profile is not None and radii is not None:
+        raise ValueError('limb: radii is the size of the cross-section the limb makes for itself -- a profile of your own has its own size: change its points, or the size of the nodes '
+                         '(the gold ring of their gizmos)')
+    n = len(points)
+    number = 1.0
+    if isinstance(radii, (list, tuple)):
         if len(radii) != n:
             raise ValueError('limb: %d nodes but %d radii -- one for each node, or one number for all' % (n, len(radii)))
-    else:
-        radii = [radii] * n
-    sizes = []
-    for k, (ctl, r) in enumerate(zip(ctrls, radii)):
-        r = _radius(r, 'limb: radii[%d]' % k)
-        sizes.append(r * ctl.scale_expr if ctl.scale_expr is not None else r)
-        # (the viewport draws the ring of a selected node as a circle of the limb's real radius there: the node's scale times this number)
-        if isinstance(ctl.item, Shape) and isinstance(r, (int, float)) and not isinstance(r, bool):
-            try:
-                ctl.item._limb_factor = float(r)
-            except AttributeError:
-                pass
+        given = []
+        for k, (p, r) in enumerate(zip(points, radii)):
+            r = _radius(r, 'limb: radii[%d]' % k)
+            if not isinstance(p, (tuple, list)) or not isinstance(r, (int, float)) or isinstance(r, bool) or not r > 0:
+                raise ValueError('limb: radii[%d] -- a list of radii is for nodes that are tuples of numbers (plain numbers above 0); a node that is a point has its size in its own '
+                                 'gizmo (the gold ring): give radii as one number' % k)
+            given.append(float(r))
+        # The size of a node is also how strongly the path leaves it (a node ten times as big as the profile swings the path out and back on itself), so the profile gets the mean size
+        # of the radii (the geometric mean) and each node the share of it that is its own: the thickness at a node is still exactly its radius
+        number = math.exp(sum(math.log(r) for r in given) / n)
+        points = [_sized(p, r / number) for p, r in zip(points, given)]
+    elif radii is not None:
+        number = _radius(radii, 'limb: radii')
+        if not isinstance(number, (int, float)) or isinstance(number, bool) or not number > 0:
+            raise ValueError('limb: radii is a number above 0 (the size of the cross-section), or a list of them for nodes that are tuples, not %r' % (radii,))
+    ctrls = C.controls(list(points))
+    sizes = [number * ctl.scale_expr if ctl.scale_expr is not None else number for ctl in ctrls]
     label = str(name) if name else 'limb'
     if joints is None:
         joints = ['%s_%d' % (label, k) for k in range(n)]
     elif not isinstance(joints, (list, tuple)) or len(joints) != n or len(set(joints)) != n:
         raise ValueError('limb: joints is %d different names, one for each node' % n)
-    if not isinstance(detail, int) or isinstance(detail, bool) or not 1 <= detail <= 32:
-        raise ValueError('limb: detail is the round cones between two nodes, from 1 to 32, not %r' % (detail,))
-    if profile is not None:
-        from fieldev.stdlib.profile import path_extrude
+    base, start = None, None
+    if n == 1:
+        out = round_cone(ctrls[0].expr, ctrls[0].expr, sizes[0], sizes[0])
+    else:
         from fieldev.stdlib import transforms
+        from fieldev.stdlib.profile import path_extrude
+        base = profile if profile is not None else _base_profile(number)
         way = C.spline(list(points))
-        out = path_extrude(profile, way, twist)
+        out = path_extrude(base, way, twist)
         # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  A limb is at its NODES: the sweep is
         # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the limb, and the nodes are drawn where they are)
         shift = getattr(way, '_weld_shift', None)
@@ -127,32 +160,107 @@ def limb(points, radii=None, profile=None, name=None, joints=None, parent=None, 
                     item._weld_shift = None
                 except AttributeError:
                     pass
-    elif n == 1:
-        out = round_cone(ctrls[0].expr, ctrls[0].expr, sizes[0], sizes[0])
-    else:
-        # the curve: the nodes' own places and the places between them, from the Catmull-Rom spline (the ends are doubled)
-        nodes = [c.expr for c in ctrls]
-        way = [nodes[0]] + nodes + [nodes[-1]]
-        places, widths = [], []
-        for i in range(n - 1):
-            for s in range(detail):
-                t = s / float(detail)
-                places.append(_catmull(way[i], way[i + 1], way[i + 2], way[i + 3], t))
-                widths.append(_width(sizes, i, t))
-        places.append(nodes[-1])
-        widths.append(sizes[-1])
-        out = F.union_all([round_cone(places[k], places[k + 1], widths[k], widths[k + 1]) for k in range(len(places) - 1)], 0)
-    out._limb = Limb(label, ctrls, list(joints), None if parent is None else str(parent), sizes)
+        if len(way.vertices) > 1:
+            start = C.unit(C.sub(way.vertices[1], way.vertices[0]))
+        # (the viewport draws the ring of a selected node as a circle of the limb's real radius there: the node's scale times the size of the cross-section)
+        factor = _profile_radius(base)
+        for ctl in ctrls:
+            if isinstance(ctl.item, Shape):
+                try:
+                    ctl.item._limb_factor = float(factor)
+                except AttributeError:
+                    pass
+    # the box the limb fills, for the render region and the export: its nodes, the thickness of the cross-section there (the corners of the square reach a little beyond its radius)
+    # and the bend of the curve between them.  A box that holds the limb, not its exact extent
+    ref = _profile_radius(base) if base is not None else number
+    reach = 1.3 * ref * max([1.0] + [ctl.scale for ctl in ctrls])
+    lo = [min(ctl.pos[c] for ctl in ctrls) for c in range(3)]
+    hi = [max(ctl.pos[c] for ctl in ctrls) for c in range(3)]
+    bend = 0.15 * max(hi[c] - lo[c] for c in range(3))
+    out._bounds = (tuple(lo[c] - reach - bend for c in range(3)), tuple(hi[c] + reach + bend for c in range(3)))
+    out._bounds_loose = True
+    out._limb = Limb(label, ctrls, list(joints), None if parent is None else str(parent), sizes, base, start)
     return out
 
 
+def _euler(R):
+    ''' The angles (degrees; x, then y, then z: R = Rz * Ry * Rx) of a turn '''
+    sy = -R[2][0]
+    sy = max(-1.0, min(1.0, sy))
+    beta = math.asin(sy)
+    if abs(sy) < 1.0 - 1e-9:
+        alpha = math.atan2(R[2][1], R[2][2])
+        gamma = math.atan2(R[1][0], R[0][0])
+    else:
+        alpha = 0.0
+        gamma = math.atan2(-R[0][1], R[1][1])
+    return tuple(math.degrees(a) for a in (alpha, beta, gamma))
+
+
+def cut_face(one, node=0):
+    ''' The cross-section of a limb, shown at its first node: the profile the limb is swept from, as a linked clone of it (`instance`) put where the limb has it -- turned the way the
+        limb leaves the node, in the middle of the node -- and drawn with a dot for each of the profile's points.  Pull a dot, double click it, or press the outline to put a point on
+        it, and it is the profile that changes, and with it the limb.
+
+            arm_face = cut_face(arm)
+            arm_face
+
+        The profile must be made of points (`profile([...])`) for it to have dots; the cross-section a limb makes for itself has none.  Only the first node has one (node=0) '''
+    info = getattr(one, '_limb', None)
+    if info is None:
+        raise TypeError('cut_face(limb): a limb(...), not %r' % (type(one).__name__,))
+    if info.profile is None:
+        raise ValueError('cut_face: a limb of one node is a ball -- it has no cross-section')
+    if node != 0:
+        raise ValueError('cut_face: the cross-section is shown at the first node of the limb (node=0), not at node %r' % (node,))
+    base = info.profile
+    items = getattr(base, 'points', None)
+    if not items or not callable(getattr(base, '_remake', None)):
+        raise TypeError('cut_face: the profile of the limb is made of points (profile([...])), so that it has a clone to show')
+    from fieldev.stdlib.handles import gizmo
+    from fieldev.stdlib.instances import instance
+    plane = getattr(base, 'plane', None)
+    bu, bv = (tuple(plane[1]), tuple(plane[2])) if plane is not None else ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+    normal = C.unit(C.cross(bu, bv))
+    t0 = info.start if info.start is not None else normal
+    # the frame the sweep starts in -- see path_extrude: the profile as it is when the path leaves across it, else turned across the path
+    if abs(C.dot(normal, t0)) >= 0.1:
+        u0, w0 = bu, bv
+    else:
+        first = None
+        for across in (bu, bv):
+            candidate = C.sub(across, C.mul(t0, C.dot(across, t0)))
+            if C.dot(candidate, candidate) > 1e-12:
+                first = C.unit(candidate)
+                break
+        if first is None:
+            first = bu
+        u0, w0 = first, C.cross(t0, first)
+    n0 = C.cross(u0, w0)
+    R = [[u0[i] * bu[j] + w0[i] * bv[j] + n0[i] * normal[j] for j in range(3)] for i in range(3)]
+    places = []
+    for p in items:
+        xyz = getattr(p, 'xyz', None)
+        if xyz is None:
+            xyz = tuple(p) + (0.0,) * (3 - len(p))
+        places.append(tuple(C.value_of(v) for v in xyz))
+    middle = tuple(0.5 * (min(q[i] for q in places) + max(q[i] for q in places)) for i in range(3))
+    node0 = tuple(info.ctrls[0].pos)
+    move = tuple(node0[i] - middle[i] for i in range(3))
+    return gizmo(instance(base), move=move, rotate=_euler(R))
+
+
 def character(limbs, blend=3, symmetric=None):
-    ''' The body made of limbs: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror image
-        (the limbs are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both) '''
+    ''' The body made of limbs and features: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror
+        image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both) '''
     if not isinstance(limbs, (list, tuple)) or not limbs:
-        raise TypeError('character(limbs): a list of limbs, one or more')
+        raise TypeError('character(limbs): a list of limbs (and features), one or more')
     body = F.union_all(list(limbs), blend)
     body._parts = list(limbs)               # (the parts the UV map by armature unwraps the body by: limbs and features)
+    boxes = [getattr(p, '_bounds', None) for p in limbs]
+    if all(boxes):
+        body._bounds = (tuple(min(b[0][c] for b in boxes) for c in range(3)), tuple(max(b[1][c] for b in boxes) for c in range(3)))
+        body._bounds_loose = True
     if symmetric is None:
         return body
     from fieldev.stdlib import transforms
@@ -160,6 +268,15 @@ def character(limbs, blend=3, symmetric=None):
     if mirror is None:
         raise ValueError('character: symmetric is "x", "y" or "z", not %r' % (symmetric,))
     out = getattr(transforms, mirror)(body)
+    box = getattr(body, '_bounds', None)
+    if box:
+        # (the half on the positive side and its mirror image: the box is as far on the negative side as the half is on the positive)
+        a = 'xyz'.index(str(symmetric).lower())
+        m = max(box[1][a], 0.0)
+        lo, hi = list(box[0]), list(box[1])
+        lo[a], hi[a] = -m, m
+        out._bounds = (tuple(lo), tuple(hi))
+        out._bounds_loose = True
     out._parts = list(limbs)
     out._symmetric_axis = str(symmetric).lower()
     return out
@@ -211,7 +328,7 @@ def skeleton_of(limbs, mirror=None, plane=0.0, join=None):
     return out
 
 
-# What the menus offer them for (see fieldev.kinds.takes): a limb is made of points, a character and a skeleton of limbs (bodies)
-limb._takes = _declare({"point"}, [{"point"}])
+# What the menus offer them for (see fieldev.kinds.takes): a limb is made of points and a profile, a character and a skeleton of limbs (bodies)
+limb._takes = _declare({"point", "profile"}, [{"point"}])
 character._takes = _declare({"solid"}, [{"solid"}])
 skeleton_of._takes = _declare({"solid"}, [{"solid"}])
