@@ -15,10 +15,10 @@ class QApplication;
 namespace FielDev {
 
 /*
- *  The look of the application.  The window around the viewport is light -- white bars,
- *  a pale warm background, dark grey-blue text -- and the viewport and the cards floating
- *  in it (model tree, section card, legends, result card) are the dark teal of the
- *  Solarized palette: the model is the one dark thing on the screen.
+ *  The look of the application: playful, not serious.  The window around the viewport is light --
+ *  white bars, a pale lavender background, deep indigo text -- and the cards floating in it
+ *  (model tree, section card, legends) are deep indigo; the viewport is a violet sky with the
+ *  model in front of it.
  */
 namespace Theme
 {

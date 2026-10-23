@@ -280,10 +280,10 @@ public:
      */
     void setPoint(QVector3D pos, bool hasPos) { m_isPoint = true; m_pointPos = pos; m_hasPointPos = hasPos; }
     bool isPoint() const { return m_isPoint; }
-    /*  A node of a limb (fieldev.stdlib.armature.limb): the number the limb's thickness there is the point's scale times (0: the point is no node).  The viewport draws the ring that
-     *  scales such a point as a circle of the limb's real radius round it  */
-    void setLimbFactor(float f) { m_limbFactor = f; }
-    float limbFactor() const { return m_limbFactor; }
+    /*  A node of an armature (fieldev.stdlib.armature.armature): the number the armature's thickness there is the point's scale times (0: the point is no node).  The viewport draws the ring that
+     *  scales such a point as a circle of the armature's real radius round it  */
+    void setArmatureFactor(float f) { m_armatureFactor = f; }
+    float armatureFactor() const { return m_armatureFactor; }
     bool dotPosition(QVector3D& p) const;
 
     /*
@@ -945,7 +945,7 @@ protected:
     bool m_linked = false;
     SymmetryDef m_symDef;
     bool m_isPoint = false;
-    float m_limbFactor = 0.0f;
+    float m_armatureFactor = 0.0f;
     bool m_hasPointPos = false;
     QVector3D m_pointPos;
     QString m_appLabel;

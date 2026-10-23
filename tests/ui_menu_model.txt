@@ -39,7 +39,7 @@
     + wave
     + low_level_field
 + Operations
-  + Offsets and walls
+  + Grow and hollow
     + offset    [With several models selected: the first is the one this is made for, the others are what i]
     + shell    [With several models selected: the first is the one this is made for, the others are what i]
     + thicken    [With several models selected: the first is the one this is made for, the others are what i]

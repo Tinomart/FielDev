@@ -5,11 +5,11 @@ A 2D shape from points or from a closed curve: `profile`.
     b = point(40, 0, 0)
     c = point(40, 20, 0)
     d = point(0, 20, 0, smooth=True)
-    plate = profile([a, b, c, d])                # the face the points enclose; hard edges unless a point says smooth=True
+    tile = profile([a, b, c, d])                # the face the points enclose; hard edges unless a point says smooth=True
     round = profile([a, b, c, d], smooth=True)   # ...or every point a spline, but where a point says smooth=False
     outline = spline([a, b, c, d], closed=True)
-    plate = profile(outline)                     # the same, from a curve
-    body = extrude(plate, 0, 5)                 # a solid: the face pulled 5 along its normal
+    tile = profile(outline)                     # the same, from a curve
+    body = extrude(tile, 0, 5)                 # a solid: the face pulled 5 along its normal
 
 The points are ordinary points (`point(x, y, z)`, dragged with their gizmo): any number of them, joined in the order they are given and closed (the last to
 the first).  The shape lies in the PLANE through the first three points (the first that is not on a line with the first two); every other point is

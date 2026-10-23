@@ -10,14 +10,14 @@ other way round.  (A copy that has a shape of its own is another thing: copy the
 
 FielDev writes one with Ctrl+D (or Operations > Repeating > instance):
 
-    plate_2 = instance(plate)  # shadow: plate
-    plate_2 = gizmo(
-        plate_2,
+    tile_2 = instance(tile)  # shadow: tile
+    tile_2 = gizmo(
+        tile_2,
         move=(var(0), var(0), var(0)),
         rotate=(var(0), var(0), var(0)),
     )
 
-The original is only REFERRED to: the mark `# shadow: plate` keeps it where it is in the model tree (a shadow of it is shown under the copy), whether it is
+The original is only REFERRED to: the mark `# shadow: tile` keeps it where it is in the model tree (a shadow of it is shown under the copy), whether it is
 locked or not -- taking the original into the copy would move its row away and make the copy look like what the original is made of.
 Every model is cloned the same way, `copy = instance(model)`: a model that is not a shape -- a material, a number -- is its own value
 (no place to give it).  What is made of points -- a profile, a polyline, a spline -- is cloned like any shape: its copy is placed by its own gizmo, as the

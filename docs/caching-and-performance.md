@@ -191,6 +191,6 @@ until it crosses one. `roi_resolution` picks resolutions that are whole numbers 
 3. **Coarse first.** Lower `view.set_resolution` and the quality while composing, raise them for the final
    picture or STL.
 4. **Put expensive, rarely changed operations early** in the script, where caches keep them.
-5. **Use the exact operations sparingly**: `offset_exact`, `round_edges`, `fillet` read the distance from the
+5. **Use the exact operations sparingly**: `offset_exact`, `round_edges`, `fill_corners` read the distance from the
    shape's own field with a few Newton steps, each a handful of calls of it (nothing is meshed), so a drawing
    of one costs several times the shape's own. Use them on the finished shape, not inside a loop.

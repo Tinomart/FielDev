@@ -122,8 +122,8 @@ loft(a, b, z0, z1)        morph(a, b, t)
 ```
 
 and the field-based ones in [Fields](fields.md): `smooth_union`, `smooth_difference`,
-`smooth_intersection`, `chamfer_union`, `offset_by(part, field)` (an offset that varies in space),
-`thicken`, `shell_inside`, `round_edges`, `fillet`, `smooth`, `repeat`, `twist_z`, `bend_z`, `mirror_x/y/z`.
+`smooth_intersection`, `bevel_union`, `offset_by(part, field)` (an offset that varies in space),
+`solidify`, `shell_inside`, `round_edges`, `fill_corners`, `smooth`, `repeat`, `twist_z`, `bend_z`, `mirror_x/y/z`.
 
 ## Moving, rotating, scaling, deforming
 

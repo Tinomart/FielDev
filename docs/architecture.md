@@ -272,7 +272,7 @@ Nothing else is written outside the folders you choose (meshes exported by the s
 | `FIELDEV_FIELD_CACHE_DIR` | folder of the field cache (default: `field-cache` beside the render cache) |
 | `FIELDEV_SCENE_CACHE_DIR` | folder of the kept model trees (default: `scene-cache` beside the render cache) |
 | `FIELDEV_SHAPE_LOG`, `FIELDEV_TREE_LOG` | files the tests read: per run, how many viewport shapes were kept / new (`View::setShapes`); and the model tree's rebuild phases, the edits it followed and their times (developer) |
-| `FIELDEV_NO_EXACT_OFFSETS` | thicken, shell and offset an imported part with its own field instead of its exact distance |
+| `FIELDEV_NO_EXACT_OFFSETS` | solidify, shell and offset an imported part with its own field instead of its exact distance |
 
 ## Origins and licences
 

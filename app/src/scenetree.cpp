@@ -1266,7 +1266,7 @@ protected:
         if (fit.right() > viewport()->width() - 2) fit.moveRight(viewport()->width() - 2);
         p.setOpacity(m_ok ? 0.96 : 0.6);
         p.setPen(QPen(m_ok ? blue : QColor(0xdc, 0x32, 0x2f), 1.4));
-        p.setBrush(QColor(0x0b, 0x32, 0x40));
+        p.setBrush(QColor(0x1f, 0x1a, 0x45));
         p.drawRoundedRect(fit, 5, 5);
         m_ghostIcon.paint(&p, QRect(fit.left() + 4, fit.top() + 3, 16, 16));
         p.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -1285,7 +1285,7 @@ protected:
             if (note.top() < 2) note.moveTop(2);
             p.setOpacity(0.97);
             p.setPen(QPen(QColor(0xdc, 0x32, 0x2f), 1.2));
-            p.setBrush(QColor(0x0b, 0x32, 0x40));
+            p.setBrush(QColor(0x1f, 0x1a, 0x45));
             p.drawRoundedRect(note, 5, 5);
             p.setPen(QColor(0xee, 0xe8, 0xd5));
             p.drawText(note.adjusted(6, 5, -6, -5), Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, m_why);
@@ -1419,7 +1419,7 @@ private:
             p.drawLine(QPointF(6, y), QPointF(viewport()->width() - 6, y));
         }
         p.setPen(QPen(blue, m_gapHot ? 2.0 : 1.6));
-        p.setBrush(m_gapHot ? blue : QColor(0x0b, 0x32, 0x40));
+        p.setBrush(m_gapHot ? blue : QColor(0x1f, 0x1a, 0x45));
         p.drawEllipse(QRectF(c).adjusted(1, 1, -1, -1));
         p.setPen(QPen(m_gapHot ? QColor(0xee, 0xe8, 0xd5) : blue, 2.0, Qt::SolidLine, Qt::RoundCap));
         const QPointF m = QRectF(c).center();
@@ -1482,16 +1482,16 @@ ScenePanel::ScenePanel(QWidget* parent)
     setObjectName("ScenePanel");
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet(
-        "#ScenePanel { background: rgba(22, 76, 94, 222);"
-        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
+        "#ScenePanel { background: rgba(42, 35, 88, 222);"
+        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 6px; }"
         "QTreeWidget { background: transparent; color: #eee8d5; border: none;"
         "  outline: none; font-size: 8.5pt; }"
         "QTreeWidget::item { padding: 1px 0px; }"
-        "QTreeWidget::item:hover { background: rgba(147, 161, 161, 40); }"
-        "QTreeWidget::item:selected { background: rgba(38, 139, 210, 150); color: white; }"
+        "QTreeWidget::item:hover { background: rgba(190, 178, 240, 40); }"
+        "QTreeWidget::item:selected { background: rgba(138, 92, 245, 150); color: white; }"
         "QToolButton#SceneHeader { color: #eee8d5; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 6px; text-align: left; }"
-        "QLabel { color: #93a1a1; font-size: 8pt; padding: 0px 6px 4px 6px; }"
+        "QLabel { color: #beb2f0; font-size: 8pt; padding: 0px 6px 4px 6px; }"
         // The script has an error: the card says so (a red frame, the header, the note under the rows)
         "#ScenePanel[error=\"true\"] { border: 2px solid rgba(255, 56, 56, 245); }"
         "QToolButton#SceneHeader[error=\"true\"] { color: #ff4a4a; }"
@@ -1500,13 +1500,13 @@ ScenePanel::ScenePanel(QWidget* parent)
         "QLabel[waiting=\"true\"] { color: #f5a623; font-size: 8.5pt; }"
         // The scroll bars of the card: a thin pill that floats over nothing -- no track, no arrows
         "QScrollBar:vertical { background: transparent; width: 11px; margin: 2px 0px; border: none; }"
-        "QScrollBar::handle:vertical { background: rgba(147, 161, 161, 105); border-radius: 4px; min-height: 28px;"
+        "QScrollBar::handle:vertical { background: rgba(190, 178, 240, 105); border-radius: 4px; min-height: 28px;"
         "  margin: 0px 2px; }"
-        "QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed { background: rgba(147, 161, 161, 190); }"
+        "QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed { background: rgba(190, 178, 240, 190); }"
         "QScrollBar:horizontal { background: transparent; height: 11px; margin: 0px 2px; border: none; }"
-        "QScrollBar::handle:horizontal { background: rgba(147, 161, 161, 105); border-radius: 4px; min-width: 28px;"
+        "QScrollBar::handle:horizontal { background: rgba(190, 178, 240, 105); border-radius: 4px; min-width: 28px;"
         "  margin: 2px 0px; }"
-        "QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed { background: rgba(147, 161, 161, 190); }"
+        "QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed { background: rgba(190, 178, 240, 190); }"
         "QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; background: none; border: none; }"
         "QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }");
 
@@ -2896,7 +2896,7 @@ void ScenePanel::rebuild()
         e->setProperty("fn", fn);
         e->setProperty("shown", shown);
         e->setToolTip(T("Samples per mm"));
-        e->setStyleSheet("QLineEdit { background: rgba(0, 0, 0, 80); color: #eee8d5; border: 1px solid rgba(147, 161, 161, 90);"
+        e->setStyleSheet("QLineEdit { background: rgba(0, 0, 0, 80); color: #eee8d5; border: 1px solid rgba(190, 178, 240, 90);"
                          " border-radius: 2px; padding: 0px 3px; font-size: 8.5pt; selection-background-color: #268bd2; }"
                          "QLineEdit:focus { border: 1px solid #268bd2; background: rgba(0, 0, 0, 120); }");
         e->installEventFilter(this);
@@ -2921,7 +2921,7 @@ void ScenePanel::rebuild()
             // A part that was imported as a mesh (tessellated) is drawn from its own triangles: there is nothing to mesh, so no resolution
             // changes how it looks
             auto mesh = new QLabel("(" + meshNote + ")");
-            mesh->setStyleSheet("color: #93a1a1; font-size: 8.5pt; padding: 0px;");
+            mesh->setStyleSheet("color: #beb2f0; font-size: 8.5pt; padding: 0px;");
             mesh->setToolTip(T("This part was imported as a mesh: it is drawn from its own triangles, not meshed from a field, so a resolution "
                              "does not change how it looks."));
             lay->addWidget(mesh);
@@ -6100,6 +6100,16 @@ QString ScenePanel::typeAtLine(int line0) const
     return model["type"].toString();
 }
 
+bool ScenePanel::armatureNodeAtLine(int line0, QString* var) const
+{
+    QJsonObject model;
+    QString source;
+    int after = 0;
+    if (!resolveModel(line0, &model, &source, &after) || !model["armature_node"].toBool() || model["var"].toString().isEmpty()) return false;
+    if (var) *var = model["var"].toString();
+    return true;
+}
+
 bool ScenePanel::describeModel(const QJsonObject& target, QString* source, int* after) const
 {
     if (target.isEmpty()) return false;
@@ -6344,6 +6354,59 @@ void ScenePanel::editPoints(const QString& op, int line0, const QVector3D& press
     }
     emit(editScript(edits, doc["label"].toString()));
     emit(pointEditDone(op == "insert" ? doc["line"].toInt(-1) : -1));
+}
+
+void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, double scale)
+{
+    if (!m_support || !m_source)
+    {
+        emit(armatureNodeDone(QString(), at));
+        return;
+    }
+    if (anchor.isEmpty())
+    {
+        // The first node: a new armature of one node, made like any new model (the cross-section it is given is as large as the place is)
+        m_placed = QJsonArray{QJsonArray{double(at.x()), double(at.y()), double(at.z())}};
+        m_placedSmooth = false;
+        createFromMenu("primitive", "armature", at, scale, -1, -1);
+        m_placed = QJsonArray();
+        return;
+    }
+    // (only the text is needed to write the node, not the run of it: the next click can come before the scene has caught up)
+    QJsonObject request;
+    request["op"] = "armature";
+    request["source"] = m_source();
+    request["line"] = 1;
+    request["node"] = anchor;
+    request["x"] = double(at.x());
+    request["y"] = double(at.y());
+    request["z"] = double(at.z());
+    request["scale"] = scale;
+    QString error;
+    const QString answer = m_support("profile_edit", QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)), &error);
+    if (answer.isEmpty())
+    {
+        notify(error.isEmpty() ? T("The node could not be placed") : error);
+        emit(armatureNodeDone(QString(), at));
+        return;
+    }
+    const QJsonObject doc = QJsonDocument::fromJson(answer.toUtf8()).object();
+    QList<TextEdit> edits;
+    for (const auto v : doc["edits"].toArray())
+    {
+        const auto a = v.toArray();
+        if (a.size() == 5) edits << TextEdit{a[0].toInt(), a[1].toInt(), a[2].toInt(), a[3].toInt(), a[4].toString()};
+    }
+    if (edits.isEmpty())
+    {
+        emit(armatureNodeDone(QString(), at));
+        return;
+    }
+    const QString name = doc["name"].toString();
+    m_selectNew = name;                      // (the new node is selected once the script has run: its gizmo is there to drag)
+    m_selectNewTries = 0;
+    emit(editScript(edits, doc["label"].toString()));
+    emit(armatureNodeDone(name, at));
 }
 
 void ScenePanel::selectFieldKeys(const QStringList& keys, bool add)
@@ -7563,6 +7626,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
     if (call.isEmpty())
     {
         notify(T("Could not create %1").arg(name) + (error.isEmpty() ? QString() : ": " + error));
+        if (kind == "primitive" && name == "armature" && !placed.isEmpty()) emit(armatureNodeDone(QString(), point));
         return;
     }
     // The rest: the statement written under the model
@@ -7598,7 +7662,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
         // The library's functions are in scope with `from fieldev import *`
         static const QRegularExpression starImport(R"(^\s*from\s+fieldev\s+import\s+\*)", QRegularExpression::MultilineOption);
         // (a picture to trace calls the library, so it has the import; the blocks of the Python menu are the language only)
-        const bool usesLibrary = !plain || name.startsWith("reference_image|");
+        const bool usesLibrary = !plain || name.startsWith("reference_image|") || name.startsWith("export_game|");
         const QString star = (!usesLibrary || starImport.match(src).hasMatch()) ? QString() : QString("from fieldev import *\n\n");
 
         QList<TextEdit> edits;
@@ -7671,6 +7735,12 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
         m_selectNewTries = 0;
         emit(editScript(edits, (plain ? "Add Python " : kind == "primitive" ? "New " : "Add ") + name));
         if (cursorAfter >= 0) emit(insertionChosen(cursorAfter, false));
+        if (kind == "primitive" && name == "armature" && !placed.isEmpty())
+        {
+            // (the first node of an armature put down in the viewport: the next one follows it)
+            const auto first = placed.last().toArray();
+            emit(armatureNodeDone(var + "_p1", QVector3D(float(first[0].toDouble()), float(first[1].toDouble()), float(first[2].toDouble()))));
+        }
     };
     // (nothing is asked: the call is written with every argument in it -- what it needs as a placeholder, the rest with its defaults -- and
     // changed in the code editor)
@@ -8088,7 +8158,7 @@ ScenePanel::OnPlan ScenePanel::planDropOn(const QList<QJsonObject>& models, cons
     }
     if (models.size() == 1 && models[0]["type"].toString() == "profile")
     {
-        // A profile dropped on a model that is made with one -- the cross-section of a limb, what an extrusion is pulled from -- takes the place of it there: the profile is swapped
+        // A profile dropped on a model that is made with one -- the cross-section of an armature, what an extrusion is pulled from -- takes the place of it there: the profile is swapped
         // without touching anything else, the dropped one is used wherever the old one was
         for (const auto iv : inputs)
         {

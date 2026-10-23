@@ -5,7 +5,7 @@
 # FielDev
 
 **Field-driven modelling.** A scriptable modelling workbench in which every shape and every design parameter is a *field* — a value at
-every point in space — so that **anything can drive anything**: a point you drag moves a whole swelling of a plate, a noise field roughens a
+every point in space — so that **anything can drive anything**: a point you drag moves a whole swelling of a tile, a noise field roughens a
 rock, a ramp over the distance to an anchor sets the radius of a blend.
 
 > **FielDev** is a fork of [FielDes](https://github.com/Tinomart) trimmed for **modelling for game development**: the world of a game
@@ -53,12 +53,12 @@ program itself that point at what they talk about and let you try it. The [tutor
 | **Edit by dragging** | A gizmo (`gizmo()`: move, rotate, scale), handles on the surfaces of a shape (`handles()`), and `var()` numbers — what you drag is written back into the script. Every primitive (box, sphere, cylinder, cone, torus, pyramid, prism, rounded box, and the flat circle, rectangle, ring, polygon and triangle) has handles that move the face you pull and no other. |
 | **Python, as it is** | The script is plain Python and the model tree shows it: an `if`, a loop, `with`, `try`, a function or a class is a row, with the variables and statements in it under it (locked there: the code is edited in the editor), and a block moves by drag. What you add from the tree goes to the **insertion point** -- click between two rows -- which follows the text cursor of the editor. `Ctrl+E` extrudes the selected 2D shape. [Python in the tree](docs/interface.md#python-in-the-tree) |
 | **Shapes from points** | Points are models of their own. A **profile** is the 2D shape a closed outline through points encloses (corners, spline points with `smooth=True`, or round corners with `radius=`: an exact arc takes the place of the corner); `extrude` pulls it into a solid and `path_extrude` sweeps it along a `spline` (the scale of a point is how thick the sweep is there). Press an edge and drag to pull a point out of it; double-click a point to switch it between a corner, a spline point and a round corner. A **work plane** (`Shift+W`) is a grid to draw lines, splines and points on, in any plane. [Profiles](docs/profiles.md) |
-| **Copies and linked copies** | `Shift+D` copies a model. `Ctrl+D` **links** it: `bolt_2 = instance(bolt)` is the bolt itself, follows every change of it and can only be moved and rotated; the bolt is held by a shadow reference and keeps its own row. **`Ctrl+D` clones every model** the same way: a profile or a line through the images of its points (its points are drawn on the clone and edit the original: change either and both change), a point, a material as themselves, an import by its parts. [Copies](docs/handles.md#copies-shiftd-and-ctrld) |
+| **Copies and linked copies** | `Shift+D` copies a model. `Ctrl+D` **links** it: `peg_2 = instance(peg)` is the peg itself, follows every change of it and can only be moved and rotated; the peg is held by a shadow reference and keeps its own row. **`Ctrl+D` clones every model** the same way: a profile or a line through the images of its points (its points are drawn on the clone and edit the original: change either and both change), a point, a material as themselves, an import by its parts. [Copies](docs/handles.md#copies-shiftd-and-ctrld) |
 | **Texture, noise, symmetry** | `texture(body, 'grit' / 'stipple' / 'leather' / 'ribs' / 'dimples' / 'knurl', ...)` lays a pattern of small bumps and pits over a body, or over a region of it; five kinds of noise (perlin, billow, ridged, cellular, cracks) are fields that can drive anything; a symmetry is a model of the script, and whatever you make is made at its images too. |
 | **Inspect** | A section card that cuts the model and paints a field on the plane; curvature and depth fields; hover probing; legends. |
 | **For a game engine** | `export_mesh` writes what an engine asks of an asset: the unit and the up axis, a budget of triangles (and `export_lods`), a mesh that is exactly symmetric, the origin at the feet (`pivot="base"`), materials by region and vertex colours from fields, UV maps (box, planar, cylinder, sphere, and an unwrapped atlas with the islands packed into the square), PBR materials (presets and fields for any value), textures baked from the fields themselves (colour, a normal map, occlusion + roughness + metalness) into a `.glb`, and a rigged glTF with a skeleton and skin weights. [Meshes](docs/meshes.md) |
-| **Characters, Dust3D-style** | A **Character** section in the right-click menu: stand a **reference image** behind the model, draw a **limb** node after node on the work plane over it (each node is a point and a joint; its scale is how thick the limb is there), join limbs with `character(...)` (a blend, the other half as a mirror image) and make the skeleton with `skeleton_of(...)`. The camera is free, so the nodes can be put down from any side. [Characters](docs/characters.md), [Reference images](docs/interface.md#reference-images) |
-| **Characters from points** | `chain([points], radii)` makes a limb of round cones between joints; the size of a point -- the ring of its gizmo -- is how thick the limb is there; blend limbs into a body and mirror the other half. A **limb** is a path extrude: an automatic rounded-square cross-section (or a profile of your own, swapped by dropping another on it in the model tree, and shown as a clone at the first node — `cut_face`), and the ring of a selected node is a circle of its real radius. A **feature** is a surface stitched through loops of points, for faces. `uvs="armature"` unwraps the character part by part: limbs along their paths, features along their loops. [Characters](docs/characters.md) |
+| **Characters, Dust3D-style** | A **Characters** section in the right-click menu: stand a **reference image** behind the model, place an **armature** node after node over it (each click writes a node into the script: a point and a joint; its scale is how thick the armature is there; click a node to branch from it), join armatures with `character(...)` (a blend, the other half as a mirror image) and make the skeleton with `skeleton_of(...)`. The camera is free, so the nodes can be put down from any side. [Characters](docs/characters.md), [Reference images](docs/interface.md#reference-images) |
+| **Characters from points** | `chain([points], radii)` makes an armature of round cones between joints; the size of a point -- the ring of its gizmo -- is how thick the armature is there; blend armatures into a body and mirror the other half. A **armature** is a path extrude: an automatic rounded-square cross-section (or a profile of your own, swapped by dropping another on it in the model tree, and shown as a clone at the first node — `cut_face`), and the ring of a selected node is a circle of its real radius. A **feature** is a surface stitched through loops of points, for faces. `uvs="armature"` unwraps the character part by part: armatures along their paths, features along their loops. [Characters](docs/characters.md) |
 | **Meshes in and out** | `import_model()` reads STL, OBJ, PLY, 3MF, glTF, FBX, OFF and DXF as exact distance fields (a mesh with holes imports too); `export_mesh` writes the same formats; `export_field` samples any field on a grid (VTK, CSV). [Meshes](docs/meshes.md) |
 | **Fast to work in** | Content-addressed caches (imports, exact distances), a render cache for finished meshes, per-statement progress, breakpoints, go to definition into any library or module file (opened in a tab), hot reload of imported files and blocks, cancel for slow renders. |
 
@@ -82,10 +82,10 @@ view.set_bounds([-35, -25, -8], [35, 25, 30], auto_scale=True)    # the region t
 view.set_resolution(6)                           # samples per mm
 view.set_quality(8)
 
-plate   = box((-30, -20, 0), (30, 20, var(6)))        # var(...): a number you can drag in the viewport
+tile   = box((-30, -20, 0), (30, 20, var(6)))        # var(...): a number you can drag in the viewport
 anchor  = point(20, 10, 6)                                    # a point is a model, and a value where a coordinate goes
 swell   = ramp(distance_to_point(anchor), (0, 45), (3.0, 0.5))   # 3 mm at the anchor, 0.5 mm 45 mm away: a field
-offset(plate, swell)                                          # a field where a number goes
+offset(tile, swell)                                          # a field where a number goes
 ```
 
 The last expression is what is shown; assign other shapes to names and they appear in the model tree.
@@ -100,8 +100,8 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [`00_START_HERE.py`](examples/00_START_HERE.py) | Where everything is: the examples by subject |
 | [`04_handles.py`](examples/04_handles.py) | The gizmo (its click / never / always modes), dragging surfaces, and the lock |
 | [`12_mesh_export_and_import.py`](examples/12_mesh_export_and_import.py) | STL out and back in |
-| [`18_fields_everywhere.py`](examples/18_fields_everywhere.py) | A plate grown by a field, a blend whose radius varies, a smoothing whose radius varies — driven from a point |
-| [`20_custom_blocks.py`](examples/20_custom_blocks.py) | Your own blocks: `perforate` with a field radius, `bracket` |
+| [`18_fields_everywhere.py`](examples/18_fields_everywhere.py) | A tile grown by a field, a blend whose radius varies, a smoothing whose radius varies — driven from a point |
+| [`20_custom_blocks.py`](examples/20_custom_blocks.py) | Your own blocks: `windows` with a field radius, `stairs` |
 | [`21_low_level.py`](examples/21_low_level.py) | Low-level fields, as in libfive's Scheme `define-shape` / `remap-shape`: a cube from six plane distances, a twist by a remap, a ball and a torus from their formulas, a gyroid |
 | [`22_export_files.py`](examples/22_export_files.py) | Exporting: every mesh format |
 | [`26_profiles_and_sweeps.py`](examples/26_profiles_and_sweeps.py) | Shapes made of points: a profile, an extrusion, a line and a sweep |
@@ -111,15 +111,15 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [`30_noise_kinds.py`](examples/30_noise_kinds.py) | Noise, one of every kind, and what scale, octaves, stretch and warp do to it |
 | [`31_texture.py`](examples/31_texture.py) | A pattern of small bumps and pits laid over the surface of a body: grit, stipple, leather, ribs, dimples, knurl |
 | [`32_game_export.py`](examples/32_game_export.py) | Exporting for a game engine: the unit and the up axis, a budget of triangles, a mesh that is exactly symmetric — each checked by reading the files back |
-| [`33_character.py`](examples/33_character.py) | A character from points: limbs that taper between joints (`chain`, `round_cone`), blended into one body, the other half made by a mirror |
+| [`33_character.py`](examples/33_character.py) | A character from points: armatures that taper between joints (`chain`, `round_cone`), blended into one body, the other half made by a mirror |
 | [`34_materials.py`](examples/34_materials.py) | Materials by region (a body or a field) and vertex colours from fields, written as OBJ + MTL, glTF and PLY — each checked by reading the files back |
 | [`35_uvs.py`](examples/35_uvs.py) | Texture coordinates by the box projection, fitted or world-scaled, with the seams made, and the image of a material — OBJ, glTF and PLY, checked by reading them back |
 | [`36_skeleton.py`](examples/36_skeleton.py) | A skeleton of joints (`joint`, `mirror_joints`) and the skin weights of the mesh, written as a rigged glTF — nodes, inverse bind matrices, `JOINTS_0` and `WEIGHTS_0`, checked by reading the file back |
 | [`37_pivot_and_lods.py`](examples/37_pivot_and_lods.py) | Where the origin of an asset is (`pivot="base"`: standing on the ground) and levels of detail with a budget of triangles each (`export_lods`) — checked by reading the files back |
 | [`38_uv_maps.py`](examples/38_uv_maps.py) | UV maps: box, planar, cylinder, sphere and an unwrapped atlas (islands cut where the surface turns, laid flat, packed into the square), a second set, and the picture of the layout — each checked by reading the files back |
 | [`39_baked_textures.py`](examples/39_baked_textures.py) | Textures baked from fields: the colour, the normal map and the occlusion / roughness / metalness pictures of a rock whose materials are fields, written into a glTF and an OBJ — read back and checked |
-| [`40_armature.py`](examples/40_armature.py) | An armature: a character made of limbs (path extrudes with an automatic or a square cross-section), its skeleton, the rigged glTF with skin weights, a jaw that owns a place of the skin — checked by reading the file back |
-| [`41_feature.py`](examples/41_feature.py) | A feature: a face stitched through loops of points (every point a vertex, every loop an edge loop; mirror, openings and closed back are choices), joined to a head, and the UV map by part (`uvs="armature"`) — checked by reading the file back |
+| [`40_armature.py`](examples/40_armature.py) | An armature: a character made of armatures (path extrudes with an automatic or a square cross-section), its skeleton, the rigged glTF with skin weights, a jaw that owns a place of the skin — checked by reading the file back |
+| [`41_stitching_loops.py`](examples/41_stitching_loops.py) | A feature: a face stitched through loops of points (every point a vertex, every loop an edge loop; mirror, openings and closed back are choices), joined to a head, and the UV map by part (`uvs="armature"`) — checked by reading the file back |
 
 ## Documentation
 
@@ -137,7 +137,7 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [Profiles, lines and extrusions](docs/profiles.md) | Shapes made of points: `profile`, `polyline`, `spline`, `extrude`, `path_extrude`; pull a point out of an edge, double-click a point for a spline, rotate and scale a point to shape the curve and the sweep |
 | [Selecting surfaces](docs/selecting-surfaces.md) | Right-click a face: a flood-filled surface as a field, to work on one part of a body |
 | [Meshes](docs/meshes.md) | Mesh import and export, with the units, up axis, triangle budget and exact symmetry a game engine asks for |
-| [Characters](docs/characters.md) | Limbs and bodies made of points: `chain`, `round_cone`, a mirror for the other half |
+| [Characters](docs/characters.md) | Armatures and bodies made of points: `chain`, `round_cone`, a mirror for the other half |
 | [Caching and performance](docs/caching-and-performance.md) | What is cached, resolution and quality, long renders |
 | [Troubleshooting](docs/troubleshooting.md) | Empty viewport, slow renders, import errors |
 | [Library reference](docs/reference.md) | Every function and class, from its docstring |

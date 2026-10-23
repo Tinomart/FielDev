@@ -932,6 +932,7 @@ void View::paintOverlay(QPainter& painter)
         drawSectionHandle(painter);
     }
     drawWorkPlane(painter);
+    drawArmaturePlacing(painter);
     drawSymmetry(painter);
     drawFieldIcons(painter);
     drawOutlines(painter);
@@ -948,7 +949,7 @@ void View::paintOverlay(QPainter& painter)
         const QRectF box(section_readout_pos + QPointF(14, 10),
                          QSizeF(fm.horizontalAdvance(section_readout) + 12, fm.height() + 6));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 215));
+        painter.setBrush(QColor(42, 35, 88, 215));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, section_readout);
@@ -985,7 +986,7 @@ void View::paintOverlay(QPainter& painter)
         const QRectF box(probe_pos + QPointF(16, 12),
                          QSizeF(fm.horizontalAdvance(text) + 14, fm.height() + 8));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 225));
+        painter.setBrush(QColor(42, 35, 88, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, text);
@@ -1215,7 +1216,7 @@ void View::drawLegends(QPainter& painter)
         const int boxW = textW + 20, boxH = fm.height() + 20 + rowH * cats.size();
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 200));
+        painter.setBrush(QColor(42, 35, 88, 200));
         painter.drawRoundedRect(box, 6, 6);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(QRect(box.left() + 10, box.top() + 6, boxW - 20, fm.height()),
@@ -1230,7 +1231,7 @@ void View::drawLegends(QPainter& painter)
         {
             float r, g, b;
             bcCategoryRGB(c, r, g, b);
-            painter.setPen(QPen(QColor(0x93, 0xa1, 0xa1), 1));
+            painter.setPen(QPen(QColor(0xbe, 0xb2, 0xf0), 1));
             painter.setBrush(QColor::fromRgbF(r, g, b));
             painter.drawRect(QRect(box.left() + 10, y + 2, 12, fm.height() - 2));
             painter.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -1250,7 +1251,7 @@ void View::drawLegends(QPainter& painter)
         const int boxW = textW + 20, boxH = fm.height() + 20 + rowH * int(materialRows.size());
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 200));
+        painter.setBrush(QColor(42, 35, 88, 200));
         painter.drawRoundedRect(box, 6, 6);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(QRect(box.left() + 10, box.top() + 6, boxW - 20, fm.height()), Qt::AlignLeft | Qt::AlignVCenter, materialsTitle);
@@ -1262,7 +1263,7 @@ void View::drawLegends(QPainter& painter)
         int y = box.top() + fm.height() + 14;
         for (const auto& row : materialRows)
         {
-            painter.setPen(QPen(QColor(0x93, 0xa1, 0xa1), 1));
+            painter.setPen(QPen(QColor(0xbe, 0xb2, 0xf0), 1));
             painter.setBrush(row.first);
             painter.drawRect(QRect(box.left() + 10, y + 2, 12, fm.height() - 2));
             painter.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -1285,7 +1286,7 @@ void View::drawLegends(QPainter& painter)
         const int boxH = barH + fm.height() * 2 + 18;
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 200));
+        painter.setBrush(QColor(42, 35, 88, 200));
         painter.drawRoundedRect(box, 6, 6);
 
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -1306,7 +1307,7 @@ void View::drawLegends(QPainter& painter)
             g.setColorAt(k / 16.0, colormapColor(b.map, k / 16.0f));
         }
         painter.setBrush(g);
-        painter.setPen(QPen(QColor(0x93, 0xa1, 0xa1), 1));
+        painter.setPen(QPen(QColor(0xbe, 0xb2, 0xf0), 1));
         painter.drawRect(bar);
 
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -1459,6 +1460,7 @@ void View::mouseMoveEvent(QMouseEvent* event)
         return;
     }
     if (m_wp.open) updateWorkPlaneCursor(event->pos());
+    if (m_arm.on) updateArmatureCursor(event->pos());
     if (mouse.state == mouse.RELEASED)
     {
         // (the icon of a field and the move arrows of an open viewer are on top of everything: nothing behind them is hovered)
@@ -1663,6 +1665,28 @@ void View::mousePressEvent(QMouseEvent* event)
     // A click in the viewport puts the keyboard in the viewport (from the editor too): the keys that work on the
     // selection (E, R, G, H, I) are not typed into the script
     if (!hasFocus()) setFocus(Qt::MouseFocusReason);
+
+    // The armature mode: a click on a node that is there makes it the one the next follows (and selects it, as a click on a dot does); a click anywhere else puts down the next node
+    if (event->button() == Qt::LeftButton && m_arm.on && !(event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier)))
+    {
+        Shape* dot = pointDotAt(event->pos());
+        QString var;
+        if (dot && m_scene && dot->sourceLine() >= 0 && m_scene->armatureNodeAtLine(dot->sourceLine(), &var))
+        {
+            QVector3D p;
+            m_arm.anchor = var;
+            m_arm.hasAnchorPos = dot->dotPosition(p);
+            if (m_arm.hasAnchorPos) m_arm.anchorPos = p;
+            m_overlay->update();
+        }
+        else if (!dot)
+        {
+            press_pos = QPoint(-100000, -100000);       // (not a selection click)
+            press_target = nullptr;
+            placeArmatureNode(event->pos());
+            return;
+        }
+    }
 
     // The work plane view, in one of the three kinds of drawing: every click puts down a point (of a line, of a spline, or a point) -- a click on a point that is
     // there attaches to it, it does not select it; the first point of a line closes it.  Mode 0 (a right click) leaves clicks to what they do everywhere: things are selected, moved,
@@ -2236,6 +2260,16 @@ void View::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton) press_ctrl = false;
     press_target = nullptr;
 
+    // The armature mode: a right click (not a drag: that pans) goes back a step -- from the node it follows to none, then out of the mode -- instead of opening a menu
+    if (event->button() == Qt::RightButton && (right_press_target || right_press_empty) && (event->pos() - right_press_pos).manhattanLength() < 4 && m_arm.on)
+    {
+        right_press_target = nullptr;
+        right_press_empty = false;
+        mouse.state = mouse.RELEASED;
+        stepBackArmature();
+        return;
+    }
+
     // While a kind of drawing is on in the work plane view, a right click (not a drag: that pans) stops the drawing -- clicks select, move, turn and scale as usual again
     // -- instead of opening a menu; E brings the kind of drawing back
     if (event->button() == Qt::RightButton && (right_press_target || right_press_empty) && (event->pos() - right_press_pos).manhattanLength() < 4 &&
@@ -2408,7 +2442,7 @@ void View::announceWorkPlane()
         m_wpCursorValid = false;
         emit(workPlaneReadout(QString()));
     }
-    if (mouse.state == mouse.RELEASED && !gizmo_drag) setCursor(drawing ? Qt::CrossCursor : Qt::ArrowCursor);
+    if (mouse.state == mouse.RELEASED && !gizmo_drag) setCursor(drawing || m_arm.on ? Qt::CrossCursor : Qt::ArrowCursor);
     emit(workPlaneStateChanged(m_wp, workPlaneStep()));
     emit(workPlaneChanged(m_wp.open && m_wp.exists, m_wp.origin(), m_wp.u, m_wp.v, m_wp.snap ? workPlaneStep() : 0.0f));
     m_overlay->update();
@@ -2576,7 +2610,8 @@ void View::placementAt(QPoint pos, QVector3D& point, double& scale) const
 void View::setWorkPlaneMode(int mode)
 {
     m_wpPlaced.clear();
-    m_wp.mode = std::max(0, std::min(4, mode));
+    if (mode != 0) stopArmaturePlacing();
+    m_wp.mode = std::max(0, std::min(3, mode));
     // (the kind of drawing that was on last: E brings it back after the drawing has been stopped)
     if (m_wp.mode != 0) m_wpLastMode = m_wp.mode;
     announceWorkPlane();
@@ -2584,9 +2619,9 @@ void View::setWorkPlaneMode(int mode)
 
 void View::cycleWorkPlaneMode()
 {
-    // Not drawing: E goes back to the kind of drawing there was before it was stopped (the line, when there was none); drawing: round the four kinds of what is put down
+    // Not drawing: E goes back to the kind of drawing there was before it was stopped (the line, when there was none); drawing: round the three kinds of what is put down
     if (m_wp.mode == 0) setWorkPlaneMode(m_wpLastMode);
-    else setWorkPlaneMode(m_wp.mode % 4 + 1);
+    else setWorkPlaneMode(m_wp.mode % 3 + 1);
 }
 
 void View::setWorkPlaneFrame(const QVector3D& origin, const QVector3D& u, const QVector3D& v)
@@ -2610,7 +2645,7 @@ void View::placeAt(QPoint pos)
     const QVector3D p = snapToWorkPlane(hit);
     // (a first point that is only being put down is not in the script yet, so it is not a point to snap to: it is where a click closes the outline.  The first point
     // was snapped, so a click on it lands on the same place -- near it on the screen, or the same spot once snapped -- as the hover target (the cursor, snapped) shows)
-    const bool nearFirst = m_wp.mode != 3 && m_wp.mode != 4 && m_wpPlaced.size() >= 3 &&
+    const bool nearFirst = m_wp.mode != 3 && m_wpPlaced.size() >= 3 &&
                            ((toScreen(m_wpPlaced.first()) - QPointF(pos)).manhattanLength() < 12 || (m_wpPlaced.first() - p).length() < 1e-4f * std::max(1.0f, m_wpPlaced.first().length()));
     if (nearFirst)
     {
@@ -2628,7 +2663,7 @@ void View::placeAt(QPoint pos)
     m_overlay->update();
     // A stroke that comes back to a line of the symmetry, from a first point that was on one, is closed through it: with its images it is a closed outline, and it is made at
     // once -- as it is when the first point is clicked again -- not when the stroke is ended by hand (half a circle from one point of the line to another)
-    if (m_wp.mode != 3 && m_wp.mode != 4 && symmetric() && m_wpPlaced.size() >= 3 && onSymmetryPlane(m_wpPlaced.first()) && onSymmetryPlane(m_wpPlaced.last()))
+    if (m_wp.mode != 3 && symmetric() && m_wpPlaced.size() >= 3 && onSymmetryPlane(m_wpPlaced.first()) && onSymmetryPlane(m_wpPlaced.last()))
     {
         QList<QList<QVector3D>> strokes = symmetryStrokes(m_wpPlaced);
         QList<QList<QVector3D>> loops;
@@ -2707,9 +2742,9 @@ void View::finishPlacement(bool close)
     const QList<QVector3D> points = m_wpPlaced;
     m_wpPlaced.clear();
     m_overlay->update();
-    const QString name = close ? QString("profile") : (m_wp.mode == 2 ? QString("spline") : m_wp.mode == 4 ? QString("limb") : QString("polyline"));
+    const QString name = close ? QString("profile") : (m_wp.mode == 2 ? QString("spline") : QString("polyline"));
     // (the stroke; with the symmetry on, its images are made with it -- through the images of its points, the halves that meet on a plane joined into one outline -- by the scene)
-    emit(placementFinished(name, points, m_wp.mode == 2 || m_wp.mode == 4));
+    emit(placementFinished(name, points, m_wp.mode == 2));
 }
 
 void View::cancelPlacement()
@@ -2728,6 +2763,13 @@ void View::undoPlacedPoint()
 
 void View::keyPressEvent(QKeyEvent* event)
 {
+    if (m_arm.on && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
+        (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter || event->key() == Qt::Key_Escape))
+    {
+        stepBackArmature();
+        event->accept();
+        return;
+    }
     if (m_wp.open && m_wp.exists && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier)))
     {
         switch (event->key())
@@ -2825,8 +2867,7 @@ void View::updateWorkPlaneCursor(QPoint pos)
 }
 
 // A point of what is being drawn, as the points of the script are drawn: a corner of a line is a square, a spline point a circle with a ring round it, a point a
-// plain dot, a node of a limb a circle with a bigger ring round it (`mode` is the work plane's: 1 line, 2 spline, 3 point, 4 limb; `alpha` less than 1 for the one that only
-// shows where a click would land)
+// plain dot (`mode` is the work plane's: 1 line, 2 spline, 3 point; `alpha` less than 1 for the one that only shows where a click would land)
 void View::wpMarker(QPainter& painter, const QPointF& q, int mode, double alpha, bool lit) const
 {
     const double r = 5.0;
@@ -2838,13 +2879,6 @@ void View::wpMarker(QPainter& painter, const QPointF& q, int mode, double alpha,
         return;
     }
     painter.drawEllipse(q, r, r);
-    if (mode == 4)
-    {
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(235, 190, 60, int(210 * alpha)), 1.2));
-        painter.drawEllipse(q, r + 6.0, r + 6.0);
-        return;
-    }
     if (mode == 2)
     {
         painter.setBrush(Qt::NoBrush);
@@ -3251,7 +3285,7 @@ void View::drawWorkPlane(QPainter& painter)
         QList<QVector3D> way = m_wpPlaced;
         if (m_wpCursorValid) way << m_wpCursor;
         QPolygonF line;
-        if ((m_wp.mode == 2 || m_wp.mode == 4) && way.size() >= 3)
+        if (m_wp.mode == 2 && way.size() >= 3)
         {
             std::vector<libfive::pointshapes::Control> controls;
             for (const QVector3D& p : way)
@@ -3272,9 +3306,9 @@ void View::drawWorkPlane(QPainter& painter)
         painter.drawPolyline(line);
         // (a click on the first point closes it: it is shown as a target when there are enough points for a shape)
         const QPointF first = toScreen(m_wpPlaced.first());
-        const bool closing = m_wp.mode != 4 && m_wpPlaced.size() >= 3 && m_wpCursorValid && (first - toScreen(m_wpCursor)).manhattanLength() < 12;
+        const bool closing = m_wpPlaced.size() >= 3 && m_wpCursorValid && (first - toScreen(m_wpCursor)).manhattanLength() < 12;
         for (int i = 0; i < m_wpPlaced.size(); ++i) wpMarker(painter, toScreen(m_wpPlaced[i]), m_wp.mode, 1.0, closing && i == 0);
-        if (m_wpPlaced.size() >= 3 && m_wp.mode != 4)
+        if (m_wpPlaced.size() >= 3)
         {
             painter.setPen(QPen(closing ? QColor(133, 153, 0) : QColor(238, 232, 213), 1.6));
             painter.setBrush(Qt::NoBrush);
@@ -3301,7 +3335,7 @@ void View::drawWorkPlane(QPainter& painter)
             if (m_wp.mode != 3 && image.size() >= 2)
             {
                 QPolygonF line;
-                if ((m_wp.mode == 2 || m_wp.mode == 4) && image.size() >= 3)
+                if (m_wp.mode == 2 && image.size() >= 3)
                 {
                     std::vector<libfive::pointshapes::Control> controls;
                     for (const QVector3D& p : image)
@@ -3371,27 +3405,33 @@ void View::fillPythonMenu(QMenu* menu, const QVector3D& point, double scale, int
     }
 }
 
-// The Character section: limbs (nodes put down one after another over a picture, the way Dust3D builds a character), the character that holds them and its skeleton, and the
-// pictures to trace them over.  A limb is a tube along its nodes (`limb(...)` of the library); the section gives its own entries only, the rest of the menu does not repeat them
+// The Character section: armatures (nodes put down one after another over a picture, the way Dust3D builds a character), the character that holds them and its skeleton, and the
+// pictures to trace them over.  An armature is a tube along its nodes (`armature(...)` of the library); the section gives its own entries only, the rest of the menu does not repeat them
 void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, double scale, int atLine)
 {
-    auto draw = menu->addAction(TypeIcons::icon("solid"), T("Draw a limb"), this, [=]{ startLimbDrawing(); });
-    draw->setToolTip(T("Put down the nodes of a limb one after another on the work plane (it faces the picture you look at; stand a Reference image on it to trace): "
-                       "Enter ends the limb, Backspace takes the last node back.  A limb is a tube along its nodes; a node's scale is how thick the limb is there, "
-                       "and every node is a point that can be dragged."));
+    auto newArmature = menu->addAction(TypeIcons::icon("armature"), T("New armature"), this, [=]{ startArmaturePlacing(); });
+    newArmature->setToolTip(T("Put down the nodes of an armature one click after another: each click writes its node into the script at once, in the plane through the node before it "
+                              "that faces the camera (turn the view to put the next one in depth).  Click a node to go on from it -- from a node in the middle the armature "
+                              "branches.  Right click or Esc: this armature is done; again: out of the mode.  An armature is a tube along its nodes; a node's scale is how thick "
+                              "the armature is there, and every node can be dragged."));
+    QString nodeVar;
+    if (line >= 0 && m_scene && m_scene->armatureNodeAtLine(line, &nodeVar))
+    {
+        auto more = menu->addAction(TypeIcons::icon("armature"), T("Add nodes from here"), this, [=]{ startArmaturePlacing(nodeVar); });
+        more->setToolTip(T("Go on placing nodes from this node: the next click puts a node after it (from a node in the middle the armature branches)"));
+    }
     for (const auto v : m_catalog["primitives"].toArray())
     {
         const auto p = v.toObject();
         if (p["group"].toString() != "Character") continue;
         const QString name = p["name"].toString();
-        const bool stitched = name == "feature";
-        auto action = menu->addAction(TypeIcons::icon(p["type"].toString("solid")), stitched ? T("New feature") : T("New limb"), this,
+        if (name == "armature") continue;                   // (an armature is put down node after node: see New armature)
+        auto action = menu->addAction(TypeIcons::icon("loops"), T("New stitching loops"), this,
                                       [=]{ emit(createRequested("primitive", name, point, scale, atLine, -1)); });
         action->setToolTip(!p["doc"].toString().isEmpty() ? p["doc"].toString()
-                           : stitched ? T("A surface stitched through loops of points, as the loops of a face are in Dust3D: half a face to start from (an outline, an eye, a mouth, a nose).  Every "
-                                          "point is a vertex of the surface and every loop stays an edge loop; drag the points, add loops.  The mirror, the view the points are joined in, the "
-                                          "openings and the thickness are arguments of the call in the script")
-                                      : T("A first limb, three nodes, to change in the script"));
+                           : T("A surface stitched through loops of points, as the loops of a face are in Dust3D: half a face to start from (an outline, an eye, a mouth, a nose).  Every "
+                               "point is a vertex of the surface and every loop stays an edge loop; drag the points, add loops.  The mirror, the view the points are joined in, the "
+                               "openings and the thickness are arguments of the call in the script"));
         checkPrimitive(action, name);
     }
     menu->addSeparator();
@@ -3413,12 +3453,160 @@ void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, doub
     }
 }
 
-void View::startLimbDrawing()
+// ---- The armature mode: the nodes of an armature are put down one click after another, each written into the script as it is put down
+
+void View::startArmaturePlacing(const QString& anchor)
 {
-    // (the plane is made from the view when there is none: it faces what the camera looks at, so the first click lands where it is seen)
-    setWorkPlaneOpen(true);
-    setWorkPlaneMode(4);
+    if (m_wp.mode != 0) setWorkPlaneMode(0);                // (the work plane is for drawing in 2D: its kinds of drawing and this one do not run together)
+    m_arm = ArmaturePlacing();
+    m_arm.on = true;
+    m_arm.anchor = anchor;
+    if (!anchor.isEmpty())
+    {
+        m_arm.hasAnchorPos = armatureAnchorPosition(m_arm.anchorPos);
+        if (!m_arm.hasAnchorPos) m_arm.anchor.clear();
+    }
+    setCursor(Qt::CrossCursor);
+    emit(armaturePlacingChanged(true));
     m_overlay->update();
+}
+
+void View::stopArmaturePlacing()
+{
+    if (!m_arm.on) return;
+    m_arm = ArmaturePlacing();
+    setCursor(Qt::ArrowCursor);
+    emit(armaturePlacingChanged(false));
+    m_overlay->update();
+}
+
+// A right click, Esc or Enter goes back a step: the armature that was being put down is done (the next click begins another), and with none begun the mode ends
+void View::stepBackArmature()
+{
+    if (!m_arm.anchor.isEmpty())
+    {
+        m_arm.anchor.clear();
+        m_arm.hasAnchorPos = false;
+        m_overlay->update();
+        return;
+    }
+    stopArmaturePlacing();
+}
+
+// Where a click puts a node: in the plane through the node before it that faces the camera -- the armature is drawn as it is seen, and turning the view puts the next node in depth --
+// or, for the first node, where the ray under the cursor meets the plane through the origin that faces the viewer
+bool View::armatureCursor(QPoint pos, QVector3D& out) const
+{
+    if (!m_arm.hasAnchorPos)
+    {
+        out = placeOnRay(pos);
+        return true;
+    }
+    QVector3D o, u, v;
+    planeOfView(o, u, v);
+    return ringPoint(pos, m_arm.anchorPos, QVector3D::crossProduct(u, v).normalized(), out);
+}
+
+// Where the node the next one follows is now (it may have been dragged since it was put down): its dot in the viewport
+bool View::armatureAnchorPosition(QVector3D& p) const
+{
+    if (m_arm.anchor.isEmpty() || !m_scene) return false;
+    for (Shape* s : shapes)
+    {
+        QVector3D q;
+        if (!s->isPoint() || s->sourceLine() < 0 || !s->dotPosition(q)) continue;
+        if (m_scene->varAtLine(s->sourceLine()) != m_arm.anchor) continue;
+        p = q;
+        return true;
+    }
+    return false;
+}
+
+void View::placeArmatureNode(QPoint pos)
+{
+    if (m_arm.busy) return;                 // (the node of the click before is being written: its answer says which node this one follows)
+    if (!m_arm.anchor.isEmpty())
+    {
+        QVector3D p;
+        if (armatureAnchorPosition(p)) { m_arm.anchorPos = p; m_arm.hasAnchorPos = true; }
+    }
+    QVector3D at;
+    if (!armatureCursor(pos, at)) return;
+    if (m_arm.hasAnchorPos && (at - m_arm.anchorPos).length() < 1e-4f) return;          // (the second click of a double click)
+    m_arm.busy = true;
+    emit(armatureNodeRequested(m_arm.anchor, at, scaleAt(pos, at)));
+}
+
+void View::armatureNodeDone(QString var, QVector3D at)
+{
+    m_arm.busy = false;
+    if (!m_arm.on) return;
+    if (var.isEmpty())
+    {
+        // (nothing was written -- the node the last one followed is gone from the script, or the text could not be read: the next click begins an armature)
+        m_arm.anchor.clear();
+        m_arm.hasAnchorPos = false;
+    }
+    else
+    {
+        m_arm.anchor = var;
+        m_arm.anchorPos = at;
+        m_arm.hasAnchorPos = true;
+    }
+    m_overlay->update();
+}
+
+void View::updateArmatureCursor(QPoint pos)
+{
+    QVector3D hit;
+    const bool was = m_arm.cursorValid;
+    m_arm.cursorValid = armatureCursor(pos, hit);
+    if (m_arm.cursorValid) m_arm.cursor = hit;
+    if (m_arm.cursorValid || was) m_overlay->update();
+}
+
+// What is being put down: a ring on the node the next one follows, the way from it to where the cursor is with a node there, and in a line at the foot of the picture what the clicks do
+void View::drawArmaturePlacing(QPainter& painter)
+{
+    if (!m_arm.on) return;
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QColor gold(255, 196, 61);
+    if (m_arm.hasAnchorPos)
+    {
+        const QPointF a = toScreen(m_arm.anchorPos);
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(gold, 2.5));
+        painter.drawEllipse(a, 12.0, 12.0);
+        if (m_arm.cursorValid)
+        {
+            painter.setPen(QPen(QColor(gold.red(), gold.green(), gold.blue(), 200), 2.0, Qt::DashLine));
+            painter.drawLine(a, toScreen(m_arm.cursor));
+        }
+    }
+    if (m_arm.cursorValid)
+    {
+        painter.setPen(QPen(QColor(255, 255, 255, 230), 1.5));
+        painter.setBrush(QColor(gold.red(), gold.green(), gold.blue(), 160));
+        painter.drawEllipse(toScreen(m_arm.cursor), 7.0, 7.0);
+    }
+    const QString hint = m_arm.hasAnchorPos
+        ? T("Click: the next node   |   click a node: go on from it   |   right click or Esc: this armature is done   |   Ctrl+Z: take the last node back")
+        : T("Click: the first node of an armature   |   click a node: go on from it   |   right click or Esc: stop   |   Ctrl+Z: take the last node back");
+    QFont font = painter.font();
+    font.setPointSizeF(10);
+    font.setBold(true);
+    painter.setFont(font);
+    const QFontMetrics fm(font);
+    const QString text = fm.elidedText(hint, Qt::ElideRight, std::max(100, width() - 60));
+    const double w = fm.horizontalAdvance(text) + 32, h = fm.height() + 14;
+    const QRectF box((width() - w) / 2.0, height() - h - 18.0, w, h);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(60, 36, 96, 225));
+    painter.drawRoundedRect(box, h / 2.0, h / 2.0);
+    painter.setPen(QColor(255, 236, 179));
+    painter.drawText(box, Qt::AlignCenter, text);
+    painter.restore();
 }
 
 void View::addReferenceImage(const QString& plane, const QVector3D& point, double scale, int atLine, const QString& file)
@@ -3512,6 +3700,36 @@ void View::addExportMenu(QMenu* menu, int line)
             {"STL (.stl)", ".stl"}, {"OBJ (.obj)", ".obj"}, {"PLY (.ply)", ".ply"}, {"3MF (.3mf)", ".3mf"}, {"glTF binary (.glb)", ".glb"},
             {"glTF (.gltf)", ".gltf"}, {"FBX (.fbx)", ".fbx"}, {"OFF (.off)", ".off"}, {"DXF (.dxf)", ".dxf"}};
         for (const auto& f : formats) add(mesh, f.first, "mesh", f.second, true, QString());
+    }
+    if (shape)
+    {
+        // What a game engine asks of an asset -- units, the up axis, a budget of triangles, levels of detail, UV maps, baked textures, a skeleton -- is the arguments of `export_mesh`: these write
+        // the call into the script, the choices written out, for you to change and run
+        auto game = sub->addMenu(T("For a game engine"));
+        game->setToolTipsVisible(true);
+        game->setToolTip(T("Writes the export_mesh call into the script with the options a game engine asks for written out: change them there and run the script to write the file"));
+        const QString var = m_scene->varAtLine(line);
+        QMenu* uv = nullptr;
+        for (const auto v : m_catalog["export"].toArray())
+        {
+            const auto e = v.toObject();
+            const QString key = e["name"].toString();
+            QMenu* into = game;
+            if (!e["group"].toString().isEmpty())
+            {
+                if (!uv)
+                {
+                    uv = game->addMenu(e["group"].toString());
+                    uv->setToolTipsVisible(true);
+                }
+                into = uv;
+            }
+            auto a = into->addAction(e["label"].toString(), this,
+                                     [=] { emit(createRequested("python", "export_game|" + key + "|" + var, QVector3D(), 1.0, -1, -1)); });
+            a->setToolTip(e["doc"].toString());
+            a->setEnabled(named);
+            if (!named) a->setToolTip(T("Give the model a name first: only a variable of the script is exported."));
+        }
     }
     if (field)
     {
@@ -3627,7 +3845,7 @@ void View::showEmptyMenu(QPoint globalPos, QPoint pos, int atLine)
     auto ops = menu->addMenu(TypeIcons::icon("operation"), T("Operations"));
     ops->setToolTipsVisible(true);
     fillOperationsMenu(ops, -1, point, scale);
-    auto character = menu->addMenu(TypeIcons::icon("solid"), T("Character"));
+    auto character = menu->addMenu(TypeIcons::icon("character"), T("Characters"));
     character->setToolTipsVisible(true);
     fillCharacterMenu(character, -1, point, scale, atLine);
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
@@ -3748,7 +3966,7 @@ void View::showSurfaceMenu(QPoint globalPos, int line, const QVector3D& point, d
     auto ops = menu->addMenu(TypeIcons::icon("operation"), T("Operations"));
     ops->setToolTipsVisible(true);
     fillOperationsMenu(ops, line, point, scale);
-    auto character = menu->addMenu(TypeIcons::icon("solid"), T("Character"));
+    auto character = menu->addMenu(TypeIcons::icon("character"), T("Characters"));
     character->setToolTipsVisible(true);
     fillCharacterMenu(character, line, point, scale, -1);
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
@@ -3814,14 +4032,14 @@ void View::showSelectMenu(QPoint globalPos, int line, const QVector3D& point)
     holder->setStyleSheet(
         "QLabel { color: #eee8d5; }"
         "QComboBox, QDoubleSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
-        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 3px; padding: 2px 6px;"
-        "  selection-background-color: rgba(38, 139, 210, 200); }"
-        "QComboBox QAbstractItemView { color: #eee8d5; background: #25607a;"
-        "  selection-background-color: rgba(38, 139, 210, 200); }"
-        "QPushButton { color: #eee8d5; background: rgba(147, 161, 161, 28);"
-        "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 4px; padding: 4px 16px; }"
-        "QPushButton:hover { background: rgba(147, 161, 161, 60); }"
-        "QPushButton:default { background: rgba(38, 139, 210, 170); border-color: rgba(38, 139, 210, 230);"
+        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 3px; padding: 2px 6px;"
+        "  selection-background-color: rgba(138, 92, 245, 200); }"
+        "QComboBox QAbstractItemView { color: #eee8d5; background: #3b3174;"
+        "  selection-background-color: rgba(138, 92, 245, 200); }"
+        "QPushButton { color: #eee8d5; background: rgba(190, 178, 240, 28);"
+        "  border: 1px solid rgba(190, 178, 240, 70); border-radius: 4px; padding: 4px 16px; }"
+        "QPushButton:hover { background: rgba(190, 178, 240, 60); }"
+        "QPushButton:default { background: rgba(138, 92, 245, 170); border-color: rgba(138, 92, 245, 230);"
         "  color: white; }");
     auto form = new QFormLayout(holder);
     form->setContentsMargins(10, 4, 10, 6);
@@ -5589,7 +5807,7 @@ void View::drawFieldIcons(QPainter& painter)
             painter.drawEllipse(q, 19, 19);
         }
         painter.setPen(QPen(hot ? QColor(Qt::white) : QColor(0xee, 0xe8, 0xd5), 1.5));
-        painter.setBrush(QColor(22, 76, 94, 235));
+        painter.setBrush(QColor(42, 35, 88, 235));
         painter.drawEllipse(q, 13, 13);
         icon.paint(&painter, QRect(int(std::lround(q.x())) - 9, int(std::lround(q.y())) - 9, 18, 18));
         // the name, over the icon
@@ -5599,7 +5817,7 @@ void View::drawFieldIcons(QPainter& painter)
         box.moveLeft(std::max(2.0, std::min(double(width()) - sz.width() - 2, box.left())));
         box.moveTop(std::max(2.0, box.top()));
         painter.setPen(QPen(green, 1.5));
-        painter.setBrush(QColor(22, 76, 94, 225));
+        painter.setBrush(QColor(42, 35, 88, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, text);
@@ -5626,10 +5844,10 @@ float View::gizmoLength(const QVector3D& pivot) const
 
 double View::ringPx(const Shape* s) const
 {
-    // The ring that scales a point is the same size on the screen for every point -- the factor it scales by is what a drag changes -- except for a node of a limb: its ring IS the
-    // thickness of the limb there, a circle round the node of the limb's real radius (the node's scale times the number `radii` gave), so that it is sized against the picture the
-    // limb is modelled over (the way Dust3D shows the size of a node).  Never smaller than a few pixels, so that it can still be pressed
-    if (!s || !(s->limbFactor() > 0.0f)) return kUniformRingPx;
+    // The ring that scales a point is the same size on the screen for every point -- the factor it scales by is what a drag changes -- except for a node of an armature: its ring IS the
+    // thickness of the armature there, a circle round the node of the armature's real radius (the node's scale times the number `radii` gave), so that it is sized against the picture the
+    // armature is modelled over (the way Dust3D shows the size of a node).  Never smaller than a few pixels, so that it can still be pressed
+    if (!s || !(s->armatureFactor() > 0.0f)) return kUniformRingPx;
     const auto& h = s->gizmo();
     const auto& vars = s->getVars();
     double sum = 0;
@@ -5644,7 +5862,7 @@ double View::ringPx(const Shape* s) const
     const double scale = n ? sum / n : 1.0;
     const float L = gizmoLength(s->gizmoPivot());
     if (!(L > 0)) return kUniformRingPx;
-    return std::max(9.0, 80.0 * double(s->limbFactor()) * std::max(0.0, scale) / double(L));
+    return std::max(9.0, 80.0 * double(s->armatureFactor()) * std::max(0.0, scale) / double(L));
 }
 
 int View::selectedShapeCount() const
@@ -6564,7 +6782,7 @@ void View::drawHints(QPainter& painter)
     if (box.right() > width() - 4) box.moveRight(width() - 4);
     if (box.bottom() > height() - 4) box.moveBottom(mouse.pos.y() - 8);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(22, 76, 94, 225));
+    painter.setBrush(QColor(42, 35, 88, 225));
     painter.drawRoundedRect(box, 4, 4);
     painter.setPen(QColor(0xee, 0xe8, 0xd5));
     painter.drawText(box, Qt::AlignCenter, text);
@@ -6690,8 +6908,8 @@ void View::drawNameLabels(QPainter& painter)
         box.moveLeft(std::max(2.0, std::min(double(width()) - sz.width() - 2, box.left())));
         box.moveTop(std::max(2.0, box.top()));
         if (box.bottom() < 0 || box.top() > height()) continue;
-        painter.setPen(QPen(s->isSelected() ? QColor(Qt::white) : QColor(0x93, 0xa1, 0xa1), 1.5));
-        painter.setBrush(QColor(22, 76, 94, 225));
+        painter.setPen(QPen(s->isSelected() ? QColor(Qt::white) : QColor(0xbe, 0xb2, 0xf0), 1.5));
+        painter.setBrush(QColor(42, 35, 88, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, s->appLabel());
@@ -6849,16 +7067,16 @@ void View::drawGizmo(QPainter& painter)
                     const QPointF at = scaling ? p0 + QPointF(0.7071, -0.7071) * radius : toScreen(groupCenter + (0.62f * L) * u);
                     const QRectF box(at + QPointF(8, -8 - fm.height()), QSizeF(fm.horizontalAdvance(text) + 10, fm.height() + 4));
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(QColor(22, 76, 94, 225));
+                    painter.setBrush(QColor(42, 35, 88, 225));
                     painter.drawRoundedRect(box, 4, 4);
                     painter.setPen(QColor(0xee, 0xe8, 0xd5));
                     painter.drawText(box, Qt::AlignCenter, text);
                 }
             }
-            // (a node of a limb in the group keeps the circle of its thickness, faint: the ring of the group scales them all about their middle)
+            // (a node of an armature in the group keeps the circle of its thickness, faint: the ring of the group scales them all about their middle)
             for (Shape* m : members)
             {
-                if (!(m->limbFactor() > 0.0f)) continue;
+                if (!(m->armatureFactor() > 0.0f)) continue;
                 const double r = ringPx(m);
                 painter.setBrush(Qt::NoBrush);
                 painter.setPen(QPen(QColor(kUniformColor.red(), kUniformColor.green(), kUniformColor.blue(), 150), 1.4));
@@ -6982,7 +7200,7 @@ void View::drawGizmo(QPainter& painter)
                     const QPointF at = p0 + QPointF(0.7071, -0.7071) * radius;
                     const QRectF box(at + QPointF(8, -8 - fm.height()), QSizeF(fm.horizontalAdvance(text) + 10, fm.height() + 4));
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(QColor(22, 76, 94, 225));
+                    painter.setBrush(QColor(42, 35, 88, 225));
                     painter.drawRoundedRect(box, 4, 4);
                     painter.setPen(QColor(0xee, 0xe8, 0xd5));
                     painter.drawText(box, Qt::AlignCenter, text);

@@ -1,13 +1,13 @@
-# An armature: a character made of limbs -- paths of nodes, each with a thickness -- and the skeleton that comes from the same nodes.
+# An armature: a character made of armatures -- paths of nodes, each with a thickness -- and the skeleton that comes from the same nodes.
 #
-#   arm = limb([shoulder, elbow, hand], radii=4.5, name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
-#   hero = character([spine, head, arm, leg ...], blend=4, symmetric="x")       the limbs joined with a blend; the left half is the mirror image
+#   arm = armature([shoulder, elbow, hand], radii=4.5, name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
+#   hero = character([spine, head, arm, leg ...], blend=4, symmetric="x")       the armatures joined with a blend; the left half is the mirror image
 #   bones = skeleton_of([spine, head, arm, leg ...], mirror="x")                a joint at each node, each hanging from the one before it
 #   export_mesh(hero, "hero.glb", symmetric="x", skeleton=bones)
 #
-# A limb is a path extruded: a round cross-section swept along a smooth curve through the nodes (or any 2D shape: limb(..., profile=rectangle(...))).  The thickness at a node is
-# the size of its point -- the gold ring of its gizmo -- times radii; every number is an expression of the nodes, so a node dragged in the viewport moves its limb at once.
-# A limb that starts on a node of another limb (the same point, or a place within half a millimetre) hangs from that joint; `parent="chest"` says where a limb is joined when it does
+# An armature is a path extruded: a round cross-section swept along a smooth curve through the nodes (or any 2D shape: armature(..., profile=rectangle(...))).  The thickness at a node is
+# the size of its point -- the gold ring of its gizmo -- times radii; every number is an expression of the nodes, so a node dragged in the viewport moves its armature at once.
+# An armature that starts on a node of another armature (the same point, or a place within half a millimetre) hangs from that joint; `parent="chest"` says where an armature is joined when it does
 # not start on a node.  A joint with an `influence` (a body or a field) owns the skin where that field is negative: here the jaw owns a small box of the head.
 #
 # The figure is drawn (the joints are inside it; the nodes of the arm are points, and are seen through it).  The script writes the file, reads it back, and prints a line that starts with ok or FAIL for every check (in the output pane).
@@ -26,14 +26,14 @@ elbow
 hand = point(37, 8, 92)
 hand
 
-spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
-head = limb([(0, 0, 147), (0, 2, 163)], radii=[5, 11], name="head", joints=["neck_top", "head"])
-arm = limb([shoulder, elbow, hand], radii=4.5, name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
-leg = limb([(9, 0, 88), (11, 0, 48), (11, 0, 9)], radii=[8, 5.5, 4], name="leg.R", joints=["hip.R", "knee.R", "ankle.R"], parent="hips")
-foot = limb([(11, 0, 9), (11, 14, 4)], radii=[4.5, 3], name="foot.R", joints=["ankle_foot.R", "toe.R"])
-limbs = [spine, head, arm, leg, foot]
+spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
+head = armature([(0, 0, 147), (0, 2, 163)], radii=[5, 11], name="head", joints=["neck_top", "head"])
+arm = armature([shoulder, elbow, hand], radii=4.5, name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"], parent="chest")
+leg = armature([(9, 0, 88), (11, 0, 48), (11, 0, 9)], radii=[8, 5.5, 4], name="leg.R", joints=["hip.R", "knee.R", "ankle.R"], parent="hips")
+foot = armature([(11, 0, 9), (11, 14, 4)], radii=[4.5, 3], name="foot.R", joints=["ankle_foot.R", "toe.R"])
+armatures = [spine, head, arm, leg, foot]
 
-hero = character(limbs, blend=4, symmetric="x")
+hero = character(armatures, blend=4, symmetric="x")
 hero
 
 failed = []
@@ -49,26 +49,26 @@ def at(shape, x, y, z):
     return float(shape(x, y, z))
 
 
-# 1. the body: where the limbs are, nothing where they are not, the same on both sides
+# 1. the body: where the armatures are, nothing where they are not, the same on both sides
 inside = ((0, 0, 120), (0, 2, 163), (30, 0, 112), (-30, 0, 112), (11, 0, 30), (-11, 0, 30), (11, 10, 5))
 outside = ((0, 0, 190), (60, 0, 112), (-60, 0, 112), (0, 30, 100), (25, 0, 60))
 check("character: inside the body, the arms, the head, the legs and the feet", all(at(hero, *p) < 0 for p in inside))
 check("character: outside between the arms and the legs, and beyond", all(at(hero, *p) > 0 for p in outside))
 check("character: the left is the mirror of the right", all(abs(at(hero, x, y, z) - at(hero, -x, y, z)) < 1e-6 for x, y, z in ((25, 5, 100), (33, 4, 105), (14, 3, 60), (8, 0, 20))))
-check("limb: thick where the radius says (13 at the hips, 5 at the neck; the cross-section is a rounded square, so the edge is within a tenth of the radius of it)",
+check("armature: thick where the radius says (13 at the hips, 5 at the neck; the cross-section is a rounded square, so the edge is within a tenth of the radius of it)",
       abs(at(spine, 13, 0, 92)) < 1.3 and abs(at(spine, 5, 0, 147)) < 0.5,
       "%.2f at the hips, %.2f at the neck" % (at(spine, 13, 0, 92), at(spine, 5, 0, 147)))
-check("limb: a smooth curve through the nodes (the arm passes the elbow)", abs(at(arm, 31 + 4.5, 0, 113)) < 1.2 and at(arm, 31, 0, 113) < 0)
+check("armature: a smooth curve through the nodes (the arm passes the elbow)", abs(at(arm, 31 + 4.5, 0, 113)) < 1.2 and at(arm, 31, 0, 113) < 0)
 
-# 2. a limb with a profile of its own: a square cross-section, swept along the path
-square_arm = limb([point(60, 0, 100), point(60, 0, 130), point(60, 20, 150)], profile=rectangle((-4, -4), (4, 4)))
+# 2. an armature with a profile of its own: a square cross-section, swept along the path
+square_arm = armature([point(60, 0, 100), point(60, 0, 130), point(60, 20, 150)], profile=rectangle((-4, -4), (4, 4)))
 square_arm
-check("profile: a square limb is a body along its path (inside on the path, outside beside it)", at(square_arm, 60, 0, 115) < 0 < at(square_arm, 72, 0, 115))
+check("profile: a square armature is a body along its path (inside on the path, outside beside it)", at(square_arm, 60, 0, 115) < 0 < at(square_arm, 72, 0, 115))
 
 # 3. the skeleton
-bones = skeleton_of(limbs, mirror="x")
+bones = skeleton_of(armatures, mirror="x")
 names = [j.name for j in bones]
-check("skeleton: a joint for every node that is not another limb's (the head's first node is the neck, the foot's the ankle), the left side made by the mirror",
+check("skeleton: a joint for every node that is not another armature's (the head's first node is the neck, the foot's the ankle), the left side made by the mirror",
       len(bones) == 19 and "elbow.L" in names and "hips" in names and "neck_top" not in names and len(set(names)) == len(names), "%d joints" % len(bones))
 parents = {j.name: j.parent for j in bones}
 check("skeleton: the arm hangs from the chest, the head from the neck, the leg from the hips, the foot from the ankle, the hips are the root",
@@ -113,7 +113,7 @@ def main_joint(vertex):
     return names[joints[vertex][0]]
 
 
-for label, place, radius, joint_name in (("the end of the hand (the flat end of the last limb, where the bone of the forearm ends)", (37, 8, 92), 3, ("hand.R", "elbow.R")),
+for label, place, radius, joint_name in (("the end of the hand (the flat end of the last armature, where the bone of the forearm ends)", (37, 8, 92), 3, ("hand.R", "elbow.R")),
                                          ("the middle of the right forearm", (34, 4, 102), 4, "elbow.R"),
                                          ("the middle of the left forearm", (-34, 4, 102), 4, "elbow.L"), ("the right shin", (11, 0, 30), 5, "knee.R")):
     found = near(place, radius)
@@ -123,7 +123,7 @@ for label, place, radius, joint_name in (("the end of the hand (the flat end of 
 
 # 5. a joint that owns a place: the jaw owns a box of the head
 jaw_box = box((-8, 4, 150), (8, 14, 158))
-with_jaw = limbs + [limb([(0, 2, 163), (0, 10, 154)], radii=[3, 3], name="jaw", joints=["head_jaw", "jaw"])]
+with_jaw = armatures + [armature([(0, 2, 163), (0, 10, 154)], radii=[3, 3], name="jaw", joints=["head_jaw", "jaw"])]
 jaw_bones = skeleton_of(with_jaw, mirror="x")
 jaw_bones = [Joint(j.name, j.position, j.parent, j.tip, jaw_box) if j.name == "jaw" else j for j in jaw_bones]
 export_mesh(hero, "meshes/hero_jaw.glb", symmetric="x", skeleton=jaw_bones, skin_falloff=2)
@@ -150,12 +150,12 @@ w4 = accessor(doc4, binary4, doc4["meshes"][0]["primitives"][0]["attributes"]["W
 check("max_influences: two a vertex leaves the third and fourth weight at 0, the rest adding up to 1", all(a[2] == 0 and a[3] == 0 and abs(a[0] + a[1] - 1) < 1e-5 for a in w4))
 
 # 7. what is refused
-for label, call in (("a limb with no nodes", lambda: limb([])),
-                    ("radii for the wrong number of nodes", lambda: limb([(0, 0, 0), (0, 0, 10)], radii=[1, 2, 3])),
-                    ("joint names that are not one for each node", lambda: limb([(0, 0, 0), (0, 0, 10)], joints=["a"])),
-                    ("a limb that is joined nowhere", lambda: skeleton_of([limb([(0, 0, 0), (0, 0, 10)]), limb([(50, 0, 0), (50, 0, 10)], name="far")])),
-                    ("a parent that is not a joint", lambda: skeleton_of([limb([(0, 0, 0), (0, 0, 10)]), limb([(50, 0, 0), (50, 0, 10)], parent="nobody")])),
-                    ("a character with no limbs", lambda: character([]))):
+for label, call in (("an armature with no nodes", lambda: armature([])),
+                    ("radii for the wrong number of nodes", lambda: armature([(0, 0, 0), (0, 0, 10)], radii=[1, 2, 3])),
+                    ("joint names that are not one for each node", lambda: armature([(0, 0, 0), (0, 0, 10)], joints=["a"])),
+                    ("an armature that is joined nowhere", lambda: skeleton_of([armature([(0, 0, 0), (0, 0, 10)]), armature([(50, 0, 0), (50, 0, 10)], name="far")])),
+                    ("a parent that is not a joint", lambda: skeleton_of([armature([(0, 0, 0), (0, 0, 10)]), armature([(50, 0, 0), (50, 0, 10)], parent="nobody")])),
+                    ("a character with no armatures", lambda: character([]))):
     try:
         call()
         check(label + " is refused", False)

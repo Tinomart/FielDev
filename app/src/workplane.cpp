@@ -73,19 +73,6 @@ QIcon drawingIcon(int kind)
             p.setPen(QPen(ink, 1.3));
         }
     }
-    else if (kind == 4)
-    {
-        // (a limb: three nodes, thicker in the middle, joined by a path)
-        const QPointF a[3] = {{6, 13}, {15, 5.5}, {25, 11}};
-        const double radii[3] = {2.2, 3.8, 2.6};
-        p.drawLine(a[0], a[1]);
-        p.drawLine(a[1], a[2]);
-        for (int i = 0; i < 3; ++i)
-        {
-            p.setBrush(QColor(38, 139, 210, 200));
-            p.drawEllipse(a[i], radii[i], radii[i]);
-        }
-    }
     else
     {
         p.setBrush(ink);
@@ -106,27 +93,27 @@ WorkPlanePanel::WorkPlanePanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     // (the look of the section card)
     setStyleSheet(
-        "#WorkPlanePanel { background: rgba(22, 76, 94, 222);"
-        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
-        "QLabel { color: #93a1a1; font-size: 8pt; }"
+        "#WorkPlanePanel { background: rgba(42, 35, 88, 222);"
+        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 6px; }"
+        "QLabel { color: #beb2f0; font-size: 8pt; }"
         "QLabel#WorkPlaneInfo { color: #eee8d5; }"
         "QLabel#WorkPlaneReadout { color: #eee8d5; font-size: 8.5pt; }"
-        "QToolButton { color: #eee8d5; background: rgba(147, 161, 161, 28);"
-        "  border: 1px solid rgba(147, 161, 161, 60); border-radius: 4px;"
+        "QToolButton { color: #eee8d5; background: rgba(190, 178, 240, 28);"
+        "  border: 1px solid rgba(190, 178, 240, 60); border-radius: 4px;"
         "  padding: 2px 8px; font-size: 8pt; }"
-        "QToolButton:hover { background: rgba(147, 161, 161, 60); }"
-        "QToolButton:checked { background: rgba(38, 139, 210, 170);"
-        "  border-color: rgba(38, 139, 210, 230); color: white; }"
-        "QToolButton:disabled { color: rgba(147, 161, 161, 120); }"
+        "QToolButton:hover { background: rgba(190, 178, 240, 60); }"
+        "QToolButton:checked { background: rgba(138, 92, 245, 170);"
+        "  border-color: rgba(138, 92, 245, 230); color: white; }"
+        "QToolButton:disabled { color: rgba(190, 178, 240, 120); }"
         "QToolButton#WorkPlaneHeader { background: transparent; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 4px; }"
-        "QToolButton#WorkPlaneClose { background: transparent; border: none; color: #93a1a1;"
+        "QToolButton#WorkPlaneClose { background: transparent; border: none; color: #beb2f0;"
         "  padding: 2px 5px; font-size: 9pt; }"
         "QToolButton#WorkPlaneClose:hover { color: #eee8d5; }"
         "QDoubleSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
-        "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 3px; padding: 1px 2px;"
-        "  font-size: 8pt; selection-background-color: rgba(38, 139, 210, 200); }"
-        "QDoubleSpinBox:disabled { color: rgba(147, 161, 161, 140); }");
+        "  border: 1px solid rgba(190, 178, 240, 70); border-radius: 3px; padding: 1px 2px;"
+        "  font-size: 8pt; selection-background-color: rgba(138, 92, 245, 200); }"
+        "QDoubleSpinBox:disabled { color: rgba(190, 178, 240, 140); }");
 
     m_header->setObjectName("WorkPlaneHeader");
     m_header->setText(QString(QChar(0x25be)) + "  " + T("Work plane"));
@@ -152,13 +139,12 @@ WorkPlanePanel::WorkPlanePanel(QWidget* parent)
     // click selects, moves, turns and scales things as usual (the active kind is turned off by clicking it again, or with a right click in the viewport)
     auto modeRow = new QHBoxLayout;
     modeRow->setSpacing(3);
-    const QString names[4] = {T("Line"), T("Spline"), T("Point"), T("Limb")};
-    const QString tips[4] = {
+    const QString names[3] = {T("Line"), T("Spline"), T("Point")};
+    const QString tips[3] = {
         T("Click to put down the corners of a shape with straight edges; a click on the first one closes it, Enter ends it open (E: the next kind, right click: stop drawing)"),
         T("Click to put down the points of a smooth curve; a click on the first one closes it into a shape, Enter ends it open (E: the next kind, right click: stop drawing)"),
-        T("Every click puts a point on the plane (E: the next kind, right click: stop drawing)"),
-        T("Click the nodes of a limb of a character, one after the other: a path extrude with the joints of its skeleton on the nodes.  Enter ends it (E: the next kind, right click: stop drawing)")};
-    for (int i = 0; i < 4; ++i)
+        T("Every click puts a point on the plane (E: the next kind, right click: stop drawing)")};
+    for (int i = 0; i < 3; ++i)
     {
         m_modes[i] = new QToolButton;
         m_modes[i]->setText(names[i]);
@@ -339,15 +325,14 @@ void WorkPlanePanel::setPlane(const WorkPlane& plane, float step)
     }
     m_updating = false;
     // What a click does now: dim when nothing is being drawn (it selects), lit when it puts a point down
-    const QString hints[5] = {
+    const QString hints[4] = {
         T("Not drawing: clicks select, move, turn and scale things. Pick a kind to draw (E)."),
         T("Click the corners of a shape; click the first one to close it, or press Enter to end it open."),
         T("Click the points of a spline; click the first one to close it, or press Enter to end it open."),
-        T("Every click puts a point on the plane."),
-        T("Click the nodes of a limb, one after the other; press Enter to end it, Backspace to take the last one back.")};
-    const int mode = std::max(0, std::min(4, plane.mode));
+        T("Every click puts a point on the plane.")};
+    const int mode = std::max(0, std::min(3, plane.mode));
     m_hint->setText(hints[mode]);
-    m_hint->setStyleSheet(mode == 0 ? "color: #93a1a1;" : "color: #eee8d5;");
+    m_hint->setStyleSheet(mode == 0 ? "color: #beb2f0;" : "color: #eee8d5;");
     const QVector3D n = plane.normal(), o = plane.origin();
     auto number = [](float x) { return QString::number(std::fabs(x) < 5e-5f ? 0.0 : double(x), 'g', 4); };
     m_info->setText(T("Normal (%1, %2, %3), through (%4, %5, %6)")

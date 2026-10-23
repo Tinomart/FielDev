@@ -232,6 +232,15 @@ public slots:
     void cancelPlacement();
     void undoPlacedPoint();
     int placedCount() const { return m_wpPlaced.size(); }
+    /*  The armature mode, which has nothing to do with the work plane: the nodes of an armature are put down one click after another, each written into the script as it is put down.
+        A click on empty space puts the first node (a new armature) or the next one -- in the plane through the node before it that faces the camera, so turning the view puts the
+        next one in depth --, a click on a node of an armature goes on from that node (from one in the middle the armature branches), a right click or Esc goes back a step: from the
+        node to none, then out of the mode.  `anchor` is the variable of the node to go on from (none: the next click begins an armature)  */
+    void startArmaturePlacing(const QString& anchor = QString());
+    void stopArmaturePlacing();
+    bool armaturePlacing() const { return m_arm.on; }
+    /*  The answer to armatureNodeRequested: the variable of the node that was written and where it is (empty: nothing was written)  */
+    void armatureNodeDone(QString var, QVector3D at);
     /*  The symmetry: a model of the script -- `mirror = symmetry_planes(...)` -- that is selected in the model tree is the one the viewport works with.  Its planes are drawn, and
         what is made while it is IN USE is made at its images too (Shift+S turns that on and off; with no symmetry in the script one is made).  The card (SymmetryPanel) shows it
         and changes it: the arrangement of its planes is written into its call, where it is and how it is turned into the numbers of its gizmo  */
@@ -339,6 +348,9 @@ signals:
     void workPlaneReadout(QString text);
     /*  A line or a spline was put down (or a profile: closed): its name in the library (`profile`, `polyline`, `spline`), its points, and whether the outline is smooth  */
     void placementFinished(QString name, QList<QVector3D> points, bool smooth);
+    /*  A click of the armature mode: a node at `at` after the node `anchor` (empty: the first of a new armature); `scale` is how large things are there  */
+    void armatureNodeRequested(QString anchor, QVector3D at, double scale);
+    void armaturePlacingChanged(bool on);
 
     /*
      *  Called to kick off a render and start the busy spinner running
@@ -601,11 +613,16 @@ protected:
     /*  The operations as a menu's entries (the combining ones greyed when there is no second model).  `onlyGroup` empty: all of them in a submenu for each group, except the group of
      *  the Character menu; a group's name: that group alone, flat in `menu` (the Character menu)  */
     void fillOperations(QMenu* menu, int line, const QVector3D& point, double scale, const QString& onlyGroup = QString());
-    /*  The Character section of the menus: what makes a character -- limbs drawn node after node on the work plane (or made from points that are selected), the character that holds
+    /*  The Characters section of the menus: what makes a character -- armatures put down node after node (see startArmaturePlacing), the character that holds
      *  them and its skeleton -- and the pictures to trace them over.  `line` is the model the menu is on (-1: empty space), `atLine` the line of the text editor it was opened on  */
     void fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, double scale, int atLine);
-    /*  Starts the drawing of a limb: the work plane opens (facing the picture the camera looks at, when it was not there yet) and a click puts down a node  */
-    void startLimbDrawing();
+    /*  The armature mode's own pieces (see startArmaturePlacing): where a click puts a node, the position of the node the next follows, the click, the cursor, a step back, the drawing  */
+    bool armatureCursor(QPoint pos, QVector3D& out) const;
+    bool armatureAnchorPosition(QVector3D& p) const;
+    void placeArmatureNode(QPoint pos);
+    void updateArmatureCursor(QPoint pos);
+    void stepBackArmature();
+    void drawArmaturePlacing(QPainter& painter);
     /*  Asks for a picture and writes the call that stands it in the scene, in `plane` (front, back, right, left, top, bottom)  */
     void addReferenceImage(const QString& plane, const QVector3D& point, double scale, int atLine, const QString& file = QString());
     /*  The Python menu: the most basic features of the language -- a variable, if, loops, a function, a class ... -- as blocks of plain code written at the insertion point of the
@@ -620,6 +637,19 @@ protected:
     int m_wpLastMode = 1;                   // (the kind of drawing that was on last: E brings it back after a right click has stopped the drawing)
     QVector3D m_wpCursor;                    // (where the cursor is on the plane, snapped)
     QList<QVector3D> m_wpPlaced;             // (the points of the line or spline that is being put down: not in the script yet)
+    /*  The armature that is being put down (see startArmaturePlacing): `anchor` is the variable of the node the next one follows, `anchorPos` where it is; `busy` while the node of the
+        last click is being written (its answer says which node the next one follows)  */
+    struct ArmaturePlacing
+    {
+        bool on = false;
+        bool busy = false;
+        QString anchor;
+        QVector3D anchorPos;
+        bool hasAnchorPos = false;
+        bool cursorValid = false;
+        QVector3D cursor;
+    };
+    ArmaturePlacing m_arm;
     // The symmetry (see setActiveSymmetry)
     bool symmetric() const { return m_sym.on; }
     Shape* symmetryShape() const;                               // (the model that is selected and is a symmetry)
@@ -996,13 +1026,13 @@ protected:
     float gizmo_factor = 1.0f;         // ...and the factor it has scaled by so far (shown beside it)
     QPointF gizmo_centre;              // ...the middle of the ring on the screen, and how far from it the ring was pressed
     double gizmo_press_r = 1.0;
-    double gizmo_ring0 = 0.0;          // ...and the radius of the scale ring of the shape when the drag began (the ring of a limb's node is the size of the limb there)
+    double gizmo_ring0 = 0.0;          // ...and the radius of the scale ring of the shape when the drag began (the ring of an armature's node is the size of the armature there)
     QVector3D gizmo_pivot, gizmo_axis, gizmo_vec;   // a ring's
     float gizmo_turn = 0;              // degrees turned so far
     float gizmo_scale0[3] = {1, 1, 1}; // the scale numbers when a scale drag began
     libfive::Tree::Id gizmo_scale_id[3] = {nullptr, nullptr, nullptr};
     float gizmoLength(const QVector3D& pivot) const;
-    /*  The radius on the screen of the ring that scales a point: the same for every point -- except a node of a limb, whose ring is a circle of the limb's real radius there  */
+    /*  The radius on the screen of the ring that scales a point: the same for every point -- except a node of an armature, whose ring is a circle of the armature's real radius there  */
     double ringPx(const Shape* s) const;
     GizmoGrip gizmoAt(QPoint pos) const;
     /*  Shift held: the move arrows are replaced by flat squares (a drag moves along the plane of the square) and the scale knobs all scale together  */

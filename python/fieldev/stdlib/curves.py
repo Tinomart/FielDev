@@ -14,7 +14,7 @@ A curve is a model of its own kind (a 1D shape), made of points and drawn as a l
     tube = offset(smooth, 1.5)                  # a 3D shape: the points at most 1.5 from the curve (a tube round it)
     beam = path_extrude(face, smooth)           # a 2D shape swept along it
 
-As a field a curve is the distance to it (zero on it, positive everywhere else), so `offset`, `thicken` and the field functions work on it.
+As a field a curve is the distance to it (zero on it, positive everywhere else), so `offset`, `solidify` and the field functions work on it.
 
 A polyline is made of corners and a spline of spline points -- but each POINT can say otherwise (`point(..., smooth=True)` or `smooth=False`; FielDev toggles
 it when you double-click the point), so a spline can have a corner and a polyline a smooth stretch.  The ROTATION of a spline point -- the rotate numbers of

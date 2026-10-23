@@ -58,13 +58,13 @@ land on (or the face on the other side of the edge, which turns by the angle of 
 surface of the **first** body, where it meets the bodies that follow. With no other body it is the whole surface of the body.
 
 ```python
-holes = surface_from_bodies(plate, bolt_1, bolt_2)    # the plate's surface where the bolts sit in it
-skin = surface_from_bodies(plate)                     # all of the plate's surface
+holes = surface_from_bodies(tile, peg_1, peg_2)    # the tile's surface where the pegs sit in it
+skin = surface_from_bodies(tile)                     # all of the tile's surface
 ```
 
 - A point of the first body's surface is selected when it is **inside** one of the others or within `tolerance` of one: the
-  surface of a box *inside* a sphere that crosses it, the wall of a hole a bolt fills, the face a block stands on. A list may
-  stand for the bodies (`surface_from_bodies(plate, [a, b])`).
+  surface of a box *inside* a sphere that crosses it, the wall of a hole a peg fills, the face a block stands on. A list may
+  stand for the bodies (`surface_from_bodies(tile, [a, b])`).
 - `tolerance` (mm) is how close counts as meeting: bodies that touch at a face, or sit in a hole with a little play, meet; a gap wider
   than it is a gap. The default is half a percent of the size of the first body. If the bodies do not meet, nothing is selected (a
   note says so when their boxes are apart).

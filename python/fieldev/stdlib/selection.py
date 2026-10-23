@@ -28,8 +28,8 @@ writes the `select_surface(...)` line into the script under the part, like every
 `surface_from_bodies` picks a surface by other bodies instead of by a place: the surface of the FIRST body, where it meets the
 bodies that follow.
 
-    plate_holes = surface_from_bodies(plate, bolt_1, bolt_2)      # the walls of the holes the two bolts sit in
-    skin = surface_from_bodies(plate)                             # no other body: the whole surface of the plate
+    tile_holes = surface_from_bodies(tile, peg_1, peg_2)      # the walls of the holes the two pegs sit in
+    skin = surface_from_bodies(tile)                             # no other body: the whole surface of the tile
 
 It is a surface like the one `select_surface` makes -- a region of a surface --
 and it too is made from the fields alone: the first body's surface is where its field is zero, and "meets" is a number, the
@@ -217,8 +217,8 @@ def surface_from_bodies(body, *others, tolerance=None, bounds=None):
     ''' The surface of `body` where it meets `others`, the bodies that follow: the parts of its surface that intersect them (that
         touch them or run through them), as a surface.  With no other body, the whole surface of `body`.
 
-            holes = surface_from_bodies(plate, bolt_1, bolt_2)   # the plate's surface where the bolts are
-            skin = surface_from_bodies(plate)                    # all of it
+            holes = surface_from_bodies(tile, peg_1, peg_2)   # the tile's surface where the pegs are
+            skin = surface_from_bodies(tile)                    # all of it
 
         body        the body whose surface is selected (a part, an imported part, any shape)
         others      the bodies that choose where: a point of the surface of `body` is selected when it is inside one of

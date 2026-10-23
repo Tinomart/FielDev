@@ -11,10 +11,10 @@ b = point(40, 0, 0)
 c = point(40, 20, 0, smooth=True)         # a spline point: the outline goes smoothly through it
 d = point(0, 20, 0)
 
-plate = profile([a, b, c, d])              # a 2D shape: the face the points enclose
+tile = profile([a, b, c, d])              # a 2D shape: the face the points enclose
 lines = polyline([a, b, c])               # a 1D shape: straight lines through points
 curve = spline([a, b, c])                 # a 1D shape: a smooth curve through points
-block = extrude(plate, 0, 5)              # a 3D shape: the face pulled 5 along its normal
+block = extrude(tile, 0, 5)              # a 3D shape: the face pulled 5 along its normal
 pipe = path_extrude(circle(2), curve)     # a 3D shape: a 2D shape swept along a line
 tube = offset(curve, 1.5)                 # a 3D shape: everything within 1.5 of a line
 ```
@@ -37,7 +37,7 @@ under **Operation → Extruding**, and are offered only when what is selected fi
 | **Extruding → extrude** | a 2D shape | a solid: the face pulled up |
 | **Extruding → path_extrude** | a 2D shape and a line (in either order) -- or the shape and the **points** of the path, which get a spline of their own (the points the shape is made of are **not** part of the path, so selecting the profile together with its path's points is fine) | the shape swept along the path |
 
-Hold the mouse on an entry for what it takes. A **tube round a line** is `offset` of it (*Operation → Offsets and walls*), and so are the other things a distance field does: a line is a model
+Hold the mouse on an entry for what it takes. A **tube round a line** is `offset` of it (*Operation → Grow and hollow*), and so are the other things a distance field does: a line is a model
 like any other, and as a field it is the distance to it.
 
 **A profile made of points that are not in one plane** puts them there: the plane through the first three points that are not on a line stays as it is, and every other point is **moved onto it** -- its
@@ -62,7 +62,7 @@ its row in the tree or of its line in the script, all the same menu: the line wr
 - **A surface that is not flat is projected.** The plane is the one through the middle of the surface, facing the way the surface faces on average, and the profile is the outline of the surface seen from there -- along that
   direction. A note in the output says so, and how far from the plane the surface reaches. The outline then follows the selection to within a step of its walk.
 - It is made from the surface and **moves with it** (drag the part, or change a number it is made from, and it is made again); it has no points of its own to drag. Like any 2D shape it goes into `extrude`, `path_extrude`, `offset` and the field
-  functions: `extrude(profile(top), 0, 5)` is a plate on the face. `profile(surface)` also works on a surface a script made with `select_surface`; the whole-surface selections of `surface_from_bodies` have no points to take an
+  functions: `extrude(profile(top), 0, 5)` is a tile on the face. `profile(surface)` also works on a surface a script made with `select_surface`; the whole-surface selections of `surface_from_bodies` have no points to take an
   outline from.
 
 ## Editing them
@@ -73,7 +73,7 @@ its row in the tree or of its line in the script, all the same menu: the line wr
 - **Drag the face of a profile** and **all its points move together, in the plane of the profile**. A click on the face only selects it.
 - **A profile, a polyline or a spline selected as a whole can show a gizmo -- it starts off.** Turn it on with the gizmo button on the outline's row in the model tree (*click*: shown while it is selected, or *always*; it writes `profile_1 = gizmo(profile_1, mode='click')`, a gizmo line without numbers). Then select the outline itself (its row in the model tree, or a click on it) and its points share one gizmo at the middle of them: it is the gizmo of any shape: its **arrows** and **dot** move all of it, its three **knobs** stretch it along an axis and its three **rings** turn it about the axes (with Shift, the plane squares and the one gold ring), about the middle of the points. What is written is the points' own `gizmo(...)` numbers. See [Handles](handles.md).
 - **Pull a point out of an edge.** Press on an edge of a profile (every 2D shape has its edges drawn **blue**, and the blue line brightens under the mouse) and drag: a new point comes out of the edge and follows the
-  mouse, drawn at once. Let go and it is written: a model of its own above the profile, put in its list in the right place (`plate = profile([a, p5, b, c, d])`). On a line **press the line and drag**; a click on a
+  mouse, drawn at once. Let go and it is written: a model of its own above the profile, put in its list in the right place (`tile = profile([a, p5, b, c, d])`). On a line **press the line and drag**; a click on a
   line only selects it.
 - **Double-click a point** of a profile and it goes from a **corner** (a **square** dot: a hard edge) to a **spline point** (a **round** dot with a ring: the curve goes smoothly through it) to a **round corner**
   (a **square with round corners**: an arc takes the place of the corner, see below) and back to a corner; on a line it changes between corner and spline point. What is written is `smooth=True` / `smooth=False`
@@ -127,9 +127,9 @@ A point has the gizmo of any model, and two of its handles mean something to the
 ## How `extrude` works
 
 `extrude(shape, a, b)` pulls a 2D shape into a solid: the part of space between the distances **`a` and `b` from the plane of the shape, along its normal**. `a` is where the solid starts and `b` where it ends, both measured
-from the plane: `extrude(plate, 0, 5)` is a plate 5 thick that sits on the profile's plane and grows to **one side** of it; `extrude(plate, -2.5, 2.5)` is 5 thick with the profile in the middle; a negative `b` grows the other way. (For a
+from the plane: `extrude(tile, 0, 5)` is a tile 5 thick that sits on the profile's plane and grows to **one side** of it; `extrude(tile, -2.5, 2.5)` is 5 thick with the profile in the middle; a negative `b` grows the other way. (For a
 shape that lies in z = 0 -- a circle, a rectangle -- `a` and `b` are `zmin` and `zmax`.) **Which side is "up" is decided by the order of the first three points of the profile**: the normal is `u x v` of the plane, which
-points **towards you when the points go counter-clockwise** as you look at the profile, and away from you when they go clockwise -- so a profile drawn clockwise is extruded *down* by `extrude(plate, 0, 5)` (use `-5`, or draw it the other way).
+points **towards you when the points go counter-clockwise** as you look at the profile, and away from you when they go clockwise -- so a profile drawn clockwise is extruded *down* by `extrude(tile, 0, 5)` (use `-5`, or draw it the other way).
 In the model tree the call has its `a` and `b` as dim rows: click one to change it in the code. A profile that is outside the render region does not stop its extrusion from being seen: **the region grows to hold it**
 (see *Auto scale* in [the interface](interface.md)).
 

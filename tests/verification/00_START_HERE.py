@@ -15,12 +15,12 @@ view.set_bounds([-5, -7, -4], [3, 2, 5], auto_scale=True)
 #     there.  YOU MUST SEE: its planes drawn, the whole model still in the picture and the camera where it was.  (Before, a click on the row took the camera in on the few millimetres round the
 #     symmetry's centre and every model left the picture.)
 #
-#  2. THE WHEEL ON A POINT.  Open examples/26_profiles_and_sweeps.py, select nothing, put the mouse on the dot of one of the five points of the plate and turn the wheel with Shift held -- or Ctrl held.
-#     YOU MUST SEE: the first notch selects the point (its gizmo and the gold ring appear, and `gizmo(` is written under it); the next notches scale it, 10 % a notch, and the plate's outline follows
+#  2. THE WHEEL ON A POINT.  Open examples/26_profiles_and_sweeps.py, select nothing, put the mouse on the dot of one of the five points of the tile and turn the wheel with Shift held -- or Ctrl held.
+#     YOU MUST SEE: the first notch selects the point (its gizmo and the gold ring appear, and `gizmo(` is written under it); the next notches scale it, 10 % a notch, and the tile's outline follows
 #     (a spline point is rounder, a corner is not affected).  With the mouse on empty space the wheel zooms, as ever.
 #
 #  3. THE END FACES OF AN EXTRUSION.  Open walkthroughs/04_extrude_with_ctrl_e.py, click `extrude_2`, then press its TOP face (the flat end) and drag it up or down.  YOU MUST SEE: the length changes
-#     and the radius stays; the number moves in the `handles(extrude_2, [...])` line.  The same on the plate of examples/26_profiles_and_sweeps.py (an extrusion of a profile of points): click it, then
+#     and the radius stays; the number moves in the `handles(extrude_2, [...])` line.  The same on the tile of examples/26_profiles_and_sweeps.py (an extrusion of a profile of points): click it, then
 #     drag its top face -- the 6 of `extrude(outline, 0, 6)` changes.  Drag the BASE of an extrusion, where its 2D shape lies over it, and the 2D shape's own edge or face is what moves.
 #     (If a press on a face pulls nothing, start FielDev with FIELDEV_TIMING=1: the log has a line `[drag] nothing to pull ...` that says why.)
 #

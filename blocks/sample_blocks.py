@@ -2,16 +2,16 @@
 # it is there in every script, like a function of the library, with its call tip, completion and menus.  Write one with a
 # few lines, save the file, and use it:
 #
-#     part = perforate(box((0, 0, 0), (60, 40, 6)), 2.5, 10)
+#     wall = windows(box((0, 0, 0), (60, 40, 6)), 2.5, 10)
 #
 # The whole library is at hand in a block file (no imports).  The first line of the docstring is what the call tip says.
 # A block whose first argument is a model and has defaults for the others is in the right-click menu under
 # "Operations > Custom blocks"; a block that needs no argument is under "Parametric shapes > New custom block".
 
 
-def perforate(body, hole_radius=2.0, spacing=10.0):
-    ''' Drills a grid of round holes right through a body, along z '''
-    holes = repeat(cylinder(hole_radius, 100000, (0, 0, -50000)), (spacing, spacing, 0))
+def windows(body, radius=2.0, spacing=10.0):
+    ''' Cuts a grid of round windows right through a wall, along z '''
+    holes = repeat(cylinder(radius, 100000, (0, 0, -50000)), (spacing, spacing, 0))
     return difference(body, holes)
 
 
@@ -25,8 +25,9 @@ def hollow(body, wall=2.0):
     return shell_inside(body, wall)
 
 
-def bracket(width=40.0, height=30.0, thickness=4.0, depth=20.0):
-    ''' An L-shaped bracket: a base plate and an upright, with a rounded inside corner '''
-    base = box((0, 0, 0), (width, depth, thickness))
-    upright = box((0, 0, 0), (width, thickness, height))
-    return union(base, upright, radius=thickness * 0.8)
+def stairs(steps=6, width=30.0, rise=3.0, run=5.0):
+    ''' A flight of steps: each one a rise higher and a run further than the one before '''
+    flight = box((0, 0, 0), (run, width, rise))
+    for k in range(1, steps):
+        flight = union(flight, box((k * run, 0, 0), ((k + 1) * run, width, (k + 1) * rise)))
+    return flight

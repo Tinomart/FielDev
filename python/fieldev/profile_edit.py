@@ -21,7 +21,7 @@ def _char_col(line, byte_col):
 
 
 def _display_name(tree, line):
-    ''' The name displayed by the statement that holds the 1-based line: `plate` on a line of its own '''
+    ''' The name displayed by the statement that holds the 1-based line: `tile` on a line of its own '''
     for stmt in tree.body:
         if stmt.lineno <= line <= stmt.end_lineno and isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name):
             return stmt.value.id
@@ -145,6 +145,80 @@ def _snap(req):
     return json.dumps({'edits': edits, 'label': 'Put the points on the plane', 'line': -1, 'name': ''})
 
 
+def _point_block(name, x, y, z):
+    ''' The lines of a point that is a model of its own: the point, its gizmo (so that it can be dragged) and the line that shows it '''
+    return ['%s = point(%s, %s, %s)' % (name, x, y, z),
+            '%s = gizmo(' % name, '    %s,' % name, '    move=(var(0), var(0), var(0)),', '    rotate=(var(0), var(0), var(0)),',
+            '    scale=(var(1), var(1), var(1)),', ')', name]
+
+
+def _armature_node(req):
+    ''' A node put down for an armature, as the viewport does it one click after another: `req['node']` is the variable of the node it follows, x, y, z where it goes, `scale` how big a
+        cross-section a new armature gets.  The node that is the last of its armature is followed by the new node (`armature([a, b])` becomes `armature([a, b, c])`).  A node anywhere else
+        has a new armature begin at it, the way a limb branches: the same point is its first node and the new node its second '''
+    from fieldev import menu_catalog
+    source, anchor = req['source'], req['node']
+    tree = ast.parse(source)
+    lines = source.split('\n')
+    x, y, z = (_num_text(float(req[c])) for c in 'xyz')
+    held = []
+    for stmt in tree.body:
+        call = stmt.value if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) else None
+        if _call_name(call) == 'armature' and call.args and isinstance(call.args[0], ast.List) \
+                and any(isinstance(e, ast.Name) and e.id == anchor for e in call.args[0].elts):
+            held.append(stmt)
+    if not held:
+        raise ValueError('%s is not a node of an armature' % anchor)
+    taken = set(re.findall(r'[A-Za-z_]\w*', source))
+    ends = [s for s in held if isinstance(s.value.args[0].elts[-1], ast.Name) and s.value.args[0].elts[-1].id == anchor]
+    if ends:
+        host = ends[0]
+        owner, call = host.targets[0].id, host.value
+        nodes = call.args[0]
+        # (the nodes that are its own: a branch begins at a node of another armature, which is not counted)
+        k = 1 + sum(1 for e in nodes.elts if isinstance(e, ast.Name) and e.id.startswith(owner + '_p'))
+        while '%s_p%d' % (owner, k) in taken:
+            k += 1
+        new = '%s_p%d' % (owner, k)
+        block = _point_block(new, x, y, z)
+        edits = [[host.lineno - 1, 0, host.lineno - 1, 0, ''.join(b + '\n' for b in block)]]
+        last = nodes.elts[-1]
+        row, col = last.end_lineno - 1, _char_col(lines[last.end_lineno - 1], last.end_col_offset)
+        edits.append([row, col, row, col, ', ' + new])
+        joints = next((kw.value for kw in call.keywords if kw.arg == 'joints'), None)
+        if isinstance(joints, ast.List) and joints.elts:
+            # (the names of the joints are written out: the new node gets one, named as a joint is by default)
+            label = next((kw.value.value for kw in call.keywords if kw.arg == 'name' and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str)), owner)
+            used = {e.value for e in joints.elts if isinstance(e, ast.Constant)}
+            j = len(joints.elts)
+            while '%s_%d' % (label, j) in used:
+                j += 1
+            end = joints.elts[-1]
+            row, col = end.end_lineno - 1, _char_col(lines[end.end_lineno - 1], end.end_col_offset)
+            edits.append([row, col, row, col, ', "%s_%d"' % (label, j)])
+        return json.dumps({'edits': edits, 'label': 'Add a node to %s' % owner, 'line': host.lineno - 1 + len(block) - 1, 'name': new})
+    # a node in the middle: the new armature is written under the one it branches from (and under its display line and cut face)
+    host = held[0]
+    owner = host.targets[0].id
+    stem = re.sub(r'[_\d]+$', '', owner) or 'armature'
+    n = 2
+    while any(t == '%s_%d' % (stem, n) or t.startswith('%s_%d_' % (stem, n)) for t in taken):
+        n += 1
+    var = '%s_%d' % (stem, n)
+    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'))
+    end = host
+    for stmt in tree.body[tree.body.index(host) + 1:]:
+        shows = isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name) and stmt.value.id in (owner, owner + '_face')
+        face = isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) \
+            and stmt.targets[0].id == owner + '_face' and _call_name(stmt.value) == 'cut_face'
+        if not (shows or face):
+            break
+        end = stmt
+    row = end.end_lineno - 1
+    col = len(lines[row])
+    return json.dumps({'edits': [[row, col, row, col, '\n\n' + text]], 'label': 'New armature from %s' % anchor, 'line': -1, 'name': var + '_p1'})
+
+
 def edit(arg):
     ''' `arg` is JSON {op: 'insert' | 'toggle' | 'snap', source, line (1-based, the line that displays the model), x, y, z (for insert: where), call (for snap)} '''
     from fieldev import runner
@@ -152,6 +226,8 @@ def edit(arg):
     req = json.loads(arg)
     if req['op'] == 'snap':
         return _snap(req)
+    if req['op'] == 'armature':
+        return _armature_node(req)
     source, line, op = req['source'], int(req['line']), req['op']
     tree = ast.parse(source)
     lines = source.split('\n')

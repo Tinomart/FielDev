@@ -51,6 +51,9 @@ makes the script re-read a file that changed on disk.
 
 - **File → Export mesh…** (`F7`, `Ctrl+Alt+E`) writes the shapes shown in the viewport as one mesh, in the format of the file's extension.
 - **Right-click a model → Export → Mesh** writes that one model (the file is asked for, and written in the background).
+- **Right-click a model → Export → For a game engine** writes the `export_mesh` call into the script, with the options an engine asks of an asset written out for you to change and run: a
+  game-ready glTF (origin at the feet, UV islands, smooth normals, a budget of triangles), levels of detail, an OBJ in metres with Y up, an exactly symmetric mesh, a rigged export with a
+  skeleton, baked textures, and a **UV map** submenu (box, planar, cylinder, sphere, unwrapped atlas, by armature part -- each also writes the picture of the UV map beside the file, to check it).
 - From a script:
 
 ```python
@@ -231,8 +234,8 @@ export_mesh(hero, "hero.glb", skeleton=bones)                              # ski
   on both sides of a seam.
 - **`max_influences=4`** (1 to 8) is the most joints that move a vertex: the strongest are kept and the weights made to add up to 1. Above 4 the file has `JOINTS_1` and
   `WEIGHTS_1` as well.
-- It can be written with the materials, the colours, the texture coordinates and the baked textures in the same file. A whole character -- limbs, body and skeleton
-  from the same nodes -- is in [Characters](characters.md#armatures-limbs-a-character-a-skeleton).
+- It can be written with the materials, the colours, the texture coordinates and the baked textures in the same file. A whole character -- armatures, body and skeleton
+  from the same nodes -- is in [Characters](characters.md#armatures-armatures-a-character-a-skeleton).
 
 ### The origin of the asset, and levels of detail
 

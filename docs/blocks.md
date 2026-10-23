@@ -6,17 +6,17 @@ call tip, completion, a place in the right-click menus and a mark in the model t
 
 ```python
 # blocks/my_blocks.py
-def perforate(body, hole_radius=2.0, spacing=10.0):
-    ''' Drills a grid of round holes right through a body, along z '''
-    holes = repeat(cylinder(hole_radius, 100000, (0, 0, -50000)), (spacing, spacing, 0))
+def windows(body, radius=2.0, spacing=10.0):
+    ''' Cuts a grid of round windows right through a wall, along z '''
+    holes = repeat(cylinder(radius, 100000, (0, 0, -50000)), (spacing, spacing, 0))
     return difference(body, holes)
 ```
 
 ```python
 # any script, anywhere
-plate = box((0, 0, 0), (60, 40, 6))
-drilled = perforate(plate, 2.5, 10)
-drilled
+tile = box((0, 0, 0), (60, 40, 6))
+wall = windows(tile, 2.5, 10)
+wall
 ```
 
 That is all there is to it: no import, no registration, no manifest. (`examples/20_custom_blocks.py` uses the four blocks of
@@ -70,10 +70,10 @@ Every number of a block can be a field, like every number of the library — a b
 functions, and they take fields (see [Fields everywhere](fields.md#fields-everywhere)):
 
 ```python
-drilled = perforate(plate, hole_radius=ramp(x_field(), (0, 60), (1.0, 3.5)), spacing=10)    # bigger holes towards +x
+wall = windows(tile, radius=ramp(x_field(), (0, 60), (1.0, 3.5)), spacing=10)    # bigger windows towards +x
 ```
 
-A block whose own code *computes* with a number (`if hole_radius > 3: ...`, `math.sqrt(hole_radius)`) needs a number: say so in
+A block whose own code *computes* with a number (`if radius > 3: ...`, `math.sqrt(radius)`) needs a number: say so in
 its docstring. The library's `is_field(x)` tells a field from a number when a block has to treat them differently.
 
 ## Errors

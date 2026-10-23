@@ -1903,9 +1903,9 @@ void Interpreter::recordShape(
                 Py_XDECREF(pp);
                 PyErr_Clear();
                 shape->setPoint(pos, hasPos);
-                // (a node of a limb: the number its thickness is the point's scale times -- the viewport draws the ring of the point as a circle of that radius)
-                PyObject* lf = PyObject_GetAttrString(obj, "_limb_factor");
-                if (lf && PyFloat_Check(lf)) shape->setLimbFactor(float(PyFloat_AsDouble(lf)));
+                // (a node of an armature: the number its thickness is the point's scale times -- the viewport draws the ring of the point as a circle of that radius)
+                PyObject* lf = PyObject_GetAttrString(obj, "_armature_factor");
+                if (lf && PyFloat_Check(lf)) shape->setArmatureFactor(float(PyFloat_AsDouble(lf)));
                 Py_XDECREF(lf);
                 PyErr_Clear();
             }

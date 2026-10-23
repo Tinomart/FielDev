@@ -6,7 +6,7 @@ UV maps: how a surface is laid out on a texture.
     export_mesh(crate, "crate.obj", uvs=uv_box(500))                 a texture that repeats every 500 mm, going on from one face to the next
     export_mesh(pole, "pole.obj", uvs=uv_cylinder("z"))              wrapped once round the z axis
     export_mesh(ball, "ball.obj", uvs=[uv_sphere(), uv_unwrap(margin=8)])   two sets: the second one (TEXCOORD_1) is for a lightmap
-    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each limb as a tube along its path, each feature flat as it was drawn
+    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each armature as a tube along its path, each set of stitching loops flat as it was drawn
 
 A UV map gives every corner of every triangle a place (u, v) on the texture, v up.  The vertices that are in triangles with different places are made again for each
 (a seam of the texture).  Two maps are made at most by an export: the first is the one the baked textures are made for.
@@ -161,7 +161,7 @@ class UVMap:
     def _armature(self, xyz, tri, parts, margin, size, axis):
         from fieldev.stdlib import uvparts
         if parts is None:
-            raise ValueError('uv_armature: the model has no parts to unwrap by -- export a character made of limbs and features (character([limb(...), feature(...)])), '
+            raise ValueError('uv_armature: the model has no parts to unwrap by -- export a character made of armatures and stitching loops (character([armature(...), stitching_loops(...)])), '
                              'or give the parts: uv_armature([arm, face, ...])')
         out, self.report = uvparts.unwrap_parts(xyz, tri, parts, margin, size, axis)
         return out
@@ -661,15 +661,15 @@ def uv_armature(parts=None, margin=4, size=1024):
             export_mesh(hero, "hero.glb", uvs="armature")
             export_mesh(hero, "hero.glb", uvs=uv_armature(margin=8, size=2048))
 
-        parts   the limbs and features to unwrap by, or None for the parts of the model that is exported (a `character` knows them)
+        parts   the armatures and stitching loops to unwrap by, or None for the parts of the model that is exported (a `character` knows them)
         margin  the gap between islands, in texels of a `size` x `size` texture
         size    the size of the texture in texels that the margin is counted in
 
-        Each triangle belongs to the part whose surface it is nearest to.  A LIMB is unwrapped as a tube along its path: u round the path, v along it, the seam straight along its
-        back, the rounded ends carried on.  A FEATURE (stitching loops) is laid flat as it was drawn, in the picture of its view: u to the right, v up; what faces away from
+        Each triangle belongs to the part whose surface it is nearest to.  An ARMATURE is unwrapped as a tube along its path: u round the path, v along it, the seam straight along its
+        back, the rounded ends carried on.  STITCHING LOOPS are laid flat as they were drawn, in the picture of their view: u to the right, v up; what faces away from
         the viewer is an island of its own.  Every island is in millimetres, so a texel is the same size everywhere, and none is turned: the texture runs the way the part does '''
     if parts is not None and (not isinstance(parts, (list, tuple)) or not parts):
-        raise ValueError('uv_armature: parts is a list of limbs and features, or None for the parts of the exported model, not %r' % (parts,))
+        raise ValueError('uv_armature: parts is a list of armatures and stitching loops, or None for the parts of the exported model, not %r' % (parts,))
     if not isinstance(margin, (int, float)) or isinstance(margin, bool) or margin < 0:
         raise ValueError('uv_armature: margin is a number of texels, 0 or more, not %r' % (margin,))
     if not isinstance(size, int) or isinstance(size, bool) or not 16 <= size <= 16384:

@@ -4,13 +4,13 @@ Characters: bodies made of points, in the spirit of a skeleton of round joints -
     shoulder = point(0, 0, 40)
     elbow = point(22, 0, 38)
     hand = point(40, 0, 30)
-    arm = chain([shoulder, elbow, hand], radii=[7, 5, 4])      # a limb that tapers: a round cone from joint to joint
+    arm = chain([shoulder, elbow, hand], radii=[7, 5, 4])      # an armature that tapers: a round cone from joint to joint
     leg = chain([point(0, 0, 0), point(0, 0, 25)], radii=[5, 7])
-    body = smooth_union(arm, leg, 3)                           # limbs are joined with a blend, as everything else is
+    body = smooth_union(arm, leg, 3)                           # armatures are joined with a blend, as everything else is
 
-`round_cone(a, b, ra, rb)` is the segment: two balls and the taper between them.  `chain(points, radii, blend)` is a limb: a round cone between each two
+`round_cone(a, b, ra, rb)` is the segment: two balls and the taper between them.  `chain(points, radii, blend)` is an armature: a round cone between each two
 points that follow each other.  The radius at a joint is the SIZE of its point -- the scale of its gizmo, the ring that is dragged to make the joint
-thicker -- times `radii[i]` when radii are given, so a limb is shaped by dragging its points and the sizes of its points, in the viewport, as a spline is.
+thicker -- times `radii[i]` when radii are given, so an armature is shaped by dragging its points and the sizes of its points, in the viewport, as a spline is.
 
 A joint is a ball, a segment is the surface between two balls with a radius that changes along it, and a chain is the union of its segments: a smooth
 body wherever the radius changes gently, and balls at the joints however it changes.  The fields are plain math (no meshing step), so they are blended,
@@ -50,8 +50,8 @@ def _plain(*values):
 
 def round_cone(a, b, ra, rb=None):
     ''' Two balls, one of radius `ra` at `a` and one of radius `rb` at `b` (the same as `ra` when it is not given), and the surface between them whose radius
-        changes along the way from one to the other: a limb that tapers, a bone with its joints.  `a` and `b` are points, or tuples of numbers; the radii are
-        numbers, or fields (a radius that is thick here and thin there).  The cone is cut across by the ends: each ends in a ball, so that limbs that
+        changes along the way from one to the other: an armature that tapers, a bone with its joints.  `a` and `b` are points, or tuples of numbers; the radii are
+        numbers, or fields (a radius that is thick here and thin there).  The cone is cut across by the ends: each ends in a ball, so that armatures that
         meet at a joint are one smooth body there.  Where the radius changes fast over a short way the surface is steeper than the field is: a body, not a distance '''
     raw = (a, b)
     a, b = _place(a, 'round_cone(a, ...)'), _place(b, 'round_cone(a, b, ...)')
@@ -72,14 +72,14 @@ def round_cone(a, b, ra, rb=None):
 
 
 def chain(points, radii=None, blend=0):
-    ''' A limb through points: a round cone (see `round_cone`) between each two points that follow each other, joined as one body.
+    ''' An armature through points: a round cone (see `round_cone`) between each two points that follow each other, joined as one body.
 
             arm = chain([shoulder, elbow, hand], radii=[7, 5, 4])
 
         points  the joints, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  One point is a ball
         radii   the radius at each joint: a number for all of them, or one for each (numbers or fields).  The radius at a joint is that number TIMES the size of
                 its point -- the scale of its gizmo (1 for a point that has none) -- so with no radii the size of a point is its radius, and the ring of its gizmo is the
-                thickness of the limb there
+                thickness of the armature there
         blend   the radius of a smooth blend where the segments meet (0, the default: none; the joints are balls already, so a chain is smooth without it) '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('chain(points): a list of points, one or more')

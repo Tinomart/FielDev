@@ -21,15 +21,15 @@ Groups:
                        signed_distance
     value maps         ramp, clamp, lerp, smoothstep, step_field, normalize,
                        remap_field, attractor, wave, sum_fields, mix
-    geometry           thicken, shell_inside / _outside / _centered,
+    geometry           solidify, shell_inside / _outside / _centered,
                        offset_by, smooth_union,
-                       smooth_intersection, smooth_difference, chamfer_union,
+                       smooth_intersection, smooth_difference, bevel_union,
                        union_all, intersection_all, repeat, repeat_polar,
                        mirror_x / _y / _z, twist_z, bend_z
     evaluation         evaluate, sample_grid, field_range, volume_of,
                        mass_properties
     exact distances    exact_distance, offset_exact, shell_exact,
-                       round_edges, fillet
+                       round_edges, fill_corners
     of the surface     normal_field, gradient_field, gradient_magnitude,
                        curvature_field, colored
     data               field_from_points, field_from_csv, noise_field
@@ -62,13 +62,13 @@ __all__ = [
     'add_fields', 'subtract_fields', 'multiply_fields', 'divide_fields', 'power_field', 'min_fields', 'max_fields',
     'abs_field', 'negate_field', 'sqrt_field', 'square_field', 'field_from_body', 'body_from_field',
     'low_level_field', 'low_level_body', 'maximum', 'minimum',
-    'thicken', 'shell_inside', 'shell_outside', 'shell_centered', 'offset_by',
+    'solidify', 'shell_inside', 'shell_outside', 'shell_centered', 'offset_by',
     'smooth_union', 'smooth_intersection',
-    'smooth_difference', 'chamfer_union', 'union_all', 'intersection_all',
+    'smooth_difference', 'bevel_union', 'union_all', 'intersection_all',
     'repeat', 'repeat_polar', 'mirror_x', 'mirror_y', 'mirror_z',
     'twist_z', 'bend_z',
     'evaluate', 'sample_grid', 'field_range', 'volume_of', 'mass_properties',
-    'exact_distance', 'offset_exact', 'shell_exact', 'round_edges', 'fillet', 'smooth',
+    'exact_distance', 'offset_exact', 'shell_exact', 'round_edges', 'fill_corners', 'smooth',
     'gradient_field', 'gradient_magnitude', 'normal_field', 'curvature_field', 'colored',
     'field_from_points', 'field_from_csv', 'noise_field', 'texture',
 ]
@@ -595,7 +595,7 @@ def low_level_body(logic):
 ################################################################################
 # Geometry from fields
 
-def thicken(field, thickness):
+def solidify(field, thickness):
     ''' A solid wall of the given thickness centred on a field's zero
         surface (e.g. a plane, a TPMS surface, a shape's skin); the
         thickness may be a field '''
@@ -616,7 +616,7 @@ def shell_outside(shape, thickness):
 
 def shell_centered(shape, thickness):
     ''' A shell straddling the surface (half inside, half outside) '''
-    return thicken(shape, thickness)
+    return solidify(shape, thickness)
 
 
 def offset_by(shape, distance):
@@ -648,7 +648,7 @@ def smooth_difference(a, b, radius):
     return smooth_intersection(a, -_s(b), radius)
 
 
-def chamfer_union(a, b, size):
+def bevel_union(a, b, size):
     ''' Union with a 45-degree chamfer of the given size where the shapes meet '''
     a, b = _s(a), _s(b)
     return a.min(b).min((a + b - size) * math.sqrt(0.5))
@@ -1015,9 +1015,9 @@ def round_edges(shape, radius, bounds=None):
     return out
 
 
-def fillet(shape, radius, bounds=None):
+def fill_corners(shape, radius, bounds=None):
     ''' Fills every concave (inside) edge and corner of a shape with a
-        fillet of the given radius (a number or a field), and fills what is narrower than the ball: a ball of that radius rolls in the air, and the
+        fill_corners of the given radius (a number or a field), and fills what is narrower than the ball: a ball of that radius rolls in the air, and the
         shape is everything it cannot reach.  It is made from the shape's own field (see exact_distance and distance_field.py): the centres of the ball are where the field is
         `radius`, and the surface of the result is `radius` from them.  Exact for the inside edge of two flat faces at any angle and for the corner of three
         (the ball's centre is where the planes of the faces meet); a slot narrower than the ball is filled flush with its mouth, not left with the sag of the ball resting on its two edges. '''
@@ -1027,7 +1027,7 @@ def fillet(shape, radius, bounds=None):
     size = max(hi[i] - lo[i] for i in range(3)) or 1.0
     rmax = _reach(r, lo, hi)[1]
     if not rmax > 0:
-        raise ValueError('fillet: the radius must be above 0 (mm)')
+        raise ValueError('fill_corners: the radius must be above 0 (mm)')
     out = _distance_field.closing(f, r, size, rmax)
     out._bounds = (tuple(lo), tuple(hi))
     return out
@@ -1055,7 +1055,7 @@ def _stencil(steps):
 def smooth(shape, radius, steps=1):
     ''' Smooths the surface of a body without thickening it: bumps, dents, ridges and stair-steps smaller than
         about `radius` mm are smoothed away, edges and corners are eased, and a flat or gently curved face stays
-        where it is (unlike offset() or thicken(), which move or grow the surface).  The field of the body is
+        where it is (unlike offset() or solidify(), which move or grow the surface).  The field of the body is
         averaged over the points a `radius` away on all six sides -- the smoothing of a mesh's Laplacian, done on the
         field -- and `steps` of those make the field of the smoothed body: more steps smooth further (the reach
         grows as the square root of the number of steps).  The radius is a number or a field (smoothed more where
@@ -1390,13 +1390,13 @@ for _name in ('x_field', 'y_field', 'z_field', 'radial_field', 'angle_field', 'p
               'add_fields', 'subtract_fields', 'multiply_fields', 'divide_fields', 'power_field', 'min_fields', 'max_fields',
               'abs_field', 'negate_field', 'sqrt_field', 'square_field'):
     globals()[_name] = returns_field(globals()[_name])
-for _name in ('thicken', 'shell_centered'):
+for _name in ('solidify', 'shell_centered'):
     globals()[_name] = returns_body(globals()[_name])
 
 # What these take, for the menus and the model tree (see fieldev.kinds.takes): the inside of a body and its edges, and a field selected with it is the number.  (Set here, after the
 # wrappers above: they are the functions the script calls.)
 from fieldev.kinds import takes as _declare, BODIES as _BODIES
-for _name in ('smooth', 'round_edges', 'fillet', 'shell_inside', 'shell_outside', 'shell_exact'):
+for _name in ('smooth', 'round_edges', 'fill_corners', 'shell_inside', 'shell_outside', 'shell_exact'):
     globals()[_name]._takes = _declare(_BODIES | {'field'}, [_BODIES])
 globals()['field_from_body']._takes = _declare(_BODIES)
 globals()['distance_to_point']._takes = _declare({'point'})            # (the distance from a point: a point is what it is made of)

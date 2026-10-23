@@ -3,7 +3,7 @@
 Every public function and class of the FielDev library, generated from its docstrings
 (`python scripts/gen_reference.py`).  `from fieldev import *` brings all of them in.
 
-Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Materials of an export](#materials-of-an-export) | [Skeletons of an export](#skeletons-of-an-export) | [UV maps](#uv-maps) | [Baked textures](#baked-textures) | [PNG files](#png-files) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: limbs made of points](#characters-limbs-made-of-points) | [Armatures: limbs, a character, a skeleton](#armatures-limbs-a-character-a-skeleton) | [Features: stitched loops](#features-stitched-loops) | [Reference images](#reference-images) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDev apps: the inputs of a script](#fieldev-apps-the-inputs-of-a-script)
+Contents: [Primitive shapes](#primitive-shapes) | [Combining shapes (CSG)](#combining-shapes-csg) | [Moving, rotating, scaling, deforming](#moving-rotating-scaling-deforming) | [Text](#text) | [Importing models](#importing-models) | [Triangle meshes](#triangle-meshes) | [Materials of an export](#materials-of-an-export) | [Skeletons of an export](#skeletons-of-an-export) | [UV maps](#uv-maps) | [Baked textures](#baked-textures) | [PNG files](#png-files) | [Exporting files](#exporting-files) | [Handles: editing shapes by dragging](#handles-editing-shapes-by-dragging) | [Linked copies](#linked-copies) | [Symmetry](#symmetry) | [Points and surfaces](#points-and-surfaces) | [Lines and curves: 1D shapes made of points](#lines-and-curves-1d-shapes-made-of-points) | [Profiles and extrusions](#profiles-and-extrusions) | [Characters: armatures made of points](#characters-armatures-made-of-points) | [Armatures: armatures, a character, a skeleton](#armatures-armatures-a-character-a-skeleton) | [Stitching loops](#stitching-loops) | [Reference images](#reference-images) | [Measuring a body](#measuring-a-body) | [Fields](#fields) | [Regressions and data](#regressions-and-data) | [Surfaces and offsets](#surfaces-and-offsets) | [Selecting surfaces](#selecting-surfaces) | [Telling fields from numbers](#telling-fields-from-numbers) | [The shape class](#the-shape-class) | [Progress of a long step](#progress-of-a-long-step) | [Caching](#caching) | [Keeping rendered meshes (render cache)](#keeping-rendered-meshes-render-cache) | [A resolution of its own for one body](#a-resolution-of-its-own-for-one-body) | [FielDev apps: the inputs of a script](#fieldev-apps-the-inputs-of-a-script)
 
 ## Primitive shapes
 
@@ -190,7 +190,7 @@ Returns a shell of a shape with the given offset
 
 The union of any number of shapes.  radius (mm, default 0: a sharp union) blends the surfaces where they meet
 with a smooth transition of that radius, so parts that do not quite fit together are joined by a fillet --
-a rib and a plate, a horn and a head.  It works on any field.
+a rib and a tile, a horn and a head.  It works on any field.
 (A radius that is a field makes a blend that varies.)
 
 ## Moving, rotating, scaling, deforming
@@ -655,7 +655,7 @@ UV maps: how a surface is laid out on a texture.
     export_mesh(crate, "crate.obj", uvs=uv_box(500))                 a texture that repeats every 500 mm, going on from one face to the next
     export_mesh(pole, "pole.obj", uvs=uv_cylinder("z"))              wrapped once round the z axis
     export_mesh(ball, "ball.obj", uvs=[uv_sphere(), uv_unwrap(margin=8)])   two sets: the second one (TEXCOORD_1) is for a lightmap
-    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each limb as a tube along its path, each feature flat as it was drawn
+    export_mesh(hero, "hero.glb", uvs="armature")                       a character laid out part by part: each armature as a tube along its path, each set of stitching loops flat as it was drawn
 
 A UV map gives every corner of every triangle a place (u, v) on the texture, v up.  The vertices that are in triangles with different places are made again for each
 (a seam of the texture).  Two maps are made at most by an export: the first is the one the baked textures are made for.
@@ -707,12 +707,12 @@ The surface laid on the texture from the armature it was made of, part by part (
     export_mesh(hero, "hero.glb", uvs="armature")
     export_mesh(hero, "hero.glb", uvs=uv_armature(margin=8, size=2048))
 
-parts   the limbs and features to unwrap by, or None for the parts of the model that is exported (a `character` knows them)
+parts   the armatures and stitching loops to unwrap by, or None for the parts of the model that is exported (a `character` knows them)
 margin  the gap between islands, in texels of a `size` x `size` texture
 size    the size of the texture in texels that the margin is counted in
 
-Each triangle belongs to the part whose surface it is nearest to.  A LIMB is unwrapped as a tube along its path: u round the path, v along it, the seam straight along its
-back, the rounded ends carried on.  A FEATURE (stitching loops) is laid flat as it was drawn, in the picture of its view: u to the right, v up; what faces away from
+Each triangle belongs to the part whose surface it is nearest to.  An ARMATURE is unwrapped as a tube along its path: u round the path, v along it, the seam straight along its
+back, the rounded ends carried on.  STITCHING LOOPS are laid flat as they were drawn, in the picture of their view: u to the right, v up; what faces away from
 the viewer is an island of its own.  Every island is in millimetres, so a texel is the same size everywhere, and none is turned: the texture runs the way the part does
 
 ### `uv_box(size=None)`
@@ -1027,14 +1027,14 @@ other way round.  (A copy that has a shape of its own is another thing: copy the
 
 FielDev writes one with Ctrl+D (or Operations > Repeating > instance):
 
-    plate_2 = instance(plate)  # shadow: plate
-    plate_2 = gizmo(
-        plate_2,
+    tile_2 = instance(tile)  # shadow: tile
+    tile_2 = gizmo(
+        tile_2,
         move=(var(0), var(0), var(0)),
         rotate=(var(0), var(0), var(0)),
     )
 
-The original is only REFERRED to: the mark `# shadow: plate` keeps it where it is in the model tree (a shadow of it is shown under the copy), whether it is
+The original is only REFERRED to: the mark `# shadow: tile` keeps it where it is in the model tree (a shadow of it is shown under the copy), whether it is
 locked or not -- taking the original into the copy would move its row away and make the copy look like what the original is made of.
 Every model is cloned the same way, `copy = instance(model)`: a model that is not a shape -- a material, a number -- is its own value
 (no place to give it).  What is made of points -- a profile, a polyline, a spline -- is cloned like any shape: its copy is placed by its own gizmo, as the
@@ -1143,7 +1143,7 @@ Points and surfaces: models of their own kind, and how every kind is drawn.
 
 A point is usable where a field function takes a position (distance_to_point(p), attractor(p, ...)) and gives its
 coordinates as p.xyz.  A surface is a field like any other (negative on one side, positive on the other), so it works
-wherever a field does: thicken(s, 1) makes it a wall, texture(part, region=s) roughens the part there.
+wherever a field does: solidify(s, 1) makes it a wall, texture(part, region=s) roughens the part there.
 
 What is drawn for each kind of model (Shape._display calls displayed() below):
     a 3D shape                    as it is
@@ -1245,7 +1245,7 @@ A curve is a model of its own kind (a 1D shape), made of points and drawn as a l
     tube = offset(smooth, 1.5)                  # a 3D shape: the points at most 1.5 from the curve (a tube round it)
     beam = path_extrude(face, smooth)           # a 2D shape swept along it
 
-As a field a curve is the distance to it (zero on it, positive everywhere else), so `offset`, `thicken` and the field functions work on it.
+As a field a curve is the distance to it (zero on it, positive everywhere else), so `offset`, `solidify` and the field functions work on it.
 
 A polyline is made of corners and a spline of spline points -- but each POINT can say otherwise (`point(..., smooth=True)` or `smooth=False`; FielDev toggles
 it when you double-click the point), so a spline can have a corner and a polyline a smooth stretch.  The ROTATION of a spline point -- the rotate numbers of
@@ -1392,11 +1392,11 @@ A 2D shape from points or from a closed curve: `profile`.
     b = point(40, 0, 0)
     c = point(40, 20, 0)
     d = point(0, 20, 0, smooth=True)
-    plate = profile([a, b, c, d])                # the face the points enclose; hard edges unless a point says smooth=True
+    tile = profile([a, b, c, d])                # the face the points enclose; hard edges unless a point says smooth=True
     round = profile([a, b, c, d], smooth=True)   # ...or every point a spline, but where a point says smooth=False
     outline = spline([a, b, c, d], closed=True)
-    plate = profile(outline)                     # the same, from a curve
-    body = extrude(plate, 0, 5)                 # a solid: the face pulled 5 along its normal
+    tile = profile(outline)                     # the same, from a curve
+    body = extrude(tile, 0, 5)                 # a solid: the face pulled 5 along its normal
 
 The points are ordinary points (`point(x, y, z)`, dragged with their gizmo): any number of them, joined in the order they are given and closed (the last to
 the first).  The shape lies in the PLANE through the first three points (the first that is not on a line with the first two); every other point is
@@ -1460,20 +1460,20 @@ corner) by default.  With fewer than three points, or all on a line, it is empty
 of the face (exact for a flat face), or, for a surface that is not flat, of its projection onto the plane through its middle, along the way it faces on
 average.  It is made from the surface and moves with it: it has no points of its own to drag
 
-## Characters: limbs made of points
+## Characters: armatures made of points
 
 Characters: bodies made of points, in the spirit of a skeleton of round joints -- a few points, each with a size, and the flesh round them.
 
     shoulder = point(0, 0, 40)
     elbow = point(22, 0, 38)
     hand = point(40, 0, 30)
-    arm = chain([shoulder, elbow, hand], radii=[7, 5, 4])      # a limb that tapers: a round cone from joint to joint
+    arm = chain([shoulder, elbow, hand], radii=[7, 5, 4])      # an armature that tapers: a round cone from joint to joint
     leg = chain([point(0, 0, 0), point(0, 0, 25)], radii=[5, 7])
-    body = smooth_union(arm, leg, 3)                           # limbs are joined with a blend, as everything else is
+    body = smooth_union(arm, leg, 3)                           # armatures are joined with a blend, as everything else is
 
-`round_cone(a, b, ra, rb)` is the segment: two balls and the taper between them.  `chain(points, radii, blend)` is a limb: a round cone between each two
+`round_cone(a, b, ra, rb)` is the segment: two balls and the taper between them.  `chain(points, radii, blend)` is an armature: a round cone between each two
 points that follow each other.  The radius at a joint is the SIZE of its point -- the scale of its gizmo, the ring that is dragged to make the joint
-thicker -- times `radii[i]` when radii are given, so a limb is shaped by dragging its points and the sizes of its points, in the viewport, as a spline is.
+thicker -- times `radii[i]` when radii are given, so an armature is shaped by dragging its points and the sizes of its points, in the viewport, as a spline is.
 
 A joint is a ball, a segment is the surface between two balls with a radius that changes along it, and a chain is the union of its segments: a smooth
 body wherever the radius changes gently, and balls at the joints however it changes.  The fields are plain math (no meshing step), so they are blended,
@@ -1485,106 +1485,106 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ### `chain(points, radii=None, blend=0)`
 
-A limb through points: a round cone (see `round_cone`) between each two points that follow each other, joined as one body.
+An armature through points: a round cone (see `round_cone`) between each two points that follow each other, joined as one body.
 
     arm = chain([shoulder, elbow, hand], radii=[7, 5, 4])
 
 points  the joints, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  One point is a ball
 radii   the radius at each joint: a number for all of them, or one for each (numbers or fields).  The radius at a joint is that number TIMES the size of
         its point -- the scale of its gizmo (1 for a point that has none) -- so with no radii the size of a point is its radius, and the ring of its gizmo is the
-        thickness of the limb there
+        thickness of the armature there
 blend   the radius of a smooth blend where the segments meet (0, the default: none; the joints are balls already, so a chain is smooth without it)
 
 ### `round_cone(a, b, ra, rb=None)`
 
 Two balls, one of radius `ra` at `a` and one of radius `rb` at `b` (the same as `ra` when it is not given), and the surface between them whose radius
-changes along the way from one to the other: a limb that tapers, a bone with its joints.  `a` and `b` are points, or tuples of numbers; the radii are
-numbers, or fields (a radius that is thick here and thin there).  The cone is cut across by the ends: each ends in a ball, so that limbs that
+changes along the way from one to the other: an armature that tapers, a bone with its joints.  `a` and `b` are points, or tuples of numbers; the radii are
+numbers, or fields (a radius that is thick here and thin there).  The cone is cut across by the ends: each ends in a ball, so that armatures that
 meet at a joint are one smooth body there.  Where the radius changes fast over a short way the surface is steeper than the field is: a body, not a distance
 
-## Armatures: limbs, a character, a skeleton
+## Armatures: armatures, a character, a skeleton
 
 Armatures: a character made of parts, each a path of nodes with a cross-section, and the skeleton that goes with them.
 
-    shoulder = point(18, 0, 138)                            # a node: a point, with the size of its gizmo (the gold ring) as how thick the limb is there
+    shoulder = point(18, 0, 138)                            # a node: a point, with the size of its gizmo (the gold ring) as how thick the armature is there
     elbow = point(31, 0, 113)
     hand = point(37, 8, 92)
-    arm = limb([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
-    spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
+    arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+    spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
     face = cut_face(arm)                                    # the cross-section of the arm, shown at its first node: its points are the profile's
     hero = character([spine, arm, ...], blend=4, symmetric="x")          # the body: the parts joined with a blend, and the left half as the mirror image
     export_mesh(hero, "hero.glb", symmetric="x", skeleton=skeleton_of([spine, arm, ...], mirror="x"))
 
-A LIMB is a path extruded: a cross-section swept along a smooth curve through its nodes (the curve is a Catmull-Rom spline through the nodes, so the limb bends smoothly), thicker or
-thinner at each node, and every number in it is an expression of the nodes, so that a node dragged in the viewport moves the limb with it at once.  The cross-section is a PROFILE:
-by default one that is made for the limb -- a square whose four corners are spline points, so that it is nearly round, with a radius of `radii` (1 by default) -- or any 2D shape of your
-own, `limb([...], profile=my_profile)`: a profile you made from points, a polygon, a rectangle.  The profile is the same for the whole limb, and a node's size (the gold ring of its gizmo)
+An ARMATURE is a path extruded: a cross-section swept along a smooth curve through its nodes (the curve is a Catmull-Rom spline through the nodes, so the armature bends smoothly), thicker or
+thinner at each node, and every number in it is an expression of the nodes, so that a node dragged in the viewport moves the armature with it at once.  The cross-section is a PROFILE:
+by default one that is made for the armature -- a square whose four corners are spline points, so that it is nearly round, with a radius of `radii` (1 by default) -- or any 2D shape of your
+own, `armature([...], profile=my_profile)`: a profile you made from points, a polygon, a rectangle.  The profile is the same for the whole armature, and a node's size (the gold ring of its gizmo)
 makes it bigger or smaller there (keep it near 1: a node's size is also how strongly the path leaves it, and a node many times the size of the profile swings the path out and back on
-itself -- make the profile that size instead); the profile is a model of its own, so a different one is swapped in by dropping it on the profile the limb uses in the model tree.  Where the profile
-is does not matter: the limb is swept from the first node.  `cut_face(limb)` shows the profile there, as a linked clone (`instance`) turned the way the limb leaves the node, with a dot
-for each of the profile's points: pull a dot, and the profile -- and so the whole limb -- changes with it.
+itself -- make the profile that size instead); the profile is a model of its own, so a different one is swapped in by dropping it on the profile the armature uses in the model tree.  Where the profile
+is does not matter: the armature is swept from the first node.  `cut_face(armature)` shows the profile there, as a linked clone (`instance`) turned the way the armature leaves the node, with a dot
+for each of the profile's points: pull a dot, and the profile -- and so the whole armature -- changes with it.
 
-The nodes of a limb are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  A limb
-that begins on a node of another limb -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where a limb is joined
-when its first node is not on the other.  There is one root: the first node of the first limb.
+The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  An armature
+that begins on a node of another armature -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where an armature is joined
+when its first node is not on the other.  There is one root: the first node of the first armature.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 
-### `Limb`
+### `Armature`
 
-What a limb knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
+What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
 sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in
 
-### `character(limbs, blend=3, symmetric=None)`
+### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0)`
 
-The body made of limbs and features: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror
+A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
+
+    arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+
+points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a node's gizmo -- the gold ring, 1 for a tuple -- is
+         how big the cross-section is there: the ring is drawn as a circle of the armature's real radius round the node
+radii    the size of the cross-section the armature is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or, for nodes that are
+         tuples of numbers, a list with one number for each node (a point has its own size, in its gizmo)
+profile  the cross-section: any 2D shape (a profile made of points, a polygon, a rectangle).  None: a square with spline points, made for the armature.  It is swept from the first
+         node whatever place it is at; a different profile is dropped on this one in the model tree to swap it
+name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
+parent   the name of the joint this armature hangs from, when its first node is not on a node of another armature
+twist    degrees: the whole cross-section turned about the path
+
+### `character(armatures, blend=3, symmetric=None)`
+
+The body made of armatures and stitching loops: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror
 image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both)
 
 ### `cut_face(one, node=0)`
 
-The cross-section of a limb, shown at its first node: the profile the limb is swept from, as a linked clone of it (`instance`) put where the limb has it -- turned the way the
-limb leaves the node, in the middle of the node -- and drawn with a dot for each of the profile's points.  Pull a dot, double click it, or press the outline to put a point on
-it, and it is the profile that changes, and with it the limb.
+The cross-section of an armature, shown at its first node: the profile the armature is swept from, as a linked clone of it (`instance`) put where the armature has it -- turned the way the
+armature leaves the node, in the middle of the node -- and drawn with a dot for each of the profile's points.  Pull a dot, double click it, or press the outline to put a point on
+it, and it is the profile that changes, and with it the armature.
 
     arm_face = cut_face(arm)
     arm_face
 
-The profile must be made of points (`profile([...])`) for it to have dots; the cross-section a limb makes for itself has none.  Only the first node has one (node=0)
+The profile must be made of points (`profile([...])`) for it to have dots; the cross-section an armature makes for itself has none.  Only the first node has one (node=0)
 
-### `limb(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0)`
+### `skeleton_of(armatures, mirror=None, plane=0.0, join=None)`
 
-A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
-
-    arm = limb([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
-
-points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a node's gizmo -- the gold ring, 1 for a tuple -- is
-         how big the cross-section is there: the ring is drawn as a circle of the limb's real radius round the node
-radii    the size of the cross-section the limb is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or, for nodes that are
-         tuples of numbers, a list with one number for each node (a point has its own size, in its gizmo)
-profile  the cross-section: any 2D shape (a profile made of points, a polygon, a rectangle).  None: a square with spline points, made for the limb.  It is swept from the first
-         node whatever place it is at; a different profile is dropped on this one in the model tree to swap it
-name     what the skeleton calls the limb ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
-parent   the name of the joint this limb hangs from, when its first node is not on a node of another limb
-twist    degrees: the whole cross-section turned about the path
-
-### `skeleton_of(limbs, mirror=None, plane=0.0, join=None)`
-
-The joints of the limbs, for `export_mesh(..., skeleton=...)`: a joint at each node, named by the limb's `joints`, each hanging from the one before it.  A limb whose first node is
+The joints of the armatures, for `export_mesh(..., skeleton=...)`: a joint at each node, named by the armature's `joints`, each hanging from the one before it.  An armature whose first node is
 within `join` mm of a joint already made (default: half a millimetre: the same point, or the same place typed again) is a branch of it: that joint is its first, and its other nodes hang from it.
-A limb that is not on any joint hangs from the joint it names with `parent=`.  `mirror` ("x", "y" or "z"): the joints whose name ends with ".R" get a ".L" one across that plane
+An armature that is not on any joint hangs from the joint it names with `parent=`.  `mirror` ("x", "y" or "z"): the joints whose name ends with ".R" get a ".L" one across that plane
 
-## Features: stitched loops
+## Stitching loops
 
-Features: surfaces stitched through loops of points, for the delicate parts of a character -- a face, an ear, a hand.
+Stitching loops: a surface stitched through loops of points, for the delicate parts of a character -- a face, an ear, a hand.
 
     outline = loop([point(0, 0, -10), point(7, 0, -5), point(8, 0, 4), point(0, 0, 10)])      # half of the face: an open path
     eye = ring((3, -0.4, 3), 1.3, 8)                                                          # a closed loop of 8 points
     nose = loop([point(0, -1.5, 1), point(0.8, -1.0, -1.5), point(0, -1.6, -2.5)])
-    face = feature([outline, eye, nose], mirror="x", name="face")
+    face = stitching_loops([outline, eye, nose], mirror="x", name="face")
 
-A FEATURE is a surface stitched through LOOPS.  A loop is a path of points, closed into a ring or open; every point you place is a vertex of the surface -- none is added, none is moved
+STITCHING LOOPS make a surface through LOOPS of points.  A loop is a path of points, closed into a ring or open; every point you place is a vertex of the surface -- none is added, none is moved
 -- and every edge of a loop is an edge of the surface, so the loops you draw are the edge loops of the face, wherever the points are dragged.  This is the method of Dust3D's stitching
 loops, for modelling a part from the outlines of a reference picture: draw the outline of the face, of an eye, of the mouth, and the surface between them is made.
 
@@ -1594,7 +1594,7 @@ along any direction (`view=((0, 1, -1), (0, 0, 1))`: the direction you look alon
 
 Nothing is automatic unless the arguments ask for it:
 
-    feature(loops, view="front", mirror=None, snap=0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1, back_sharpness=0, thickness=0.2, name=None)
+    stitching_loops(loops, view="front", mirror=None, snap=0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1, back_sharpness=0, thickness=0.2, name=None)
 
         loops        the loops: `loop(...)`, `ring(...)`, a polyline or spline, a profile, or a plain list of points (an open loop)
         view         "front", "back", "left", "right", "top", "bottom", or (direction, up): the plane the points are joined in
@@ -1608,56 +1608,48 @@ Nothing is automatic unless the arguments ask for it:
         back         True: close the outer boundary with rings that shrink to a point behind the surface, so that it is a solid.  back_depth is how deep that point is, as a share of the
                      mean radius of the outline, and back_sharpness (0 to 1) how much the rings keep the shape of the outline and do not follow the surface
         thickness    an open surface is a shell of this thickness (the surface is its middle); a closed one is a solid and has none
-        name         what the UV map and the model tree call the feature
+        name         what the UV map and the model tree call it
 
-Each loop can say its own choice and the feature's is then not used for it:
+Each loop can say its own choice, and the surface's is then not used for it:
 
     loop(points, closed=False, mirror=None, opening=None)
 
         closed       True: a ring (the last point is joined to the first)
-        mirror       None: as the feature says.  False: this loop is not mirrored.  True: across the plane of the feature.  Or a plane of its own
+        mirror       None: as the surface says.  False: this loop is not mirrored.  True: across the plane of the surface.  Or a plane of its own
         opening      None: as `openings` says.  True: this closed loop is an opening, whatever is in it.  False: it is stitched across
 
-`ring(center, radius, count, facing)` makes the points of a round loop.  The feature joins a character with the rest of the parts, as a limb does:
+`ring(center, radius, count, facing)` makes the points of a round loop.  The surface joins a character with the rest of the parts, as an armature does:
 
     hero = character([spine, arm, face], blend=2)
 
-The UV map of the character (`uvs="armature"`, see uvmaps.py) unwraps a feature as it was drawn: flat, in the picture of its view, and the back, if it has one, as an island of its own.
+The UV map of the character (`uvs="armature"`, see uvmaps.py) unwraps stitching loops as they were drawn: flat, in the picture of its view, and the back, if it has one, as an island of its own.
 
-The surface is a mesh, and the feature is the exact distance to that mesh.  It is made when the script runs: points dragged in the viewport change the surface when the script runs
-again, and not while the drag is going on, as the sweep of a limb does.
+The surface is a mesh, and the shape is the exact distance to that mesh.  It is made when the script runs: points dragged in the viewport change the surface when the script runs
+again, and not while the drag is going on, as the sweep of an armature does.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 
-### `Feature`
-
-What a feature knows of itself, for the UV map and the model tree: its name, the surface that was stitched (a stitching.StitchedSurface: vertices, triangles, which loop and
-point each vertex comes from, the view) and the thickness of the shell it is made into
-
 ### `Loop`
 
-The points of a loop of a feature, and what the loop says of itself (see `loop`)
+The points of a loop of stitching loops, and what the loop says of itself (see `loop`)
 
-### `feature(loops, view='front', mirror=None, snap=0.0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1.0, back_sharpness=0.0, thickness=0.2, name=None)`
+### `StitchingLoops`
 
-A surface stitched through loops of points -- see the top of this file for what each argument does.
-
-    face = feature([outline, eye, mouth, nose], mirror="x", name="face")
-
-Returns a shape: the exact distance to the surface, made a shell of `thickness` when the surface is open and a solid when it is closed (`back=True`, with no opening left)
+What stitching loops know of themselves, for the UV map and the model tree: its name, the surface that was stitched (a stitching.StitchedSurface: vertices, triangles, which loop and
+point each vertex comes from, the view) and the thickness of the shell it is made into
 
 ### `loop(points, closed=None, mirror=None, opening=None)`
 
-A loop of a feature: a path of points (`point(x, y, z)`, or tuples of numbers), with what it says of itself.
+A loop for stitching_loops: a path of points (`point(x, y, z)`, or tuples of numbers), with what it says of itself.
 
     eye = loop([point(2, -0.4, 3), point(3, -0.5, 3.6), point(4, -0.4, 3)], closed=True, opening=True)
 
 points   a list of points, or a polyline, a spline or a profile (their points are the nodes)
 closed   True: a ring, the last point joined to the first.  None: as the polyline, spline or profile says, and open for a list
-mirror   None: as the feature says.  False: this loop is not mirrored.  True: across the plane of the feature.  Or a plane of its own ("x", ("x", 2), (point, normal))
-opening  None: as the feature says (`openings`).  True: this closed loop is an opening, whatever is in it.  False: it is stitched across
+mirror   None: as the surface says.  False: this loop is not mirrored.  True: across the plane of the surface.  Or a plane of its own ("x", ("x", 2), (point, normal))
+opening  None: as the surface says (`openings`).  True: this closed loop is an opening, whatever is in it.  False: it is stitched across
 
 ### `ring(center, radius, count=8, facing=(0, -1, 0), start=None)`
 
@@ -1665,16 +1657,24 @@ A closed loop of round points, as tuples of numbers: `count` of them on a circle
 is the normal of, the first at the direction `start` (default: up, +z; along x when the loop faces up or down).  The points follow each other counter-clockwise seen from
 where the loop faces.  The default faces -y, towards the viewer of the front view, with the first point up
 
+### `stitching_loops(loops, view='front', mirror=None, snap=0.0, openings=True, trim=True, fill_holes=8, back=False, back_depth=1.0, back_sharpness=0.0, thickness=0.2, name=None)`
+
+A surface stitched through loops of points -- see the top of this file for what each argument does.
+
+    face = stitching_loops([outline, eye, mouth, nose], mirror="x", name="face")
+
+Returns a shape: the exact distance to the surface, made a shell of `thickness` when the surface is open and a solid when it is closed (`back=True`, with no opening left)
+
 ## Reference images
 
 Reference images: a picture standing in the 3D view, to model over.
 
     front = reference_image("hero_front.png", plane="front", height=180)                 # a drawing of the character seen from the front, 180 mm high
     side = reference_image("hero_side.png", plane="right", height=180, center=(0, 0, 90), opacity=0.4)
-    spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128)], radii=[13, 11, 15], name="spine")      # the nodes are placed over the pictures
+    spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128)], radii=[13, 11, 15], name="spine")      # the nodes are placed over the pictures
 
 A reference image is not part of the model: it is drawn in the viewport, in the plane it is given, and nothing is exported of it.  The camera is free -- orbit, zoom, look at
-the pictures from any side -- and the nodes of a limb are placed over the picture, one after another, with the work plane (Shift+W) faced to the picture, or the pictures
+the pictures from any side -- and the nodes of an armature are placed over the picture, one after another, with the work plane (Shift+W) faced to the picture, or the pictures
 are the planes the nodes are dragged in.  The picture is set by numbers in the script: where its middle is (`center`), how tall it is (`height`: the width follows the picture's
 shape), how strong it is (`opacity`), whether it is turned over (`flip`) and whether it is shown (`visible`).
 
@@ -1772,15 +1772,15 @@ Groups:
                        signed_distance
     value maps         ramp, clamp, lerp, smoothstep, step_field, normalize,
                        remap_field, attractor, wave, sum_fields, mix
-    geometry           thicken, shell_inside / _outside / _centered,
+    geometry           solidify, shell_inside / _outside / _centered,
                        offset_by, smooth_union,
-                       smooth_intersection, smooth_difference, chamfer_union,
+                       smooth_intersection, smooth_difference, bevel_union,
                        union_all, intersection_all, repeat, repeat_polar,
                        mirror_x / _y / _z, twist_z, bend_z
     evaluation         evaluate, sample_grid, field_range, volume_of,
                        mass_properties
     exact distances    exact_distance, offset_exact, shell_exact,
-                       round_edges, fillet
+                       round_edges, fill_corners
     of the surface     normal_field, gradient_field, gradient_magnitude,
                        curvature_field, colored
     data               field_from_points, field_from_csv, noise_field
@@ -1813,6 +1813,10 @@ falloff: 'linear', 'smooth' (smoothstep) or 'gauss'.
 Bends a shape lying along +x around the z axis: x becomes arc length
 on a circle of the given radius
 
+### `bevel_union(a, b, size)`
+
+Union with a 45-degree chamfer of the given size where the shapes meet
+
 ### `body_from_field(field, level=0.0)`
 
 A BODY from a field: what is inside where the field is below `level` (0 by default), its surface where the field
@@ -1825,10 +1829,6 @@ offset, shelled, textured, exported).
 The value of the body is the field's less `level`, so it is a true distance to its surface only where the field is
 one (field_from_body of a body, a distance_to_point ...): the surface is exact, an offset of a body made from a
 field that only roughly measures distance is about right, not exact.  `level` may be a field too.
-
-### `chamfer_union(a, b, size)`
-
-Union with a 45-degree chamfer of the given size where the shapes meet
 
 ### `clamp(field, lo, hi)`
 
@@ -1929,10 +1929,10 @@ samples.  points: [(x, y, z), ...] with values [v, ...], or
 (min, max) of a field, sampled on a grid over a box (and only inside
 `body` if given)
 
-### `fillet(shape, radius, bounds=None)`
+### `fill_corners(shape, radius, bounds=None)`
 
 Fills every concave (inside) edge and corner of a shape with a
-fillet of the given radius (a number or a field), and fills what is narrower than the ball: a ball of that radius rolls in the air, and the
+fill_corners of the given radius (a number or a field), and fills what is narrower than the ball: a ball of that radius rolls in the air, and the
 shape is everything it cannot reach.  It is made from the shape's own field (see exact_distance and distance_field.py): the centres of the ball are where the field is
 `radius`, and the surface of the result is `radius` from them.  Exact for the inside edge of two flat faces at any angle and for the corner of three
 (the ball's centre is where the planes of the faces meet); a slot narrower than the ball is filled flush with its mouth, not left with the sag of the ball resting on its two edges.
@@ -2160,7 +2160,7 @@ itself, named for readability
 
 Smooths the surface of a body without thickening it: bumps, dents, ridges and stair-steps smaller than
 about `radius` mm are smoothed away, edges and corners are eased, and a flat or gently curved face stays
-where it is (unlike offset() or thicken(), which move or grow the surface).  The field of the body is
+where it is (unlike offset() or solidify(), which move or grow the surface).  The field of the body is
 averaged over the points a `radius` away on all six sides -- the smoothing of a mesh's Laplacian, done on the
 field -- and `steps` of those make the field of the smoothed body: more steps smooth further (the reach
 grows as the square root of the number of steps).  The radius is a number or a field (smoothed more where
@@ -2190,6 +2190,12 @@ is round here and sharp there)
 ### `smoothstep(field, edge0, edge1)`
 
 0 below edge0, 1 above edge1, a smooth S-curve between
+
+### `solidify(field, thickness)`
+
+A solid wall of the given thickness centred on a field's zero
+surface (e.g. a plane, a TPMS surface, a shape's skin); the
+thickness may be a field
 
 ### `sqrt_field(field)`
 
@@ -2221,12 +2227,6 @@ A texture on the surface of `body`: a pattern of small bumps and pits laid over 
 places to texture; the texture fades out over `fade` mm (the size, by default) so that no step is left at its edge.  A texture is made of the field of the body: the
 render has to be fine enough to show it -- a resolution of about four samples to the size.  E.g. a rough grip on the top face:
 top = select_surface(part, seed=(0, 0, 10)); gripped = texture(part, 'grit', depth=0.2, size=0.6, region=top)
-
-### `thicken(field, thickness)`
-
-A solid wall of the given thickness centred on a field's zero
-surface (e.g. a plane, a TPMS surface, a shape's skin); the
-thickness may be a field
 
 ### `twist_z(shape, degrees_per_mm, center=(0, 0))`
 
@@ -2493,8 +2493,8 @@ writes the `select_surface(...)` line into the script under the part, like every
 `surface_from_bodies` picks a surface by other bodies instead of by a place: the surface of the FIRST body, where it meets the
 bodies that follow.
 
-    plate_holes = surface_from_bodies(plate, bolt_1, bolt_2)      # the walls of the holes the two bolts sit in
-    skin = surface_from_bodies(plate)                             # no other body: the whole surface of the plate
+    tile_holes = surface_from_bodies(tile, peg_1, peg_2)      # the walls of the holes the two pegs sit in
+    skin = surface_from_bodies(tile)                             # no other body: the whole surface of the tile
 
 It is a surface like the one `select_surface` makes -- a region of a surface --
 and it too is made from the fields alone: the first body's surface is where its field is zero, and "meets" is a number, the
@@ -2546,8 +2546,8 @@ texture(part, region=selection).
 The surface of `body` where it meets `others`, the bodies that follow: the parts of its surface that intersect them (that
 touch them or run through them), as a surface.  With no other body, the whole surface of `body`.
 
-    holes = surface_from_bodies(plate, bolt_1, bolt_2)   # the plate's surface where the bolts are
-    skin = surface_from_bodies(plate)                    # all of it
+    holes = surface_from_bodies(tile, peg_1, peg_2)   # the tile's surface where the pegs are
+    skin = surface_from_bodies(tile)                    # all of it
 
 body        the body whose surface is selected (a part, an imported part, any shape)
 others      the bodies that choose where: a point of the surface of `body` is selected when it is inside one of

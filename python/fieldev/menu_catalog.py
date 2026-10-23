@@ -52,7 +52,7 @@ HINTS = {
 # rotates it), in the horizontal plane at the place of the click
 def _gizmoed_point(name, x, y, z, shown=True):
     ''' The statements of a point that is a model of its own, with its gizmo (so that it can be dragged).  `shown` False: the line that shows the point where it is is left out
-        (the points of the profile of a limb are shown by the clone of it at the limb's first node, not at the origin) '''
+        (the points of the profile of an armature are shown by the clone of it at the armature's first node, not at the origin) '''
     return ('%s = point(%s, %s, %s)\n%s = gizmo(\n    %s,\n    move=(var(0), var(0), var(0)),\n    rotate=(var(0), var(0), var(0)),\n'
             '    scale=(var(1), var(1), var(1)),\n)\n%s' % (name, x, y, z, name, name, ('%s\n' % name) if shown else ''))
 
@@ -73,16 +73,16 @@ _LINE_POINTS, _LINE_LIST = _points(('{xm}', '{y}', '{z}'), ('{x}', '{yp}', '{z}'
 _POLYLINE = _LINE_POINTS + '#@@#\npolyline([' + _LINE_LIST + '])'
 _SPLINE = _LINE_POINTS + '#@@#\nspline([' + _LINE_LIST + '])'
 _CHAIN = _LINE_POINTS + '#@@#\nchain([' + _LINE_LIST + '], radii={q})'
-# The cross-section of a limb made from the menu: a profile of four points -- a square whose corners are spline points, nearly a circle of the radius {q} -- in the plane z = 0 at the
-# origin, written above the limb: each point a model of its own with its gizmo, none drawn there.  The limb is swept along its nodes from it (swap it by dropping another profile on it
-# in the model tree); the clone of it shown at the first node, written under the limb's line, has the dots of its points
+# The cross-section of an armature made from the menu: a profile of four points -- a square whose corners are spline points, nearly a circle of the radius {q} -- in the plane z = 0 at the
+# origin, written above the armature: each point a model of its own with its gizmo, none drawn there.  The armature is swept along its nodes from it (swap it by dropping another profile on it
+# in the model tree); the clone of it shown at the first node, written under the armature's line, has the dots of its points
 _CUT_POINTS, _CUT_LIST = _points(('{qa}', '{qa}', '0'), ('{qn}', '{qa}', '0'), ('{qn}', '{qn}', '0'), ('{qa}', '{qn}', '0'), base='{var}_cut', shown=False)
 _CUT = _CUT_POINTS + '{var}_cut = profile([' + _CUT_LIST + '], smooth=True)\n'
 _FACE = '\n#@@@#\n{var}_face = cut_face({var})\n{var}_face'
-_LIMB = _LINE_POINTS + _CUT + '#@@#\nlimb([' + _LINE_LIST + '], profile={var}_cut, name="{var}")' + _FACE
+_ARMATURE = _LINE_POINTS + _CUT + '#@@#\narmature([' + _LINE_LIST + '], profile={var}_cut, name="{var}")' + _FACE
 
 
-# The loops of a new feature: half a face drawn on the front view, as (x, y, z) in halves of the size from the place -- an outline from the chin to the top of the head (open, its ends
+# The loops of new stitching loops: half a face drawn on the front view, as (x, y, z) in halves of the size from the place -- an outline from the chin to the top of the head (open, its ends
 # on the plane of the mirror), an eye (a ring), a mouth (open, the end on the plane is where it is mirrored) and a nose (open, both ends on the plane, a ridge in front of the face)
 _HALF_FACE = {
     'o': (False, [(0.0, 0.1, -1.0), (0.55, 0.1, -0.8), (0.85, 0.1, -0.2), (0.8, 0.1, 0.5), (0.45, 0.1, 0.95), (0.0, 0.1, 1.05)]),
@@ -92,8 +92,8 @@ _HALF_FACE = {
 }
 
 
-def _feature_text():
-    ''' A feature made from the menu: half a face (see _HALF_FACE), mirrored across the plane through the place -- each point a model of its own with its gizmo, and the call through
+def _stitching_loops_text():
+    ''' Stitching loops made from the menu: half a face (see _HALF_FACE), mirrored across the plane through the place -- each point a model of its own with its gizmo, and the call through
         the loops with every choice written out, to change in the script.  The places of the points are worked out in `_values` (f<loop><point>x, y, z) '''
     texts, loops = [], []
     for key, (closed, rows) in _HALF_FACE.items():
@@ -101,11 +101,11 @@ def _feature_text():
         pts, listing = _points(*places, base='{var}_%s' % key)
         texts.append(pts)
         loops.append('loop([' + listing + ']' + (', closed=True' if closed else '') + ')')
-    return ''.join(texts) + ('#@@#\nfeature([' + ', '.join(loops) + '], view="front", mirror=("x", {x}), snap=0, openings=True, trim=True, fill_holes=8, back=False, thickness={t}, '
+    return ''.join(texts) + ('#@@#\nstitching_loops([' + ', '.join(loops) + '], view="front", mirror=("x", {x}), snap=0, openings=True, trim=True, fill_holes=8, back=False, thickness={t}, '
                              'name="{var}")')
 
 
-_FEATURE = _feature_text()
+_STITCHING_LOOPS = _stitching_loops_text()
 
 # What an entry can be made OF the models selected, as DATA -- the entries that are made of what is selected, each with the words for its tooltip and the WAYS it is made, tried
 # in the order they are listed: (the kinds of model it is made of, the least and the most of them (None: any number), the call it is written as -- `{names}` is those models in
@@ -123,13 +123,13 @@ FROM_SELECTION = {
     'spline': (tr('A smooth curve through points.  With points selected: made from them, in the order you selected them.  With none: three new points to '
                   'drag.  Press the curve and drag to pull a point out of it; double-click a point to make it a corner or a spline point'),
                [({'point'}, 2, None, 'spline([{names}])')]),
-    'chain': (tr('A limb through points: a round cone between each two, thick where the point is big.  With points selected: made from them, in the order you selected them.  '
-                 'With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the limb is there'),
+    'chain': (tr('An armature through points: a round cone between each two, thick where the point is big.  With points selected: made from them, in the order you selected them.  '
+                 'With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the armature is there'),
               [({'point'}, 1, None, 'chain([{names}], radii=3)')]),
-    'limb': (tr('A part of a character: a smooth path through points, thick where the point is big (a path extrude), and the joints of its skeleton.  With points selected: made '
+    'armature': (tr('A part of a character: a smooth path through points, thick where the point is big (a path extrude), and the joints of its skeleton.  With points selected: made '
                 'from them, in the order you selected them.  With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the '
-                'limb is there; a limb that begins on a point of another limb is a branch of it'),
-             [({'point'}, 1, None, 'limb([{names}], radii=3)')]),
+                'armature is there; an armature that begins on a point of another armature is a branch of it'),
+             [({'point'}, 1, None, 'armature([{names}], radii=3)')]),
 }
 
 # (function, group, template)
@@ -144,8 +144,8 @@ PRIMITIVES = [
     ('prism', '3D', 'prism(({xm}, {ym}), ({xp}, {ym}), ({x}, {yp}), {zm}, {zp})'),
     ('half_space', '3D', 'half_space((0, 0, 1), ({x}, {y}, {z}))'),
     ('chain', '3D', _CHAIN),
-    ('limb', 'Character', _LIMB),
-    ('feature', 'Character', _FEATURE),
+    ('armature', 'Character', _ARMATURE),
+    ('stitching_loops', 'Character', _STITCHING_LOOPS),
     ('low_level_body', '3D', _LOW_LEVEL_BODY),
     ('circle', '2D', 'circle({h}, ({x}, {y}))'),
     ('rectangle', '2D', 'rectangle(({xm}, {ym}), ({xp}, {yp}))'),
@@ -184,10 +184,10 @@ BASIC = frozenset((
     'distance_to_point', 'radial_field', 'z_field', 'noise_field',
 ))
 
-# The number of an operation's call that a FIELD takes the place of when one is selected with the body -- `offset(plate, swell)`
+# The number of an operation's call that a FIELD takes the place of when one is selected with the body -- `offset(tile, swell)`
 # -- the way a field dropped on the call in the model tree does it (every size, radius, thickness of the library takes a field)
-FIELD_SLOTS = {n: 't' for n in ('offset', 'shell', 'thicken', 'shell_inside', 'shell_outside', 'shell_centered', 'offset_exact',
-                                'shell_exact', 'smooth', 'round_edges', 'fillet')}
+FIELD_SLOTS = {n: 't' for n in ('offset', 'shell', 'solidify', 'shell_inside', 'shell_outside', 'shell_centered', 'offset_exact',
+                                'shell_exact', 'smooth', 'round_edges', 'fill_corners')}
 
 # The values the templates of an entry are filled with where the menu has nothing better than a default: a number, a text, or '$key' (what the menu
 # works out for the place and the size of the model).  Nothing is asked: what an entry writes is in the script, in front of the user, to be edited
@@ -195,7 +195,7 @@ FIELD_SLOTS = {n: 't' for n in ('offset', 'shell', 'thicken', 'shell_inside', 's
 PARAMS = {
     'offset': {'t': '$t'},
     'offset_exact': {'t': '$t'},
-    'thicken': {'t': '$t'},
+    'solidify': {'t': '$t'},
     'shell': {'t': '$t'},
     'shell_inside': {'t': '$t'},
     'shell_outside': {'t': '$t'},
@@ -203,7 +203,7 @@ PARAMS = {
     'shell_exact': {'t': '$t'},
     'smooth': {'t': '$t', 'n': 3},
     'round_edges': {'t': '$t'},
-    'fillet': {'t': '$t'},
+    'fill_corners': {'t': '$t'},
     'move': {'dx': '$s', 'dy': 0, 'dz': 0},
     'rotate_z': {'angle': 45},
     'scale_xyz': {'sx': 1.5, 'sy': 1.5, 'sz': 1.5},
@@ -214,6 +214,15 @@ PARAMS = {
     'rounded_rectangle': {'r': 0.3},
     'polygon': {'n': 6},
     'noise_field': {'n': 3},
+    'smooth_union': {'t': '$t'},
+    'smooth_difference': {'t': '$t'},
+    'smooth_intersection': {'t': '$t'},
+    'bevel_union': {'t': '$t'},
+    'rotate_x': {'angle': 45},
+    'rotate_y': {'angle': 45},
+    'array_polar': {'n': 6},
+    'array_xyz': {'nx': 3, 'ny': 3, 'nz': 3, 'dx': '$s', 'dy': '$s', 'dz': '$s'},
+    'twist_z': {'tw': 2},
 }
 
 
@@ -243,19 +252,19 @@ def _apply_params(name, values):
 GROUP_KINDS = {'1D': 'curve', '3D': 'solid', '2D': 'profile', 'Points': 'point', 'Surfaces': 'surface', 'Fields': 'field', 'Symmetry': 'symmetry', 'Character': 'solid'}
 # (function, group, template, takes a second model: True = needs one, 'optional' = takes the other selected models if there are any)
 OPERATIONS = [
-    ('offset', 'Offsets and walls', 'offset({body}, {t})', 'optional'),
-    ('shell', 'Offsets and walls', 'shell({body}, {t})', 'optional'),
-    ('thicken', 'Offsets and walls', 'thicken({body}, {t})', 'optional'),
-    ('shell_inside', 'Offsets and walls', 'shell_inside({body}, {t})', 'optional'),
-    ('shell_outside', 'Offsets and walls', 'shell_outside({body}, {t})', 'optional'),
-    ('shell_centered', 'Offsets and walls', 'shell_centered({body}, {t})', 'optional'),
-    ('offset_exact', 'Offsets and walls', 'offset_exact({body}, {t})', 'optional'),
-    ('shell_exact', 'Offsets and walls', 'shell_exact({body}, {t})', 'optional'),
+    ('offset', 'Grow and hollow', 'offset({body}, {t})', 'optional'),
+    ('shell', 'Grow and hollow', 'shell({body}, {t})', 'optional'),
+    ('solidify', 'Grow and hollow', 'solidify({body}, {t})', 'optional'),
+    ('shell_inside', 'Grow and hollow', 'shell_inside({body}, {t})', 'optional'),
+    ('shell_outside', 'Grow and hollow', 'shell_outside({body}, {t})', 'optional'),
+    ('shell_centered', 'Grow and hollow', 'shell_centered({body}, {t})', 'optional'),
+    ('offset_exact', 'Grow and hollow', 'offset_exact({body}, {t})', 'optional'),
+    ('shell_exact', 'Grow and hollow', 'shell_exact({body}, {t})', 'optional'),
     # A texture on the surface of a body: a surface that is selected with it (or a field, or a body) is where it goes
     ('texture', 'Texturing', 'texture({body})', 'optional'),
-    ('smooth', 'Rounding', 'smooth({body}, {t}, {n})', 'optional'),
-    ('round_edges', 'Rounding', 'round_edges({body}, {t})', 'optional'),
-    ('fillet', 'Rounding', 'fillet({body}, {t})', 'optional'),
+    ('smooth', 'Round and bevel', 'smooth({body}, {t}, {n})', 'optional'),
+    ('round_edges', 'Round and bevel', 'round_edges({body}, {t})', 'optional'),
+    ('fill_corners', 'Round and bevel', 'fill_corners({body}, {t})', 'optional'),
     ('move', 'Moving', 'move({body}, ({dx}, {dy}, {dz}))', False),
     ('rotate_z', 'Moving', 'rotate_z({body}, {angle_rad})', False),
     ('scale_xyz', 'Moving', 'scale_xyz({body}, ({sx}, {sy}, {sz}))', False),
@@ -299,7 +308,27 @@ OPERATIONS = [
     ('bounding_box', 'Measuring', 'bounding_box({body})', False),
     # A field made of a point: how far each place is from it (in the first menu of a point, and only there)
     ('distance_to_point', 'Fields', 'distance_to_point({body})', False),
-    # A character: the limbs selected are joined into one body (the other half a mirror image), and are the skeleton of it
+    # More ways to put models together (a blend where they meet: smooth, or cut at 45 degrees), to turn, mirror, repeat and deform them, and to paint them
+    ('smooth_union', 'Combining', 'smooth_union({body}, {other}, {t})', True),
+    ('smooth_difference', 'Combining', 'smooth_difference({body}, {other}, {t})', True),
+    ('smooth_intersection', 'Combining', 'smooth_intersection({body}, {other}, {t})', True),
+    ('bevel_union', 'Combining', 'bevel_union({body}, {other}, {t})', True),
+    ('morph', 'Combining', 'morph({body}, {other}, 0.5)', True),
+    ('rotate_x', 'Moving', 'rotate_x({body}, {angle_rad})', False),
+    ('rotate_y', 'Moving', 'rotate_y({body}, {angle_rad})', False),
+    ('reflect_y', 'Moving', 'reflect_y({body})', False),
+    ('reflect_z', 'Moving', 'reflect_z({body})', False),
+    ('array_polar', 'Repeating', 'array_polar({body}, {n})', False),
+    ('array_xyz', 'Repeating', 'array_xyz({body}, {nx}, {ny}, {nz}, ({dx}, {dy}, {dz}))', False),
+    ('twist_z', 'Bend and twist', 'twist_z({body}, {tw})', False),
+    ('bend_z', 'Bend and twist', 'bend_z({body}, {s})', False),
+    ('taper_xy_z', 'Bend and twist', 'taper_xy_z({body}, ({x}, {y}, {zm}), {s}, 0.5)', False),
+    ('shear_x_y', 'Bend and twist', 'shear_x_y({body}, ({x}, {ym}), {s}, {t})', False),
+    # The colours a body is shown and exported with (the presets: see material_presets(); a material of your own is `material(...)`)
+    ('with_materials', 'Materials', 'with_materials({body}, material_preset("plastic"))', False),
+    # The cross-section of an armature, at its first node (made with every armature the menu makes: here for one that was written by hand)
+    ('cut_face', 'Character', 'cut_face({body})', False),
+    # A character: the armatures selected are joined into one body (the other half a mirror image), and are the skeleton of it
     ('character', 'Character', 'character([{body}{others}], blend=3, symmetric="x")', 'optional'),
     ('skeleton_of', 'Character', 'skeleton_of([{body}{others}], mirror="x")', 'optional'),
 ]
@@ -339,6 +368,58 @@ def _blocks():
         return []
 
 
+# What a game engine asks of an asset -- units, the up axis, a budget of triangles, levels of detail, UV maps, baked textures, a skeleton, the pivot -- is the arguments of `export_mesh`.  These
+# entries of the Export menu of a model write the call into the script, with the choices written out for the user to change and run (key, group in the menu, label, tooltip, the call;
+# `{var}` is the model)
+EXPORTS = [
+    ('game', '', tr('Game-ready glTF'),
+     tr('A .glb with its origin at the feet, UV islands packed into the texture, smooth normals and a budget of 8000 triangles: export_mesh(model, "model.glb", ...)'),
+     'export_mesh({var}, "{var}.glb", max_triangles=8000, pivot="base", uvs=uv_unwrap(), normals=True)'),
+    ('lods', '', tr('Levels of detail'),
+     tr('The same model at 8000, 2000 and 500 triangles, a file for each: export_lods(model, "model.glb", [8000, 2000, 500])'),
+     'export_lods({var}, "{var}.glb", [8000, 2000, 500], pivot="base")'),
+    ('engine_obj', '', tr('OBJ in metres, Y up'),
+     tr('A file as most engines read it: metres, and Y up (the model is turned, not mirrored)'),
+     'export_mesh({var}, "{var}.obj", units="m", up="y")'),
+    ('mirror', '', tr('Exactly symmetric mesh'),
+     tr('The half on the +x side is the model; the other half is its exact mirror image'),
+     'export_mesh({var}, "{var}.glb", symmetric="x")'),
+    ('rigged', '', tr('With a skeleton'),
+     tr('A rigged glTF: the joints of skeleton_of([...]) -- put the armatures in -- and the weights that move each vertex'),
+     'export_mesh({var}, "{var}.glb", pivot="base", skeleton=skeleton_of([...]))'),
+    ('textures', '', tr('Baked textures'),
+     tr('The colour, normal map and occlusion / roughness / metalness pictures, made from the fields of the model at every texel of its UV map'),
+     'export_mesh({var}, "{var}.glb", uvs=uv_unwrap(), textures=bake(size=1024))'),
+    ('uv_box', tr('UV map'), tr('Box projection'),
+     tr('Each triangle is projected along the axis its normal is mostly along, seen from outside; a picture of the UV map is written beside the file to check it'),
+     'export_mesh({var}, "{var}.glb", uvs=uv_box(), uv_layout="{var}_uvs.png")'),
+    ('uv_planar', tr('UV map'), tr('Planar (floor, wall, relief)'),
+     tr('One projection along an axis for the whole surface'),
+     'export_mesh({var}, "{var}.glb", uvs=uv_planar("z"), uv_layout="{var}_uvs.png")'),
+    ('uv_cylinder', tr('UV map'), tr('Cylinder'),
+     tr('u is the angle round an axis through the middle of the model, v the height along it'),
+     'export_mesh({var}, "{var}.glb", uvs=uv_cylinder("z"), uv_layout="{var}_uvs.png")'),
+    ('uv_sphere', tr('UV map'), tr('Sphere'),
+     tr('u is the longitude and v the latitude about the middle of the model: the map a globe is drawn on'),
+     'export_mesh({var}, "{var}.glb", uvs=uv_sphere("z"), uv_layout="{var}_uvs.png")'),
+    ('uv_unwrap', tr('UV map'), tr('Unwrapped atlas'),
+     tr('The surface cut into islands, laid flat and packed into the square of the texture'),
+     'export_mesh({var}, "{var}.glb", uvs=uv_unwrap(), uv_layout="{var}_uvs.png")'),
+    ('uv_armature', tr('UV map'), tr('By armature part'),
+     tr('For a character: each armature laid out as a tube, each piece of stitched loops flat as it was drawn'),
+     'export_mesh({var}, "{var}.glb", uvs=uv_armature(), uv_layout="{var}_uvs.png")'),
+]
+
+
+def _export_text(r):
+    ''' The call of an export for a game engine, written into the script: `name` is `export_game|<entry>|<model>` '''
+    _, key, var = r['name'].split('|', 2)
+    for k, _group, _label, _doc, code in EXPORTS:
+        if k == key:
+            return code.replace('{var}', var)
+    raise ValueError(tr('the export menu has no entry called %s') % key)
+
+
 def catalog():
     ''' The lists as JSON for the menus: {"primitives": [{name, group, type}], "operations": [{name, group, other}]}; the custom
         blocks are in them too (group "Custom blocks", type "block") '''
@@ -366,6 +447,7 @@ def catalog():
                       + [{'name': b['name'], 'group': 'Custom blocks', 'other': False, 'type': 'block', 'doc': b['doc']}
                          for b in blocks if b['operation']],
         'python': [{'name': n, 'label': l, 'doc': d} for n, l, d, _code in PYTHON],
+        'export': [{'name': k, 'group': g, 'label': l, 'doc': d} for k, g, l, d, _code in EXPORTS],
     })
 
 
@@ -602,22 +684,34 @@ def _placed_template(name, r):
     ''' A profile, a polyline or a spline put down on the work plane: the points the user clicked, each a model of its own with its gizmo, and the call through them.
         A profile of a spline (`smooth`) has spline points '''
     places = [tuple(_num(float(c)) for c in p) for p in r['points']]
-    if name == 'limb':
-        return _limb_text(places)
+    if name == 'armature':
+        return _armature_text(places, r.get('scale'))
     return _stroke_text(name, places, r.get('smooth'), r)
 
 
-def _limb_text(places):
-    ''' A limb put down on the work plane, node after node: the nodes, each a model of its own with its gizmo (so that it can be dragged, and its size is how thick the limb is
-        there), and the call through them.  The thickness is a sixth of the longest stretch between two nodes, a round number: a limb of a drawing is about that thick '''
+def _armature_text(places, scale=None, first=None):
+    ''' An armature put down in the viewport, node after node: the nodes, each a model of its own with its gizmo (so that it can be dragged, and its size is how thick the armature is
+        there), and the call through them.  The thickness is a sixth of the longest stretch between two nodes, a round number: an armature of a drawing is about that thick '''
     pts = [tuple(float(c) for c in p) for p in places]
-    reach = max((math.dist(a, b) for a, b in zip(pts, pts[1:])), default=10.0)
+    # (one node has no stretch to measure: the size of the place it is put at, a fifth of it)
+    reach = max((math.dist(a, b) for a, b in zip(pts, pts[1:])), default=(scale or 10.0) * 1.2)
     points, listing = _points(*places)
-    # (the cross-section of the limb: the square with spline points, whose radius is a sixth of the longest stretch, written above it as a profile of its own, and its clone under the limb)
+    # (the cross-section of the armature: the square with spline points, whose radius is a sixth of the longest stretch, written above it as a profile of its own, and its clone under the armature)
     q = _nice(reach / 6.0)
     plus, minus = _num(0.75 * q), _num(-0.75 * q)
     cut_points, cut_list = _points((plus, plus, '0'), (minus, plus, '0'), (minus, minus, '0'), (plus, minus, '0'), base='{var}_cut', shown=False)
-    return points + cut_points + '{var}_cut = profile([%s], smooth=True)\n' % cut_list + '#@@#\n' + 'limb([%s], profile={var}_cut, name="{var}")' % listing + _FACE
+    if first:
+        listing = '%s, %s' % (first, listing)           # (a branch: it begins at a node that is there already)
+    return points + cut_points + '{var}_cut = profile([%s], smooth=True)\n' % cut_list + '#@@#\n' + 'armature([%s], profile={var}_cut, name="{var}")' % listing + _FACE
+
+
+def armature_branch(var, anchor, place, scale=None):
+    ''' An armature that begins at a node of another one, as the viewport puts it down when a node in the middle of an armature is picked and the next one is placed: the statements of a
+        new armature `var` -- the node at `place` (the texts of x, y, z), its cross-section and the call through `anchor` (the variable of the node it begins at) and the new node, with the
+        line that shows it and its cut face -- as they are written in the script '''
+    prelude, rest = _armature_text([place], scale, anchor).split('#@@#\n')
+    call, face = rest.split('\n#@@@#\n')
+    return (prelude + '{var} = ' + call + '\n{var}\n' + face).replace('{var}', var)
 
 
 def _symmetry_template(r, values):
@@ -679,7 +773,7 @@ def _values(r):
         'xm': _num(x - h), 'xp': _num(x + h), 'ym': _num(y - h), 'yp': _num(y + h), 'zm': _num(z - h), 'zp': _num(z + h),
         'body': r.get('body', ''), 'other': r.get('other', ''), 'var': r.get('var') or (name + '_1'),
     }
-    # the loops of a new feature: half a face at the place (see _HALF_FACE)
+    # the loops of new stitching loops: half a face at the place (see _HALF_FACE)
     for key, (_closed, rows) in _HALF_FACE.items():
         for i, (dx, dy, dz) in enumerate(rows):
             values['f%s%dx' % (key, i)] = _num(x + dx * h)
@@ -702,7 +796,7 @@ def _images_after(r, head, expression):
         return ''
     for n, group, _ in PRIMITIVES:
         if n == r['name']:
-            if group not in _PLACED_GROUPS or n in ('profile', 'polyline', 'spline', 'symmetry_planes', 'limb', 'feature'):
+            if group not in _PLACED_GROUPS or n in ('profile', 'polyline', 'spline', 'symmetry_planes', 'armature', 'stitching_loops'):
                 return ''
             break
     else:
@@ -715,7 +809,7 @@ def _images_after(r, head, expression):
 
 # The operations whose result is a body or a 2D shape of the model they are made for: with the symmetry on they are given their images too (`path_extrude(circle, curve)` is one
 # tube; its images are the others)
-_IMAGED_GROUPS = ('Offsets and walls', 'Texturing', 'Rounding', 'Moving', 'Repeating', 'Extruding', 'Combining')
+_IMAGED_GROUPS = ('Grow and hollow', 'Texturing', 'Round and bevel', 'Moving', 'Bend and twist', 'Repeating', 'Extruding', 'Combining')
 
 
 def _operation_images(r):
@@ -747,6 +841,9 @@ def call(request):
         # (a picture to trace, from the Character menu: the name is `reference_image|<plane>|<file>`, the call is written at the insertion point)
         if r['name'].startswith('reference_image|'):
             return _reference_text(r)
+        # (the export of a model for a game engine, from its Export menu: the name is `export_game|<entry>|<model>`)
+        if r['name'].startswith('export_game|'):
+            return _export_text(r)
         # (a block of plain Python: its code as it is -- no model is made of it)
         for n, _label, _doc, code in PYTHON:
             if n == r['name']:
@@ -770,7 +867,7 @@ def call(request):
     return head + marker + expression + _images_after(r, head, expression)
 
 
-KEEPS_ITS_TEMPLATE = ('extrude',)
+KEEPS_ITS_TEMPLATE = ('extrude', 'with_materials')
 
 # (the shapes of the first groups are made where the user clicks, as big as the view shows: the place and the size are what the click says.
 # Everything else a menu writes is made of models and calls: the numbers in them are for the user to say)
@@ -826,7 +923,7 @@ def _call(r):
         built = _build_operation(name, values, others)
         if built:
             return built
-    if kind == 'primitive' and r.get('points') and name in ('profile', 'polyline', 'spline', 'limb'):
+    if kind == 'primitive' and r.get('points') and name in ('profile', 'polyline', 'spline', 'armature'):
         r['_templated'] = True
         return _placed_template(name, r).format(**values)
     if kind == 'primitive' and name == 'symmetry_planes':

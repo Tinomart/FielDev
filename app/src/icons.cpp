@@ -6,6 +6,7 @@ modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
 of the License, or (at your option) any later version.
 */
+#include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -19,7 +20,7 @@ namespace Icons {
 namespace {
 
 const QColor kInk(0xe4, 0xde, 0xcb);        // (cream: they sit on the dark top dock)
-const QColor kAccent(0x3d, 0xa5, 0xec);
+const QColor kAccent(0xff, 0xc9, 0x3c);       // (sunshine)
 
 // Drawn on a 24 x 24 grid at 3x, so it stays sharp on any screen
 QIcon make(std::function<void(QPainter&)> draw)
@@ -105,25 +106,40 @@ QIcon dropArrow()
 
 QIcon logo(int size)
 {
-    // The mark: a dark tile, the F in cream, its field as two rings
+    // The mark (the same as the application's icon): a friendly block with a face, on a sunny tile
     QPixmap px(size * 2, size * 2);
     px.fill(Qt::transparent);
     QPainter p(&px);
     p.setRenderHint(QPainter::Antialiasing);
     p.scale(size * 2 / 24.0, size * 2 / 24.0);
+    QLinearGradient sun(0, 0, 0, 24);
+    sun.setColorAt(0, QColor(0xff, 0xd6, 0x66));
+    sun.setColorAt(1, QColor(0xff, 0x6f, 0x91));
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0x00, 0x2b, 0x36));
-    p.drawRoundedRect(QRectF(0.5, 0.5, 23, 23), 5, 5);
+    p.setBrush(sun);
+    p.drawRoundedRect(QRectF(0.5, 0.5, 23, 23), 5.5, 5.5);
+    const QColor ink(0x2b, 0x1d, 0x5c);
+    p.setPen(QPen(ink, 0.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPolygonF side, top;
+    side << QPointF(17.8, 10.3) << QPointF(20.8, 7.3) << QPointF(20.8, 17.9) << QPointF(17.8, 20.9);
+    top << QPointF(7.0, 10.3) << QPointF(17.8, 10.3) << QPointF(20.8, 7.3) << QPointF(10.0, 7.3);
+    p.setBrush(QColor(0x1f, 0x9a, 0x96));
+    p.drawPolygon(side);
+    p.setBrush(QColor(0x8f, 0xf0, 0xd8));
+    p.drawPolygon(top);
+    p.setBrush(QColor(0x2e, 0xc4, 0xb6));
+    p.drawRect(QRectF(7.0, 10.3, 10.8, 10.6));
+    // (the face)
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::white);
+    p.drawEllipse(QPointF(10.2, 14.2), 1.5, 1.75);
+    p.drawEllipse(QPointF(15.0, 14.2), 1.5, 1.75);
+    p.setBrush(ink);
+    p.drawEllipse(QPointF(10.4, 14.5), 0.75, 0.9);
+    p.drawEllipse(QPointF(15.2, 14.5), 0.75, 0.9);
     p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(QColor(0x26, 0x8b, 0xd2, 200), 0.7));
-    p.drawRoundedRect(QRectF(4.0, 4.0, 14.5, 16), 3.2, 3.2);
-    p.setPen(QPen(QColor(0x2a, 0xa1, 0x98, 140), 0.6));
-    p.drawRoundedRect(QRectF(2.5, 2.5, 17.5, 19), 3.8, 3.8);
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0xfd, 0xf6, 0xe3));
-    p.drawRoundedRect(QRectF(7, 6, 3, 12), 0.8, 0.8);
-    p.drawRoundedRect(QRectF(7, 6, 9.5, 2.8), 0.8, 0.8);
-    p.drawRoundedRect(QRectF(7, 11, 7, 2.6), 0.8, 0.8);
+    p.setPen(QPen(ink, 0.55, Qt::SolidLine, Qt::RoundCap));
+    p.drawArc(QRectF(10.6, 15.2, 3.6, 2.8), 200 * 16, 140 * 16);
     p.end();
     px.setDevicePixelRatio(2);
     return QIcon(px);

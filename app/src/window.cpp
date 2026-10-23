@@ -171,7 +171,8 @@ static QString guideHtml()
               "<b>New surface</b> and <b>New field</b>, the most basic of each -- and <b>Parametric shapes</b> (a rounded box, a ring, noise, your own logic, custom blocks) "
               "write the call into the script where the cursor is "
               "(and select it, ready to drag); <b>Operations</b> work on the selected model (offsets, rounding, moving, repeating, combining); "
-              "<b>Character</b> builds a character: draw limbs node after node over a <b>reference image</b>, join them into a body and make its skeleton; "
+              "<b>Characters</b> builds a character: place <b>armatures</b> node after node (over a <b>reference image</b> if you like), add <b>stitching loops</b> for a face "
+              "or other detail, join them into a body and make its skeleton; "
               "<b>Python</b> writes the basic blocks of the language. Right-click a model for the same <b>Operations</b> on it (offsets, moving, field math ...), "
               "written with that model as the argument. Nothing is asked: what a menu entry writes is code, and the code is the place to change it."));
     h += li(T("<b>The same menu opens in the text editor and in the model tree</b>: right-click a line of the script that defines "
@@ -202,8 +203,8 @@ static QString guideHtml()
               "its original (the first statement that uses the model): a message explains it (once, however many shadows it is about, also "
               "when a whole statement is dragged above the original) and offers the fix, which makes the first use the original and "
               "leaves a reference at the old one. A "
-              "field dropped on an operation takes the place of one of its numbers (<code>offset(plate, 1.0)</code> becomes "
-              "<code>offset(plate, swell)</code>). Between two top-level rows a model moves in the script (with what it is made "
+              "field dropped on an operation takes the place of one of its numbers (<code>offset(tile, 1.0)</code> becomes "
+              "<code>offset(tile, swell)</code>). Between two top-level rows a model moves in the script (with what it is made "
               "of, when that is defined later). Taking a model out of an operation that cannot do without it (fixed inputs) "
               "<b>deletes that operation</b>, after a question (default: Delete; it can be hidden). The bin button and "
               "%1 work on a shadow too: its reference is taken out. All of it is one undoable step.").arg(keys("view.delete")));
@@ -263,7 +264,7 @@ static QString guideHtml()
     h += "<h2>" + T("Custom blocks") + "</h2><ul>";
     h += li(T("Put a <code>.py</code> file in the <b>blocks folder</b> (Settings &rarr; Blocks folder... chooses it; "
               "<i>Show the blocks folder</i> opens it) and every function in it is there in every script, with its call tip "
-              "and completion: <code>def perforate(body, hole_radius=2.0): ...</code>. Save the file and the scripts that "
+              "and completion: <code>def windows(body, radius=2.0): ...</code>. Save the file and the scripts that "
               "use it run again. A block whose first argument is a model is in <b>Operations &rarr; Custom blocks</b>."));
     h += "</ul>";
 
@@ -1099,7 +1100,7 @@ Window::Window(Arguments args)
             view->addAction(a);
             const QString mode = m.mode;
             auto scene = view->scenePanel();
-            // (E goes round the four kinds of what is put down while the work plane view is open: a click there is not a gizmo's)
+            // (E goes round the three kinds of what is put down while the work plane view is open: a click there is not a gizmo's)
             if (mode == "toggle") connect(a, &QAction::triggered, scene, [=]{
                 if (view->workPlane().open) view->cycleWorkPlaneMode();
                 else scene->toggleSelectedEdit();
@@ -1488,6 +1489,8 @@ Window::Window(Arguments args)
         connect(view, &View::pointToggleRequested, scene, [=](int line) { scene->editPoints("toggle", line, QVector3D(), QVector3D()); });
         connect(view, &View::radiusVarRequested, scene, [=](int line, int control) { scene->editPoints("radius", line, QVector3D(), QVector3D(), control); });
         connect(scene, &ScenePanel::pointEditDone, view, &View::expectNewPoint);
+        connect(view, &View::armatureNodeRequested, scene, &ScenePanel::addArmatureNode);
+        connect(scene, &ScenePanel::armatureNodeDone, view, &View::armatureNodeDone);
         connect(view, &View::fieldsRectSelected, this, [=](QStringList keys, bool add) {
             scene->selectFieldKeys(keys, add);
             view->setFocus(Qt::MouseFocusReason);
@@ -3947,14 +3950,14 @@ PrimitivesDialog* Window::openPrimitivesDialog()
 
 void Window::onAbout(bool)
 {
-    QString info = T("<b>FielDev</b> &mdash; field-driven design<br><br>"
+    QString info = T("<b>FielDev</b> &mdash; modelling for game developers<br><br>"
                    "Version %1<br>"
                    "Built on the kernel of <a href=\"https://github.com/libfive/libfive\">libfive</a> "
                    "by Matt Keeter<br><br>").arg(QCoreApplication::applicationVersion());
     const QString revision = libfive_git_revision();
     if (revision != "N/A") info += T("Kernel revision: <code>%1</code><br>").arg(revision);
     info += T("Licence: GPL 2 or later (application), MPL 2.0 (kernel and Python library)");
-    info += "<br><br>" + T("A fork of FielDes, trimmed for modelling for game development");
+    info += "<br><br>" + T("Props, level pieces and characters from a few numbers and a little maths.");
     QMessageBox::about(this, T("About FielDev"), info);
 }
 

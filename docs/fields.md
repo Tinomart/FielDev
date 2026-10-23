@@ -40,7 +40,7 @@ written alike; the second is not sampled onto a grid, not meshed first, and not 
 ```python
 anchor = point(52, 8, 6)                         # a point: a model, and a value wherever a coordinate goes
 swell  = ramp(distance_to_point(anchor), (0, 60), (4.0, 0.3))
-grown  = offset(plate, swell)                    # 4 mm near the anchor, 0.3 mm far from it
+grown  = offset(tile, swell)                    # 4 mm near the anchor, 0.3 mm far from it
 joined = smooth_union(post, block, ramp(x_field(), (80, 140), (0.5, 8.0)))   # a blend that is sharp here and round there
 ```
 
@@ -49,7 +49,7 @@ joined = smooth_union(post, block, ramp(x_field(), (80, 140), (0.5, 8.0)))   # a
 
 | | A field is accepted for |
 |---|---|
-| **Geometry** | every dimension of every primitive and every transform (`sphere`, `box`, `cylinder`, `move`, `rotate*`, `scale_*`, ...: they are tree arithmetic, a field is a tree); `offset`, `thicken`, `shell_*`, `offset_exact`, `shell_exact`, `round_edges`, `fillet` (the size), `smooth` (the radius), `smooth_union` / `smooth_intersection` / `smooth_difference` and `union_all` / `intersection_all` (the radius or blend), `repeat` (the spacing), `twist_z`, `bend_z` |
+| **Geometry** | every dimension of every primitive and every transform (`sphere`, `box`, `cylinder`, `move`, `rotate*`, `scale_*`, ...: they are tree arithmetic, a field is a tree); `offset`, `solidify`, `shell_*`, `offset_exact`, `shell_exact`, `round_edges`, `fillet` (the size), `smooth` (the radius), `smooth_union` / `smooth_intersection` / `smooth_difference` and `union_all` / `intersection_all` (the radius or blend), `repeat` (the spacing), `twist_z`, `bend_z` |
 | **Fields** | `ramp`, `normalize` (the ranges), `attractor` (the radius, and a point or several points as the centre), `noise_field` (the scale and the amplitude), `distance_to_point`, `distance_to_plane`, `radial_field`, `angle_field`, `polar_field` (the centres, a point works too), `mass_properties` (the density) |
 
 **What can never be a field** — a number that is not a *length-like value at a place*: counts (`array_x(shape, 3, ...)`, octaves,
@@ -133,10 +133,10 @@ and the arithmetic of [Scripting](scripting.md#arithmetic-on-fields) (`+ - * / *
 | | |
 |---|---|
 | `offset_by(shape, distance)` | offset by a distance that **may be a field**: `offset_by(part, ramp(z_field(), (0, 40), (0, 2)))` |
-| `thicken(field, thickness)` | a wall centred on the zero surface of a field (a plane, a wave, a skin); thickness may be a field |
+| `solidify(field, thickness)` | a wall centred on the zero surface of a field (a plane, a wave, a skin); thickness may be a field |
 | `shell_inside / shell_outside / shell_centered(shape, t)` | hollow shell inward, skin outward, or straddling the surface |
 | `smooth_union / smooth_intersection / smooth_difference(a, b, radius)` | rounded booleans |
-| `chamfer_union(a, b, size)` | 45° chamfered union |
+| `bevel_union(a, b, size)` | 45° chamfered union |
 | `union_all(shapes, blend=0)`, `intersection_all(shapes, blend=0)` | many shapes at once |
 | `repeat(shape, spacing, center)`, `repeat_polar(shape, count, center, axis)` | infinite grid / polar repeat |
 | `mirror_x / _y / _z(shape, x)` | mirror-symmetric copy |

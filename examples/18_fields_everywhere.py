@@ -4,7 +4,7 @@
 # the library that takes a size, a thickness, a radius or a spacing takes a field in its place, and evaluates it where it
 # needs it (nothing is sampled onto a grid).  Three bodies here, side by side, each driven by a field:
 #
-#   1. a plate grown by an amount that is 4 mm near an anchor point and 0.3 mm far from it   (offset)
+#   1. a tile grown by an amount that is 4 mm near an anchor point and 0.3 mm far from it   (offset)
 #   2. a cylinder and a block joined by a blend that is sharp at one end and 8 mm round at the other   (smooth_union)
 #   3. a dimpled block smoothed by 0.3 mm at one end and 6 mm at the other   (smooth)
 #
@@ -19,8 +19,8 @@ view.set_bounds([-10, -10, -10], [225, 55, 45], auto_scale=True)
 view.set_resolution(4)
 view.set_quality(8)
 
-# 1. A plate, grown more near the anchor.  The anchor is a point: anything that wants a coordinate takes it.
-plate = box((0, 0, 0), (60, 40, 6))
+# 1. A tile, grown more near the anchor.  The anchor is a point: anything that wants a coordinate takes it.
+tile = box((0, 0, 0), (60, 40, 6))
 anchor = point(52, 8, 6)
 anchor = gizmo(
     anchor,
@@ -30,7 +30,7 @@ anchor = gizmo(
 )
 anchor
 swell = ramp(distance_to_point(anchor), (0, 60), (4.0, 0.3))
-grown = offset(plate, swell)
+grown = offset(tile, swell)
 grown
 
 # 2. The blend radius of a smooth union as a field of x: 0.5 mm at the left, 8 mm at the right.

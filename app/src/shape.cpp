@@ -1648,7 +1648,7 @@ bool Shape::updateFrom(const Shape* other)
     m_locked = other->m_locked;
     m_linked = other->m_linked;
     m_isPoint = other->m_isPoint;
-    m_limbFactor = other->m_limbFactor;
+    m_armatureFactor = other->m_armatureFactor;
     m_hasPointPos = other->m_hasPointPos;
     m_pointPos = other->m_pointPos;
     m_appLabel = other->m_appLabel;

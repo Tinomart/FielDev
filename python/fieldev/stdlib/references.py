@@ -3,10 +3,10 @@ Reference images: a picture standing in the 3D view, to model over.
 
     front = reference_image("hero_front.png", plane="front", height=180)                 # a drawing of the character seen from the front, 180 mm high
     side = reference_image("hero_side.png", plane="right", height=180, center=(0, 0, 90), opacity=0.4)
-    spine = limb([(0, 0, 92), (0, 0, 106), (0, 0, 128)], radii=[13, 11, 15], name="spine")      # the nodes are placed over the pictures
+    spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128)], radii=[13, 11, 15], name="spine")      # the nodes are placed over the pictures
 
 A reference image is not part of the model: it is drawn in the viewport, in the plane it is given, and nothing is exported of it.  The camera is free -- orbit, zoom, look at
-the pictures from any side -- and the nodes of a limb are placed over the picture, one after another, with the work plane (Shift+W) faced to the picture, or the pictures
+the pictures from any side -- and the nodes of an armature are placed over the picture, one after another, with the work plane (Shift+W) faced to the picture, or the pictures
 are the planes the nodes are dragged in.  The picture is set by numbers in the script: where its middle is (`center`), how tall it is (`height`: the width follows the picture's
 shape), how strong it is (`opacity`), whether it is turned over (`flip`) and whether it is shown (`visible`).
 

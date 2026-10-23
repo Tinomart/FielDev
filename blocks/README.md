@@ -5,17 +5,17 @@ script you open in FielDev, like `sphere()` or `offset()`, with its call tip, co
 
 ```python
 # blocks/my_blocks.py
-def perforate(body, hole_radius=2.0, spacing=10.0):
-    ''' Drills a grid of round holes right through a body, along z '''
-    holes = repeat(cylinder(hole_radius, 100000, (0, 0, -50000)), (spacing, spacing, 0))
+def windows(body, radius=2.0, spacing=10.0):
+    ''' Cuts a grid of round windows right through a wall, along z '''
+    holes = repeat(cylinder(radius, 100000, (0, 0, -50000)), (spacing, spacing, 0))
     return difference(body, holes)
 ```
 
 ```python
 # any script
-plate = box((0, 0, 0), (60, 40, 6))
-drilled = perforate(plate, 2.5, 10)
-drilled
+tile = box((0, 0, 0), (60, 40, 6))
+wall = windows(tile, 2.5, 10)
+wall
 ```
 
 - **No imports and no registration.** A block is written with the whole library at hand, and may use the blocks of the files
@@ -26,8 +26,8 @@ drilled
   library makes -- and the model tree shows it with that kind's icon and a small block mark.
 - **Menus.** A block whose first argument is a model, with defaults for the others, is in the right-click menu under
   *Add operation > Custom blocks*; a block that needs no argument is under *New custom block*.
-- **Fields work.** Every number in a block can be a field: `perforate(plate, hole_radius=ramp(x_field(), (0, 60), (1, 3)))`.
+- **Fields work.** Every number in a block can be a field: `windows(tile, radius=ramp(x_field(), (0, 60), (1, 3)))`.
 - **The folder** is this one by default (next to FielDev); *Settings > Blocks folder...* chooses another, for instance one
   you keep in a shared place. A file that cannot be read is named in the script's output with the reason.
 
-`sample_blocks.py` has four to start from: `perforate`, `rounded`, `hollow`, `bracket`.
+`sample_blocks.py` has four to start from: `windows`, `rounded`, `hollow`, `stairs`.

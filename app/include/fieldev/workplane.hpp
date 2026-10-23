@@ -36,7 +36,7 @@ struct WorkPlane
     bool snap = true;               // places snap to the grid
     bool snapPoints = true;         // places snap to the points that are there
     float spacing = 0;              // the step of the grid in mm; 0: automatic, from how large the picture is
-    int mode = 0;                   // what a click does: 0 nothing of its own (things are selected, moved, turned and scaled as usual: Q), 1 puts down the points of a line, 2 of a spline, 3 a point, 4 the nodes of a limb of a character (E goes round 1-4)
+    int mode = 0;                   // what a click does: 0 nothing of its own (things are selected, moved, turned and scaled as usual: Q), 1 puts down the points of a line, 2 of a spline, 3 a point (E goes round 1-3)
 
     QVector3D normal() const { return QVector3D::crossProduct(u, v).normalized(); }
     QVector3D origin() const { return base + normal() * offset; }
@@ -80,7 +80,7 @@ protected:
     QToolButton* m_snap;
     QToolButton* m_snapPoints;
     QToolButton* m_auto;
-    QToolButton* m_modes[4];            // (line, spline, point, limb: what a click puts down -- none on: not drawing)
+    QToolButton* m_modes[3];            // (line, spline, point: what a click puts down -- none on: not drawing)
     QLabel* m_hint = nullptr;           // (what a click does now)
     QDoubleSpinBox* m_step;
     QDoubleSpinBox* m_offset;

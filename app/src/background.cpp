@@ -21,9 +21,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 namespace FielDev {
 
-// (the viewport's backdrop: dark teal, a little lighter than the cards on it)
-#define SKY_LOW  0.1059, 0.3216, 0.3882
-#define SKY_HIGH 0.1686, 0.4235, 0.5059
+// (the viewport's backdrop, a toy box's sky: deep indigo below, violet above and a touch of bubblegum at the top right -- lighter than the cards on it)
+#define SKY_BL 0.1647, 0.1451, 0.4118
+#define SKY_BR 0.1608, 0.2314, 0.5255
+#define SKY_TL 0.3569, 0.2118, 0.6588
+#define SKY_TR 0.6196, 0.2706, 0.6588
 
 void Background::initializeGL()
 {
@@ -32,10 +34,10 @@ void Background::initializeGL()
     {
         // Data is arranged  x   y   z   r   g   b
         GLfloat data[] = {   /********************/
-                            -1, -1,  0.9,  SKY_LOW,
-                            -1,  1,  0.9,  SKY_HIGH,
-                             1, -1,  0.9,  SKY_HIGH,
-                             1,  1,  0.9,  SKY_HIGH,
+                            -1, -1,  0.9,  SKY_BL,
+                            -1,  1,  0.9,  SKY_TL,
+                             1, -1,  0.9,  SKY_BR,
+                             1,  1,  0.9,  SKY_TR,
         };
         vbo.create();
         vbo.bind();

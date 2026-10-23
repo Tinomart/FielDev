@@ -105,6 +105,8 @@ public:
     bool modelAtLine(int line0, QVector3D* centre = nullptr) const;
     /*  What kind of model the line is of ("solid", "field", ...: see fieldev.kinds), or "" when it is no model's  */
     QString typeAtLine(int line0) const;
+    /*  Whether the model on the (0-based) line is a node of an armature (a point that an `armature([...])` is made through), and its variable  */
+    bool armatureNodeAtLine(int line0, QString* var = nullptr) const;
     /*  Whether a (0-based) line is one of a model's own: where it is displayed, its statement, its handles and gizmo lines  */
     bool ownsLine(const QJsonObject& item, int line0) const;
 
@@ -286,6 +288,9 @@ public slots:
      *  the model.  Both are edits of the script; pointEditDone says which line displays the new point (-1 when none)
      */
     void editPoints(const QString& op, int line0, const QVector3D& press, const QVector3D& at, int index = -1);
+    /*  A node put down for an armature in the viewport (the armature mode): at `at`, after the node `anchor` -- a variable of the script; empty: it is the first node, and a new armature
+     *  of one node is made.  The node is written into the script at once; armatureNodeDone says which node the next one follows.  `scale` is how large things are at the place  */
+    void addArmatureNode(const QString& anchor, const QVector3D& at, double scale);
 
     /*  A selection rectangle drawn in the viewport: the models displayed by these lines are the selection
      *  (with `add`, they join the selection that there is)  */
@@ -347,6 +352,9 @@ signals:
 
     /*  A point was put on an outline: the 0-based line that displays it once the edit is in the script (-1: nothing was done)  */
     void pointEditDone(int line0);
+
+    /*  A node of an armature was written into the script: its variable (the next node follows it) and where it is; the variable is empty when nothing was written  */
+    void armatureNodeDone(QString var, QVector3D at);
 
     /*  Frame the camera on a box; if the box is empty, on the shapes
      *  displayed by the given lines  */

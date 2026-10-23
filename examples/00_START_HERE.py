@@ -9,7 +9,7 @@ view.set_bounds([-5, -7, -4], [3, 2, 5], auto_scale=True)
 # 1.  THE EXAMPLES  --  the files next to this one
 #       Each one is a small design that opens, runs and draws.  They are there to start a project from: copy one, change it.  The README next to them lists them.
 #       Handles and the gizmo: 04.   Fields: 18, 21, 30, 31.   Shapes made of points, copies and symmetry: 26, 27, 28, 29.   Custom blocks: 20.   Exporting and importing meshes: 12, 22.
-#       For a game: the export (units, axes, a budget of triangles, symmetry): 32.   A character from limbs: 33, 40.   Materials: 34.   UV maps: 35, 38.   Baked textures: 39.   Rigging: 36, 40.
-#       A pivot and levels of detail: 37.   To build a character by hand: right-click in the viewport -> Character (a reference image, then a limb node after node on the work plane).
+#       For a game: the export (units, axes, a budget of triangles, symmetry): 32.   A character from armatures: 33, 40.   Materials: 34.   UV maps: 35, 38.   Baked textures: 39.   Rigging: 36, 40.
+#       A pivot and levels of detail: 37.   To build a character by hand: right-click in the viewport -> Characters (a reference image, then an armature node after node).
 
 print("Open one of the files listed above.")

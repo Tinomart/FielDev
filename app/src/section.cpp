@@ -596,7 +596,7 @@ void FieldView::paintEvent(QPaintEvent*)
         {
             const QString txt = QString("d = %1").arg(d, 0, 'g', 4);
             const QRect box(r.left() + 4, r.top() + 4, p.fontMetrics().horizontalAdvance(txt) + 10, 16);
-            p.fillRect(box, QColor(22, 76, 94, 220));
+            p.fillRect(box, QColor(42, 35, 88, 220));
             p.setPen(kText);
             p.drawText(box, Qt::AlignCenter, txt);
         }
@@ -701,31 +701,31 @@ SectionPanel::SectionPanel(QWidget* parent)
     setObjectName("SectionPanel");
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet(
-        "#SectionPanel { background: rgba(22, 76, 94, 222);"
-        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
-        "QLabel { color: #93a1a1; font-size: 8pt; }"
+        "#SectionPanel { background: rgba(42, 35, 88, 222);"
+        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 6px; }"
+        "QLabel { color: #beb2f0; font-size: 8pt; }"
         "QLabel#SectionInfo { color: #eee8d5; }"
-        "QToolButton { color: #eee8d5; background: rgba(147, 161, 161, 28);"
-        "  border: 1px solid rgba(147, 161, 161, 60); border-radius: 4px;"
+        "QToolButton { color: #eee8d5; background: rgba(190, 178, 240, 28);"
+        "  border: 1px solid rgba(190, 178, 240, 60); border-radius: 4px;"
         "  padding: 2px 8px; font-size: 8pt; }"
-        "QToolButton:hover { background: rgba(147, 161, 161, 60); }"
-        "QToolButton:checked { background: rgba(38, 139, 210, 170);"
-        "  border-color: rgba(38, 139, 210, 230); color: white; }"
-        "QToolButton:disabled { color: rgba(147, 161, 161, 120); }"
+        "QToolButton:hover { background: rgba(190, 178, 240, 60); }"
+        "QToolButton:checked { background: rgba(138, 92, 245, 170);"
+        "  border-color: rgba(138, 92, 245, 230); color: white; }"
+        "QToolButton:disabled { color: rgba(190, 178, 240, 120); }"
         "QToolButton#SectionHeader { background: transparent; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 4px; }"
-        "QToolButton#SectionClose { background: transparent; border: none; color: #93a1a1;"
+        "QToolButton#SectionClose { background: transparent; border: none; color: #beb2f0;"
         "  padding: 2px 5px; font-size: 9pt; }"
         "QToolButton#SectionClose:hover { color: #eee8d5; }"
-        "QSlider::groove:horizontal { height: 4px; background: rgba(147, 161, 161, 70);"
+        "QSlider::groove:horizontal { height: 4px; background: rgba(190, 178, 240, 70);"
         "  border-radius: 2px; }"
-        "QSlider::sub-page:horizontal { background: rgba(38, 139, 210, 200); border-radius: 2px; }"
+        "QSlider::sub-page:horizontal { background: rgba(138, 92, 245, 200); border-radius: 2px; }"
         "QSlider::handle:horizontal { width: 12px; margin: -5px 0; border-radius: 6px;"
         "  background: #eee8d5; }"
         "QDoubleSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
-        "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 3px; padding: 1px 2px;"
-        "  font-size: 8pt; selection-background-color: rgba(38, 139, 210, 200); }"
-        "QDoubleSpinBox:disabled { color: rgba(147, 161, 161, 140); }");
+        "  border: 1px solid rgba(190, 178, 240, 70); border-radius: 3px; padding: 1px 2px;"
+        "  font-size: 8pt; selection-background-color: rgba(138, 92, 245, 200); }"
+        "QDoubleSpinBox:disabled { color: rgba(190, 178, 240, 140); }");
 
     // Header: collapse, on / off, close
     m_header->setObjectName("SectionHeader");
@@ -1110,30 +1110,30 @@ FieldPanel::FieldPanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     // (the same look as the section card)
     setStyleSheet(
-        "#FieldPanel { background: rgba(22, 76, 94, 222);"
-        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
-        "QLabel { color: #93a1a1; font-size: 8pt; }"
+        "#FieldPanel { background: rgba(42, 35, 88, 222);"
+        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 6px; }"
+        "QLabel { color: #beb2f0; font-size: 8pt; }"
         "QLabel#FieldInfo { color: #eee8d5; }"
-        "QToolButton { color: #eee8d5; background: rgba(147, 161, 161, 28);"
-        "  border: 1px solid rgba(147, 161, 161, 60); border-radius: 4px;"
+        "QToolButton { color: #eee8d5; background: rgba(190, 178, 240, 28);"
+        "  border: 1px solid rgba(190, 178, 240, 60); border-radius: 4px;"
         "  padding: 2px 8px; font-size: 8pt; }"
-        "QToolButton:hover { background: rgba(147, 161, 161, 60); }"
-        "QToolButton:checked { background: rgba(38, 139, 210, 170);"
-        "  border-color: rgba(38, 139, 210, 230); color: white; }"
+        "QToolButton:hover { background: rgba(190, 178, 240, 60); }"
+        "QToolButton:checked { background: rgba(138, 92, 245, 170);"
+        "  border-color: rgba(138, 92, 245, 230); color: white; }"
         "QToolButton#FieldHeader { background: transparent; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 4px; }"
         "QComboBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
-        "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 3px; padding: 1px 6px; font-size: 8pt; }"
-        "QComboBox QAbstractItemView { color: #eee8d5; background: #25607a;"
-        "  selection-background-color: rgba(38, 139, 210, 200); }"
-        "QSlider::groove:horizontal { height: 4px; background: rgba(147, 161, 161, 70);"
+        "  border: 1px solid rgba(190, 178, 240, 70); border-radius: 3px; padding: 1px 6px; font-size: 8pt; }"
+        "QComboBox QAbstractItemView { color: #eee8d5; background: #3b3174;"
+        "  selection-background-color: rgba(138, 92, 245, 200); }"
+        "QSlider::groove:horizontal { height: 4px; background: rgba(190, 178, 240, 70);"
         "  border-radius: 2px; }"
-        "QSlider::sub-page:horizontal { background: rgba(38, 139, 210, 200); border-radius: 2px; }"
+        "QSlider::sub-page:horizontal { background: rgba(138, 92, 245, 200); border-radius: 2px; }"
         "QSlider::handle:horizontal { width: 12px; margin: -5px 0; border-radius: 6px;"
         "  background: #eee8d5; }"
         "QDoubleSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
-        "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 3px; padding: 1px 2px;"
-        "  font-size: 8pt; selection-background-color: rgba(38, 139, 210, 200); }");
+        "  border: 1px solid rgba(190, 178, 240, 70); border-radius: 3px; padding: 1px 2px;"
+        "  font-size: 8pt; selection-background-color: rgba(138, 92, 245, 200); }");
 
     // Header: collapse only (the card is there while a field is open: it has no close button -- its icon in the viewport closes it)
     m_header->setObjectName("FieldHeader");

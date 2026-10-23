@@ -10,7 +10,7 @@
 # children, so the geometry between the elbow and the hand follows the elbow, and a joint at the end of the body (the hand, the head, the toe) has a bone to its
 # tip -- a vertex follows the nearest bone alone, and shares itself with a bone that is about as near: `skin_falloff` is the width of that blend.
 # The script writes the file, reads it back with a reader of its own, and prints a line that starts with ok or FAIL for every check (in the output pane).
-# (The joints are inside the body, so the figure is what is drawn: the nodes of a limb, which are the joints of example 40, are points and are seen through it.)
+# (The joints are inside the body, so the figure is what is drawn: the nodes of an armature, which are the joints of example 40, are points and are seen through it.)
 import json
 import os
 import struct

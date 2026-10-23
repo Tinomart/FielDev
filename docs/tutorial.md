@@ -67,9 +67,9 @@ view.set_resolution(6)                           # samples per mm
 view.set_quality(8)
 ```
 
-and builds a plate with a hole. Change `box((-30, -20, 0), (30, 20, var(6)))` — make the plate 12 mm thick — and the
+and builds a tile with a hole. Change `box((-30, -20, 0), (30, 20, var(6)))` — make the tile 12 mm thick — and the
 viewport updates a moment after you stop typing. The **last expression** of a script is what is shown; give other things names
-(`plate = ...`) and they appear in the tree, where the eye shows or hides each. (A bare name on a line of its own, `plate`,
+(`tile = ...`) and they appear in the tree, where the eye shows or hides each. (A bare name on a line of its own, `tile`,
 shows it too.)
 
 **Resolution** is the one setting to know: more samples per mm = a finer picture and a slower one. Start low; raise it for
@@ -77,19 +77,19 @@ a look at the detail. `Esc` cancels a render that is taking too long.
 
 ## 2. Drag, and the script follows
 
-`var(6)` in the welcome script is a **draggable number**. Hover the top of the plate — it lights up — and drag it: the 6 in the
+`var(6)` in the welcome script is a **draggable number**. Hover the top of the tile — it lights up — and drag it: the 6 in the
 script changes as you move. Any number you wrap in `var(...)` can be pulled this way.
 
 You do not have to write `var` yourself. Click a model in the viewport (or its row in the tree): FielDev gives it a
 **gizmo** — three arrows to move, three rings to rotate, three squares to scale, and a dot in the middle that moves it freely
-— and numbers on its surfaces to pull. What it adds is plain script (`plate = gizmo(plate, move=(var(0), ...))`).
+— and numbers on its surfaces to pull. What it adds is plain script (`tile = gizmo(tile, move=(var(0), ...))`).
 
 Three keys (with the viewport focused) turn this on and off on the selected models:
 
 | Key | |
 |---|---|
 | `E` | when the gizmo is shown: while the model is selected → never → always |
-| `R` | **lock**: a locked model cannot be dragged at all (`plate = lock(plate)`) |
+| `R` | **lock**: a locked model cannot be dragged at all (`tile = lock(tile)`) |
 | `V` | show / hide |
 
 ## 3. Make things with the right mouse button
@@ -116,7 +116,7 @@ It is just a quick way to write script. Look at what it wrote, and change it.
 ## 4. The model tree
 
 The tree shows how the model is built: **the models an operation is made of are its children.**
-`thick = offset(plate, 1)` puts `plate` under `thick`; `plate = difference(base, hole)` puts `base` and `hole` under `plate`.
+`thick = offset(tile, 1)` puts `tile` under `thick`; `tile = difference(base, hole)` puts `base` and `hole` under `tile`.
 What nothing else uses is at the top. A model is a child only when it stands **directly above** the statement that uses it:
 when every row between them is an input of that statement. Anything else between them -- another model, a variable, a loop,
 a function, an import -- means they are separate, so the rows of the tree always follow the order of the script. A model that
@@ -153,10 +153,10 @@ thickness, a spacing — you can write a **field** instead. In the welcome scrip
 ```python
 anchor = point(20, 10, 6)                                     # a point: a model, and a value wherever a coordinate goes
 swell  = ramp(distance_to_point(anchor), (0, 45), (3.0, 0.5))   # 3 mm at the anchor, falling to 0.5 mm 45 mm away
-swollen = offset(drilled, swell)
+swollen = offset(wall, swell)
 ```
 
-`offset(drilled, 1.0)` would grow the plate by a millimetre everywhere. With a field it grows by an amount that depends on
+`offset(wall, 1.0)` would grow the tile by a millimetre everywhere. With a field it grows by an amount that depends on
 the place — and the call looks the same. Drag the anchor's gizmo: the swelling follows it. You can also do it with the
 mouse: **drag the field's row in the model tree onto the `offset` row**, and it takes the place of the `1.0`.
 
@@ -170,8 +170,8 @@ The fields to start with:
 | `noise_field(scale)` | organic variation (`kind='ridged'`, `'cellular'` ... for other looks) |
 
 Every function of the library follows the rule — see [Fields everywhere](fields.md#fields-everywhere) for where, and for the
-few numbers (counts, tolerances, the Poisson's ratio) that can only be numbers. A plate that swells towards one end is one
-line: `offset(plate, ramp(x_field(), (0, 80), (0.5, 4.0)))`.
+few numbers (counts, tolerances, the Poisson's ratio) that can only be numbers. A tile that swells towards one end is one
+line: `offset(tile, ramp(x_field(), (0, 80), (0.5, 4.0)))`.
 
 ## 6. Your own blocks
 

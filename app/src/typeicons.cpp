@@ -33,20 +33,24 @@ struct Kind { QString label; QColor color; };
 QHash<QString, Kind>& kinds()
 {
     static QHash<QString, Kind> k = {
-        {"solid",      {"3D shape",     QColor("#4aa8e8")}},
-        {"curve",      {"1D shape",     QColor("#c9d3e6")}},
-        {"profile",    {"2D shape",     QColor("#35c4b3")}},
-        {"field",      {"Field",        QColor("#82cc58")}},
-        {"surface",    {"Surface",      QColor("#b583ee")}},
-        {"point",      {"Point",        QColor("#f4b73a")}},
-        {"points",     {"Point set",    QColor("#f0a24c")}},
-        {"import",     {"Import",       QColor("#2aa198")}},
-        {"symmetry",   {"Symmetry",     QColor("#d33682")}},
-        {"block",      {"Custom block", QColor("#8da2c0")}},
+        {"solid",      {"3D shape",     QColor("#3fa9ff")}},
+        {"curve",      {"1D shape",     QColor("#b9a7ff")}},
+        {"profile",    {"2D shape",     QColor("#1fd6b0")}},
+        {"field",      {"Field",        QColor("#9be04a")}},
+        {"surface",    {"Surface",      QColor("#c58bff")}},
+        {"point",      {"Point",        QColor("#ffc93c")}},
+        {"points",     {"Point set",    QColor("#ff9f43")}},
+        {"import",     {"Import",       QColor("#1cc9c0")}},
+        {"symmetry",   {"Symmetry",     QColor("#ff5fa2")}},
+        {"block",      {"Custom block", QColor("#9fb4ff")}},
         // (not kinds of model: the parts of the right-click menus that are not primitives)
-        {"operation",  {"Operation",    QColor("#b9c4d0")}},
-        {"shapes",     {"Parametric shape", QColor("#7aa2f0")}},
-        {"python",     {"Python",       QColor("#6c71c4")}},
+        {"operation",  {"Operation",    QColor("#ff9ec7")}},
+        {"shapes",     {"Parametric shape", QColor("#6e9bff")}},
+        {"python",     {"Python",       QColor("#8b7bff")}},
+        // (the Characters menu)
+        {"character",  {"Character",    QColor("#ffcf4a")}},
+        {"armature",   {"Armature",     QColor("#ff7a59")}},
+        {"loops",      {"Loops",        QColor("#ff8fc2")}},
     };
     return k;
 }
@@ -85,7 +89,7 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
         QPainterPath path;
         path.moveTo(2.4, 11.2);
         path.cubicTo(5.0, 2.6, 9.4, 14.2, 13.6, 4.8);
-        p.setPen(QPen(c, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setPen(QPen(c, 1.9, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         p.setBrush(Qt::NoBrush);
         p.drawPath(path);
         p.setPen(Qt::NoPen);
@@ -96,8 +100,8 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     else if (type == "profile")
     {
         // a flat shape: a square with its fill
-        p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 95));
+        p.setPen(QPen(c, 1.9, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(alpha(c, 150));
         p.drawRoundedRect(QRectF(2.8, 2.8, 10.4, 10.4), 1.6, 1.6);
     }
     else if (type == "field")
@@ -115,8 +119,8 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     {
         // an open sheet seen at an angle, with a wave across it
         QPolygonF sheet({QPointF(1.5, 11.5), QPointF(5.2, 3.5), QPointF(14.5, 3.5), QPointF(10.8, 11.5)});
-        p.setPen(QPen(c, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 85));
+        p.setPen(QPen(c, 1.9, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(alpha(c, 140));
         p.drawPolygon(sheet);
         QPainterPath wave;
         wave.moveTo(3.4, 8.6);
@@ -147,7 +151,7 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     else if (type == "import")
     {
         // a file read in: an open box
-        p.setPen(QPen(c, 1.3));
+        p.setPen(QPen(c, 1.9));
         p.setBrush(Qt::NoBrush);
         p.drawRect(QRectF(3, 5, 8, 8));
         p.drawLine(QPointF(3, 5), QPointF(6, 2));
@@ -159,10 +163,10 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     else if (type == "symmetry")
     {
         // mirror planes: a mirror (dashed line) with a shape and its image either side of it
-        p.setPen(QPen(c, 1.3, Qt::DashLine, Qt::RoundCap));
+        p.setPen(QPen(c, 1.9, Qt::DashLine, Qt::RoundCap));
         p.drawLine(QPointF(8, 1.2), QPointF(8, 14.8));
-        p.setPen(QPen(c, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 110));
+        p.setPen(QPen(c, 1.9, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(alpha(c, 165));
         QPolygonF left;
         left << QPointF(2.2, 4.0) << QPointF(6.4, 8.0) << QPointF(2.2, 12.0);
         p.drawPolygon(left);
@@ -170,6 +174,46 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
         QPolygonF right;
         right << QPointF(13.8, 4.0) << QPointF(9.6, 8.0) << QPointF(13.8, 12.0);
         p.drawPolygon(right);
+    }
+    else if (type == "armature")
+    {
+        // nodes joined into a chain, the way a limb is: a fat line through three dots
+        const QPointF nodes[3] = {QPointF(3.2, 12.6), QPointF(7.4, 7.0), QPointF(12.8, 4.0)};
+        p.setPen(QPen(alpha(c, 170), 3.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(Qt::NoBrush);
+        p.drawPolyline(QPolygonF({nodes[0], nodes[1], nodes[2]}));
+        p.setPen(QPen(QColor(0x2b, 0x1d, 0x5c), 1.2));
+        p.setBrush(c);
+        for (const QPointF& n : nodes) p.drawEllipse(n, 2.1, 2.1);
+    }
+    else if (type == "character")
+    {
+        // a little head with a face
+        const QColor ink(0x2b, 0x1d, 0x5c);
+        p.setPen(QPen(ink, 1.2));
+        p.setBrush(c);
+        p.drawEllipse(QPointF(8, 8.4), 6.0, 5.6);
+        p.setPen(Qt::NoPen);
+        p.setBrush(ink);
+        p.drawEllipse(QPointF(5.9, 7.4), 1.0, 1.25);
+        p.drawEllipse(QPointF(10.1, 7.4), 1.0, 1.25);
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(ink, 1.1, Qt::SolidLine, Qt::RoundCap));
+        p.drawArc(QRectF(5.6, 8.6, 4.8, 3.4), 200 * 16, 140 * 16);
+    }
+    else if (type == "loops")
+    {
+        // two rings with the stitches between them
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(alpha(c, 200), 1.1, Qt::SolidLine, Qt::RoundCap));
+        for (int k = 0; k < 8; ++k)
+        {
+            const double a = kPi / 4 * k;
+            p.drawLine(QPointF(8 + 3.8 * std::cos(a), 8 + 2.4 * std::sin(a)), QPointF(8 + 6.4 * std::cos(a), 8 + 4.2 * std::sin(a)));
+        }
+        p.setPen(QPen(c, 1.8));
+        p.drawEllipse(QPointF(8, 8), 6.4, 4.2);
+        p.drawEllipse(QPointF(8, 8), 3.8, 2.4);
     }
     else if (type == "operation")
     {
@@ -191,8 +235,8 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
         plate.addRoundedRect(QRectF(2.4, 2.4, 11.2, 11.2), 2.6, 2.6);
         QPainterPath hole;
         hole.addEllipse(QPointF(8, 8), 3.1, 3.1);
-        p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 110));
+        p.setPen(QPen(c, 1.9, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(alpha(c, 165));
         p.drawPath(plate.subtracted(hole));
         p.setBrush(Qt::NoBrush);
         p.drawEllipse(QPointF(8, 8), 3.1, 3.1);
@@ -200,8 +244,8 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     else if (type == "block")
     {
         // a block of your own: a brick with a function's f on it
-        p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(alpha(c, 70));
+        p.setPen(QPen(c, 1.9, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(alpha(c, 130));
         p.drawRoundedRect(QRectF(2.4, 3.4, 11.2, 9.2), 1.8, 1.8);
         QPainterPath f;
         f.moveTo(9.6, 5.4);
@@ -216,8 +260,8 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     else if (type == "python")
     {
         // plain code: a tile with the letters of the language
-        p.setPen(QPen(c, 1.5));
-        p.setBrush(alpha(c, 70));
+        p.setPen(QPen(c, 1.9));
+        p.setBrush(alpha(c, 130));
         p.drawRoundedRect(QRectF(1.8, 2.8, 12.4, 10.4), 2.4, 2.4);
         QFont f = p.font();
         f.setPixelSize(8);
@@ -243,7 +287,7 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
 // The mark of a custom block: a small badge at the lower right with a function's f
 void drawBlockMark(QPainter& p)
 {
-    p.setPen(QPen(QColor(0x16, 0x4c, 0x5e), 1.6));
+    p.setPen(QPen(QColor(0x2a, 0x23, 0x58), 1.6));
     p.setBrush(QColor(0xee, 0xe8, 0xd5));
     p.drawEllipse(QPointF(12.2, 12.2), 3.4, 3.4);
     QPainterPath f;
@@ -253,7 +297,7 @@ void drawBlockMark(QPainter& p)
     f.moveTo(11.0, 11.9);
     f.lineTo(13.3, 11.9);
     p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(QColor(0x16, 0x4c, 0x5e), 1.05, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setPen(QPen(QColor(0x2a, 0x23, 0x58), 1.05, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.drawPath(f);
 }
 

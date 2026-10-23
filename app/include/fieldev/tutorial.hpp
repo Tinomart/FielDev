@@ -112,7 +112,7 @@ private:
     QRect scriptLineRect(int line0) const;
     QPoint scriptPoint(int line0, int col) const;
     int scriptLine(const QString& startsWith) const;
-    double plateHeight(bool* ok = nullptr) const;
+    double tileHeight(bool* ok = nullptr) const;
     QWidget* openMenu() const;
 
     /*  What a step's state is made of (the viewport's camera and the tree's rows are set by the step itself when it is opened)  */

@@ -8,7 +8,7 @@ the triangulation of the nodes in the plane of a view, with every edge of a loop
   2. VIEW.  The nodes are projected into the plane of a view (front, side, top or any direction) and triangulated there: a Delaunay triangulation into which every loop edge is forced
      (by flipping the edges that cross it), so a loop stays an edge loop however its nodes are moved.  The vertices keep their 3D places -- the depth of a node is its own -- so the
      view only decides what is joined to what, and a surface can lie anywhere in space.
-  3. MIRROR (only when asked for, for the feature or for single loops).  An open loop is half of a mirrored shape: with both ends on the plane it becomes the closed loop A-B-C-D-C'-B',
+  3. MIRROR (only when asked for, for the whole surface or for single loops).  An open loop is half of a mirrored shape: with both ends on the plane it becomes the closed loop A-B-C-D-C'-B',
      with one end on it A-B-C-D-C'-B'-A', with neither it gets a mirror image of its own.  A closed loop on one side of the plane gets a mirror image.  Ends within `snap` of the
      plane are put onto it.
   4. WHAT IS SURFACE.  A triangle between nodes of different loops is surface.  One whose corners are all on one loop is surface only inside a closed loop (`trim`), and not inside
@@ -17,7 +17,7 @@ the triangulation of the nodes in the plane of a view, with every edge of a loop
   5. SMALL HOLES, up to `fill_holes` edges, are closed by ear clipping (an opening is not a hole).
   6. A CLOSED BACK (optional): the outer boundary is closed with rings that shrink to an apex behind the surface.
 
-Nothing here is automatic unless it is asked for: the mirror, the snap, the openings, the trimming, the holes and the back are arguments of `stitch` (see fieldev.stdlib.feature for
+Nothing here is automatic unless it is asked for: the mirror, the snap, the openings, the trimming, the holes and the back are arguments of `stitch` (see fieldev.stdlib.stitching_loops for
 how they are given in a script), and the loops can override the ones that concern them.
 
 The structure and the rules of 2, 4 and 5 are Dust3D's (dust3d/mesh/stitch_loop_mesh_builder.cc): this is a port of the method to Python, with the choices left to the user.

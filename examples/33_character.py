@@ -1,4 +1,4 @@
-# A character from points: limbs that taper between joints, joined into one body, with the other half made by a mirror.
+# A character from points: armatures that taper between joints, joined into one body, with the other half made by a mirror.
 #
 #   chain([shoulder, elbow, hand], radii=[6, 4.5, 3.5])      a round cone between each two points
 #
@@ -77,7 +77,7 @@ try:
 except ValueError as e:
     check("chain: three radii for two points is refused", True, str(e)[:60])
 
-# the character: a body where the limbs are, nothing where they are not, the same on both sides
+# the character: a body where the armatures are, nothing where they are not, the same on both sides
 inside = ((0, 0, 120), (0, 2, 163), (30, 0, 112), (-30, 0, 112), (11, 0, 30), (-11, 0, 30), (11, 10, 5))
 outside = ((0, 0, 190), (60, 0, 112), (-60, 0, 112), (0, 30, 100), (25, 0, 60))
 check("character: inside the body, the arms, the head, the legs and the feet", all(at(character, *p) < 0 for p in inside))

@@ -7,7 +7,7 @@ Points and surfaces: models of their own kind, and how every kind is drawn.
 
 A point is usable where a field function takes a position (distance_to_point(p), attractor(p, ...)) and gives its
 coordinates as p.xyz.  A surface is a field like any other (negative on one side, positive on the other), so it works
-wherever a field does: thicken(s, 1) makes it a wall, texture(part, region=s) roughens the part there.
+wherever a field does: solidify(s, 1) makes it a wall, texture(part, region=s) roughens the part there.
 
 What is drawn for each kind of model (Shape._display calls displayed() below):
     a 3D shape                    as it is

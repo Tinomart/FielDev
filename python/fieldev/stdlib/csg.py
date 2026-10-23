@@ -207,7 +207,7 @@ def _union_box(shapes, pad=0.0):
 def union(a, *args, radius=0):
     """ The union of any number of shapes.  radius (mm, default 0: a sharp union) blends the surfaces where they meet
         with a smooth transition of that radius, so parts that do not quite fit together are joined by a fillet --
-        a rib and a plate, a horn and a head.  It works on any field.
+        a rib and a tile, a horn and a head.  It works on any field.
         (A radius that is a field makes a blend that varies.) """
     if radius is not None and not (isinstance(radius, (int, float)) and radius == 0):
         a = Shape.wrap(a)
