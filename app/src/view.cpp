@@ -3426,7 +3426,7 @@ void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, doub
         if (p["group"].toString() != "Character") continue;
         const QString name = p["name"].toString();
         if (name == "armature") continue;                   // (an armature is put down node after node: see New armature)
-        auto action = menu->addAction(TypeIcons::icon("loops"), T("New stitching loops"), this,
+        auto action = menu->addAction(TypeIcons::icon("feature"), T("New feature model"), this,
                                       [=]{ emit(createRequested("primitive", name, point, scale, atLine, -1)); });
         action->setToolTip(!p["doc"].toString().isEmpty() ? p["doc"].toString()
                            : T("A surface stitched through loops of points, as the loops of a face are in Dust3D: half a face to start from (an outline, an eye, a mouth, a nose).  Every "

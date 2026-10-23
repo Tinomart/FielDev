@@ -5,7 +5,7 @@ UV maps by part: the surface laid on the texture from the armature it was made o
     export_mesh(hero, "hero.glb", uvs=uv_armature(margin=8, size=2048))
 
 `uv_armature` (see uvmaps.py) asks the parts of the exported model what they are.  A character made with `character([spine, arm, nose, ...])` knows its parts: the armatures
-(`armature(...)`) and the stitching loops (`stitching_loops(...)`).  The unwrap then goes in three steps.
+(`armature(...)`) and the feature models (`feature_model(...)`).  The unwrap then goes in three steps.
 
   1. WHICH PART EACH TRIANGLE BELONGS TO.  The field of every part is asked at the vertices of the mesh, and a vertex belongs to the part whose surface is the nearest to it
      (the lowest value: a part's own field is 0 on its own surface and grows away from it).  A triangle goes to the part most of its vertices belong to.  A model made with
@@ -14,11 +14,11 @@ UV maps by part: the surface laid on the texture from the armature it was made o
   2. EACH PART LAID FLAT FROM WHAT IT IS.  An ARMATURE is a tube along its path: u goes round the path (the angle times the distance from the path, so that it is millimetres), v along
      it (the length of the path).  The seam is a straight line along the back of the armature (the side the path's first stretch faces away from -y), and the angle is measured from a
      frame that is carried along the path without twisting.  The end caps are unrolled as a disc beyond the end (the rim at the end of the path, the middle one radius further), so
-     that a flat cap is not a line in the texture.  STITCHING LOOPS are laid flat as they were drawn: in the picture of the view it was stitched in (u to the right, v up, in millimetres), so
+     that a flat cap is not a line in the texture.  FEATURE MODELS are laid flat as they were drawn: in the picture of the view it was stitched in (u to the right, v up, in millimetres), so
      that a texture painted over the reference picture of a face lands where it was drawn.  The triangles that face away from the viewer -- the back of a shell, a closed back --
      are an island of their own, seen from behind.
   3. THE ISLANDS PACKED.  Every island is in millimetres, so a texel is the same size everywhere; they are packed in the square with `margin` texels between them, and are not
-     turned (an armature's u is round the part and v along it, the stitching loops' the way they were drawn, so that a texture is painted the way the part runs).
+     turned (an armature's u is round the part and v along it, the feature models' the way they were drawn, so that a texture is painted the way the part runs).
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -36,13 +36,13 @@ __all__ = ['unwrap_parts', 'parts_of', 'symmetry_axis_of']
 # -- the parts of a model -----------------------------------------------------------------------------------------------------------------
 
 def parts_of(shapes):
-    ''' The armatures and stitching loops that make up what is exported (a character knows its parts; an armature or stitching loops on their own are one) '''
+    ''' The armatures and feature models that make up what is exported (a character knows its parts; an armature or feature models on their own are one) '''
     out = []
     for p in (shapes if isinstance(shapes, (list, tuple)) else [shapes]):
         found = getattr(p, '_parts', None)
         if found:
             out.extend(found)
-        elif getattr(p, '_armature', None) is not None or getattr(p, '_stitching_loops', None) is not None:
+        elif getattr(p, '_armature', None) is not None or getattr(p, '_feature_model', None) is not None:
             out.append(p)
     return out
 
@@ -199,10 +199,10 @@ def _tube_params(points, nodes):
     return {i: g[:3] for i, g in got.items()}
 
 
-# -- stitching loops: flat, as they were drawn ---------------------------------------------------------------------------------------------------------
+# -- feature models: flat, as they were drawn ---------------------------------------------------------------------------------------------------------
 
 def _planar_params(points, info, back):
-    ''' {vertex: (u, v)} in millimetres: where each place is on stitching loops, laid flat as it is seen in the view they were stitched in -- u to the right, v up -- or, for the
+    ''' {vertex: (u, v)} in millimetres: where each place is on feature models, laid flat as it is seen in the view they were stitched in -- u to the right, v up -- or, for the
         triangles that face away from the viewer (`back`: the back of a shell, a closed back), as it is seen from behind '''
     u, v, _ = info.surface.view
     sign = -1.0 if back else 1.0
@@ -212,16 +212,16 @@ def _planar_params(points, info, back):
 # -- the unwrap -------------------------------------------------------------------------------------------------------------------------
 
 def _describe(part):
-    ''' (name, nodes or the stitching loops, kind, its places) of a part: an armature has nodes, stitching loops are what they know of themselves.  The places are what decides whether the part is on the plane
-        of symmetry (all of them are) or off it; stitching loops that have places on both sides of the plane have their other half in themselves, and counts as being on it '''
+    ''' (name, nodes or the feature models, kind, its places) of a part: an armature has nodes, feature models are what they know of themselves.  The places are what decides whether the part is on the plane
+        of symmetry (all of them are) or off it; feature models that have places on both sides of the plane have their other half in themselves, and counts as being on it '''
     info = getattr(part, '_armature', None)
     if info is not None:
         nodes = [tuple(c.pos) for c in info.ctrls]
         return info.name, nodes, 'armature', nodes
-    info = getattr(part, '_stitching_loops', None)
+    info = getattr(part, '_feature_model', None)
     if info is not None:
-        return info.name, info, 'stitching_loops', info.surface.vertices
-    raise TypeError('uv_armature: the parts are armature(...)s and stitching_loops(...)s, not %r' % (type(part).__name__,))
+        return info.name, info, 'feature_model', info.surface.vertices
+    raise TypeError('uv_armature: the parts are armature(...)s and feature_model(...)s, not %r' % (type(part).__name__,))
 
 
 def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
@@ -229,7 +229,7 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
         symmetric about (its other half is the first one mirrored), or None '''
     from fieldev.stdlib.exporting import _eval_at
     if not parts:
-        raise ValueError('uv_armature: the model has no parts to unwrap by -- make it with character([armature(...), stitching_loops(...), ...]), or give the parts: uv_armature([arm, nose, ...])')
+        raise ValueError('uv_armature: the model has no parts to unwrap by -- make it with character([armature(...), feature_model(...), ...]), or give the parts: uv_armature([arm, nose, ...])')
     nv, nt = len(xyz) // 3, len(tri) // 3
     described = [_describe(p) for p in parts]
     folded = array('f', xyz)
@@ -238,7 +238,7 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
             folded[3 * i + axis] = abs(folded[3 * i + axis])
     # (a part that lies on the plane of symmetry is its own mirror image and is asked at the places themselves; the others are asked across the plane, for the other half)
     mirrored = [axis is not None and any(abs(p[axis]) > 1e-6 for p in d[3])
-                and not (d[2] == 'stitching_loops' and any(p[axis] > 1e-6 for p in d[3]) and any(p[axis] < -1e-6 for p in d[3])) for d in described]
+                and not (d[2] == 'feature_model' and any(p[axis] > 1e-6 for p in d[3]) and any(p[axis] < -1e-6 for p in d[3])) for d in described]
     values = [_eval_at(p, folded if m else xyz, nv) for p, m in zip(parts, mirrored)]
     owner = [min(range(len(parts)), key=lambda k: values[k][i]) for i in range(nv)]
     groups = {}
@@ -253,8 +253,8 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
         if mirrored[k]:
             side = 0 if sum(xyz[3 * c + axis] for c in corners) >= 0.0 else 1
         back = 0
-        if described[k][2] == 'stitching_loops':
-            # stitching loops are laid flat as they are seen in their view: the triangles that face away from the viewer are an island of their own, seen from behind.  (Across the plane of
+        if described[k][2] == 'feature_model':
+            # feature models are laid flat as they are seen in their view: the triangles that face away from the viewer are an island of their own, seen from behind.  (Across the plane of
             # symmetry the triangle is turned inside out by the mirror, and so is the way it faces)
             q = [(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]) for c in corners]
             if mirrored[k] and side == 1:

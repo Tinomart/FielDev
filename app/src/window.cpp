@@ -171,7 +171,7 @@ static QString guideHtml()
               "<b>New surface</b> and <b>New field</b>, the most basic of each -- and <b>Parametric shapes</b> (a rounded box, a ring, noise, your own logic, custom blocks) "
               "write the call into the script where the cursor is "
               "(and select it, ready to drag); <b>Operations</b> work on the selected model (offsets, rounding, moving, repeating, combining); "
-              "<b>Characters</b> builds a character: place <b>armatures</b> node after node (over a <b>reference image</b> if you like), add <b>stitching loops</b> for a face "
+              "<b>Characters</b> builds a character: place <b>armatures</b> node after node (over a <b>reference image</b> if you like), add <b>feature models</b> for a face "
               "or other detail, join them into a body and make its skeleton; "
               "<b>Python</b> writes the basic blocks of the language. Right-click a model for the same <b>Operations</b> on it (offsets, moving, field math ...), "
               "written with that model as the argument. Nothing is asked: what a menu entry writes is code, and the code is the place to change it."));

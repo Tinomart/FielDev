@@ -2014,14 +2014,14 @@ void Tutorial::buildSteps()
         s.leave = [this] { m_view->stopArmaturePlacing(); };
         add(s);
     }
-    // 27c: stitching loops (faces and other details)
+    // 27c: feature models (faces and other details)
     {
         Step s;
         s.title = T("Faces and details");
-        s.text = T("Faces and other details are made with stitching loops: rings of points stitched into a surface and mirrored across the middle. Right-click empty space, choose "
-                   "Characters ▸ New stitching loops.");
+        s.text = T("Faces and other details are made with feature models: rings of points stitched into a surface and mirrored across the middle. Right-click empty space, choose "
+                   "Characters ▸ New feature model.");
         s.hint = T("It starts as half a face: drag its points, add loops. Or press Show me.");
-        s.code = linesWith("^\\w+ = stitching_loops\\(");
+        s.code = linesWith("^\\w+ = feature_model\\(");
         s.holes = holesOf(viewWidget);
         s.place = InsideTopRight;
         s.group = "character";
@@ -2033,14 +2033,14 @@ void Tutorial::buildSteps()
             scene()->clearSelection();
             m_view->standardView(View::VIEW_FRONT);
         };
-        s.done = [this] { return m_editor->getScript().contains("stitching_loops("); };
+        s.done = [this] { return m_editor->getScript().contains("feature_model("); };
         s.doneNote = T("Nice. The loops are plain points in the script: drag them, or add more.");
         s.show = [this, walk](std::function<void()> over) {
             const QPoint at(int(m_view->width() * 0.12), int(m_view->height() * 0.80));
             fakeClick(m_view, at, Qt::RightButton, [this, walk, over] {
                 auto root = qobject_cast<QMenu*>(openMenu());
                 if (!root) { over(); return; }
-                (*walk)(root, root, QStringList{T("Characters"), T("New stitching loops")}, over);
+                (*walk)(root, root, QStringList{T("Characters"), T("New feature model")}, over);
             });
         };
         add(s);

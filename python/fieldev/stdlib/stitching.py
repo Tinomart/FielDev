@@ -1,5 +1,5 @@
 '''
-Stitching loops: a surface made of paths of points, in the way Dust3D makes one of the loops drawn over a reference image (its "Stitching Loop" mode, for faces).
+The surface of a feature model (see feature_model.py): made of paths of points -- the features --, in the way Dust3D makes a face from loops drawn over a reference image.
 
 The nodes of the loops are the vertices of the surface -- every point you place counts, none is added or moved (a closed back adds rings behind the surface) -- and the surface is
 the triangulation of the nodes in the plane of a view, with every edge of a loop an edge of the triangulation:
@@ -17,7 +17,7 @@ the triangulation of the nodes in the plane of a view, with every edge of a loop
   5. SMALL HOLES, up to `fill_holes` edges, are closed by ear clipping (an opening is not a hole).
   6. A CLOSED BACK (optional): the outer boundary is closed with rings that shrink to an apex behind the surface.
 
-Nothing here is automatic unless it is asked for: the mirror, the snap, the openings, the trimming, the holes and the back are arguments of `stitch` (see fieldev.stdlib.stitching_loops for
+Nothing here is automatic unless it is asked for: the mirror, the snap, the openings, the trimming, the holes and the back are arguments of `stitch` (see fieldev.stdlib.feature_model for
 how they are given in a script), and the loops can override the ones that concern them.
 
 The structure and the rules of 2, 4 and 5 are Dust3D's (dust3d/mesh/stitch_loop_mesh_builder.cc): this is a port of the method to Python, with the choices left to the user.

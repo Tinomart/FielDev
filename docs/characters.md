@@ -94,17 +94,17 @@ work plane, which is for 2D drawing only:
    point (the arm on the chest). The menu of a node has **Add nodes from here** for the same.
 4. **character** (right-click an armature, or select several) joins them with a blend, `symmetric="x"` adds the mirror image, and **skeleton_of** makes the joints for the export.
 
-## Features: stitched loops
+## Features: feature models
 
-An armature has the same cross-section all along. For the **delicate parts** -- a face, an ear, a hand -- use a **feature**: a surface **stitched through loops** of points, the way Dust3D's
-*stitching loops* model a face from a reference picture. You draw the outline of the face, of an eye, of the mouth, over the picture; **every point you place is a vertex of the
-surface** -- none is added, none is moved -- and **every loop is an edge loop of it**, wherever the points are dragged.
+An armature has the same cross-section all along. For the **delicate parts** -- a face, an ear, a hand -- use a **feature model**: a surface made through **features** -- loops of points -- the way Dust3D's
+*feature models* model a face from a reference picture. You draw the outline of the face, of an eye, of the mouth, over the picture; **every point you place is a vertex of the
+surface** -- none is added, none is moved -- and **every feature is an edge loop of it**, wherever the points are dragged.
 
 ```python
-outline = loop([point(0, 0.5, -10), point(4, 0.2, -9), point(7, 0, -5), point(8.5, 0, 0), point(8, 0, 5), point(5, 0.2, 9), point(0, 0.5, 10)])   # half of the face
-eye = ring((3.2, -0.4, 3), 1.3, 8)                                    # a closed loop of 8 points: a centre, a radius (or wide and high), how many
-nose = loop([(0, -1.5, 1), (0.8, -1.0, -1.5), (0, -1.6, -2.5)])      # points are tuples of numbers or point(...) models, dragged with their gizmos
-face = stitching_loops([outline, eye, nose], mirror="x", name="face")
+outline = feature([point(0, 0.5, -10), point(4, 0.2, -9), point(7, 0, -5), point(8.5, 0, 0), point(8, 0, 5), point(5, 0.2, 9), point(0, 0.5, 10)])   # half of the face
+eye = feature_ring((3.2, -0.4, 3), 1.3, 8)                                    # a closed feature of 8 points: a centre, a radius (or wide and high), how many
+nose = feature([(0, -1.5, 1), (0.8, -1.0, -1.5), (0, -1.6, -2.5)])      # points are tuples of numbers or point(...) models, dragged with their gizmos
+face = feature_model([outline, eye, nose], mirror="x", name="face")
 hero = character([head, face], blend=1)
 ```
 
@@ -112,9 +112,9 @@ The points are joined in the plane of a **view** (the front view by default: x t
 forced into it. The points keep their places in space -- each has its own depth, y in the front view -- so the view only decides what is joined to what; a face is stitched from the
 front, an ear from `view="right"`, anything from along any direction. Dust3D has two views; here you drag the points in the whole viewport.
 
-**Nothing is automatic unless the arguments ask for it.** Each is written in the script (the *New feature* entry writes them all, for half a face), and a loop can say its own choice:
+**Nothing is automatic unless the arguments ask for it.** Each is written in the script (the *New feature model* entry writes them all, for half a face), and a feature can say its own choice:
 
-| `stitching_loops(loops, ...)` | |
+| `feature_model(loops, ...)` | |
 |---|---|
 | `view="front"` | `"front"`, `"back"`, `"left"`, `"right"`, `"top"`, `"bottom"`, or `(direction, up)`: the direction you look along and which way is up in the picture |
 | `mirror=None` | no mirror: the loops are used as they are. `"x"`, `"y"`, `"z"`, `("x", 2)` (the plane x = 2) or `(point, normal)` mirrors them across that plane. An open loop is **half of a shape**: with both ends on the plane it becomes a ring (A-B-C-D-C'-B'), with one end on it a path (A-B-C-D-C'-B'-A'), with neither it gets a mirror image of its own; a ring on one side gets a mirror image; a loop across the plane stays as it is |
@@ -126,9 +126,9 @@ front, an ear from `view="right"`, anything from along any direction. Dust3D has
 | `thickness=0.2` | an open surface is a **shell** of this thickness (the surface is its middle); a closed one is a solid |
 | `name=None` | what the UV map and the model tree call it |
 
-`loop(points, closed=None, mirror=None, opening=None)` is one loop: a list of points, or a polyline, spline or profile (their points are the nodes). `closed=True` joins the last point to
+`feature(points, closed=None, mirror=None, opening=None)` is one feature: a list of points, or a polyline, spline or profile (their points are the nodes). `closed=True` joins the last point to
 the first. `mirror=False` keeps this loop from being mirrored, `True` mirrors it across the plane of the feature, or give it a plane of its own. `opening=True` makes a closed loop an
-opening whatever is in it; `False` stitches it across. `ring(center, radius, count, facing)` makes a round closed loop.
+opening whatever is in it; `False` stitches it across. `feature_ring(center, radius, count, facing)` makes a round closed feature.
 
 - If two loops cross, the surface cannot have both as edge loops: the error names the loops and the view -- move a point, or look at the part from another side.
 - A closed back leaves the openings (an eye) open, so such a feature is a shell of `thickness` and not a solid; close it by switching the eye to `opening=False`, or leave the back off.

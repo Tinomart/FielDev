@@ -119,7 +119,7 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [`38_uv_maps.py`](examples/38_uv_maps.py) | UV maps: box, planar, cylinder, sphere and an unwrapped atlas (islands cut where the surface turns, laid flat, packed into the square), a second set, and the picture of the layout — each checked by reading the files back |
 | [`39_baked_textures.py`](examples/39_baked_textures.py) | Textures baked from fields: the colour, the normal map and the occlusion / roughness / metalness pictures of a rock whose materials are fields, written into a glTF and an OBJ — read back and checked |
 | [`40_armature.py`](examples/40_armature.py) | An armature: a character made of armatures (path extrudes with an automatic or a square cross-section), its skeleton, the rigged glTF with skin weights, a jaw that owns a place of the skin — checked by reading the file back |
-| [`41_stitching_loops.py`](examples/41_stitching_loops.py) | A feature: a face stitched through loops of points (every point a vertex, every loop an edge loop; mirror, openings and closed back are choices), joined to a head, and the UV map by part (`uvs="armature"`) — checked by reading the file back |
+| [`41_feature_model.py`](examples/41_feature_model.py) | A feature: a face stitched through loops of points (every point a vertex, every loop an edge loop; mirror, openings and closed back are choices), joined to a head, and the UV map by part (`uvs="armature"`) — checked by reading the file back |
 
 ## Documentation
 

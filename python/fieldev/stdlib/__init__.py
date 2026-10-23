@@ -29,7 +29,7 @@ from fieldev.stdlib.curves import *
 from fieldev.stdlib.profile import *
 from fieldev.stdlib.characters import *
 from fieldev.stdlib.armature import *
-from fieldev.stdlib.stitching_loops import *
+from fieldev.stdlib.feature_model import *
 from fieldev.stdlib.references import *
 from fieldev.stdlib.measure import *
 from fieldev.stdlib.content_cache import cache_info, clear_caches

@@ -262,12 +262,12 @@ def cut_face(one, node=0):
 
 
 def character(armatures, blend=3, symmetric=None):
-    ''' The body made of armatures and stitching loops: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror
+    ''' The body made of armatures and feature models: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror
         image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both) '''
     if not isinstance(armatures, (list, tuple)) or not armatures:
-        raise TypeError('character(armatures): a list of armatures (and stitching loops), one or more')
+        raise TypeError('character(armatures): a list of armatures (and feature models), one or more')
     body = F.union_all(list(armatures), blend)
-    body._parts = list(armatures)               # (the parts the UV map by armature unwraps the body by: armatures and stitching loops)
+    body._parts = list(armatures)               # (the parts the UV map by armature unwraps the body by: armatures and feature models)
     boxes = [getattr(p, '_bounds', None) for p in armatures]
     if all(boxes):
         body._bounds = (tuple(min(b[0][c] for b in boxes) for c in range(3)), tuple(max(b[1][c] for b in boxes) for c in range(3)))
@@ -301,8 +301,8 @@ def skeleton_of(armatures, mirror=None, plane=0.0, join=None):
     by_name = {}
     for k, one in enumerate(armatures):
         info = getattr(one, '_armature', None)
-        if info is None and getattr(one, '_stitching_loops', None) is not None:
-            continue                            # (stitching loops are skin, not bone: they are skinned to the nearest joints)
+        if info is None and getattr(one, '_feature_model', None) is not None:
+            continue                            # (feature models are skin, not bone: they are skinned to the nearest joints)
         if info is None:
             raise TypeError('skeleton_of: armature(...)s, not %r' % (type(one).__name__,))
         anchor = None

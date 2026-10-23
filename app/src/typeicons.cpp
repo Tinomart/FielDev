@@ -50,7 +50,7 @@ QHash<QString, Kind>& kinds()
         // (the Characters menu)
         {"character",  {"Character",    QColor("#ffcf4a")}},
         {"armature",   {"Armature",     QColor("#ff7a59")}},
-        {"loops",      {"Loops",        QColor("#ff8fc2")}},
+        {"feature",    {"Feature model", QColor("#ff8fc2")}},
     };
     return k;
 }
@@ -201,9 +201,9 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
         p.setPen(QPen(ink, 1.1, Qt::SolidLine, Qt::RoundCap));
         p.drawArc(QRectF(5.6, 8.6, 4.8, 3.4), 200 * 16, 140 * 16);
     }
-    else if (type == "loops")
+    else if (type == "feature")
     {
-        // two rings with the stitches between them
+        // two rings with the stitches between them: the features of a feature model
         p.setBrush(Qt::NoBrush);
         p.setPen(QPen(alpha(c, 200), 1.1, Qt::SolidLine, Qt::RoundCap));
         for (int k = 0; k < 8; ++k)

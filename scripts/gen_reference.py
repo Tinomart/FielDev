@@ -32,7 +32,7 @@ MODULES = [
     ('profile', 'Profiles and extrusions', 'fieldev.stdlib.profile'),
     ('characters', 'Characters: armatures made of points', 'fieldev.stdlib.characters'),
     ('armature', 'Armatures: armatures, a character, a skeleton', 'fieldev.stdlib.armature'),
-    ('stitching_loops', 'Stitching loops', 'fieldev.stdlib.stitching_loops'),
+    ('feature_model', 'Feature models', 'fieldev.stdlib.feature_model'),
     ('references', 'Reference images', 'fieldev.stdlib.references'),
     ('measure', 'Measuring a body', 'fieldev.stdlib.measure'),
     ('fields', 'Fields', 'fieldev.stdlib.fields'),

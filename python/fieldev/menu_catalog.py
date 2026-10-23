@@ -82,7 +82,7 @@ _FACE = '\n#@@@#\n{var}_face = cut_face({var})\n{var}_face'
 _ARMATURE = _LINE_POINTS + _CUT + '#@@#\narmature([' + _LINE_LIST + '], profile={var}_cut, name="{var}")' + _FACE
 
 
-# The loops of new stitching loops: half a face drawn on the front view, as (x, y, z) in halves of the size from the place -- an outline from the chin to the top of the head (open, its ends
+# The loops of new feature models: half a face drawn on the front view, as (x, y, z) in halves of the size from the place -- an outline from the chin to the top of the head (open, its ends
 # on the plane of the mirror), an eye (a ring), a mouth (open, the end on the plane is where it is mirrored) and a nose (open, both ends on the plane, a ridge in front of the face)
 _HALF_FACE = {
     'o': (False, [(0.0, 0.1, -1.0), (0.55, 0.1, -0.8), (0.85, 0.1, -0.2), (0.8, 0.1, 0.5), (0.45, 0.1, 0.95), (0.0, 0.1, 1.05)]),
@@ -92,20 +92,20 @@ _HALF_FACE = {
 }
 
 
-def _stitching_loops_text():
-    ''' Stitching loops made from the menu: half a face (see _HALF_FACE), mirrored across the plane through the place -- each point a model of its own with its gizmo, and the call through
+def _feature_model_text():
+    ''' Feature models made from the menu: half a face (see _HALF_FACE), mirrored across the plane through the place -- each point a model of its own with its gizmo, and the call through
         the loops with every choice written out, to change in the script.  The places of the points are worked out in `_values` (f<loop><point>x, y, z) '''
     texts, loops = [], []
     for key, (closed, rows) in _HALF_FACE.items():
         places = [('{f%s%dx}' % (key, i), '{f%s%dy}' % (key, i), '{f%s%dz}' % (key, i)) for i in range(len(rows))]
         pts, listing = _points(*places, base='{var}_%s' % key)
         texts.append(pts)
-        loops.append('loop([' + listing + ']' + (', closed=True' if closed else '') + ')')
-    return ''.join(texts) + ('#@@#\nstitching_loops([' + ', '.join(loops) + '], view="front", mirror=("x", {x}), snap=0, openings=True, trim=True, fill_holes=8, back=False, thickness={t}, '
+        loops.append('feature([' + listing + ']' + (', closed=True' if closed else '') + ')')
+    return ''.join(texts) + ('#@@#\nfeature_model([' + ', '.join(loops) + '], view="front", mirror=("x", {x}), snap=0, openings=True, trim=True, fill_holes=8, back=False, thickness={t}, '
                              'name="{var}")')
 
 
-_STITCHING_LOOPS = _stitching_loops_text()
+_FEATURE_MODEL = _feature_model_text()
 
 # What an entry can be made OF the models selected, as DATA -- the entries that are made of what is selected, each with the words for its tooltip and the WAYS it is made, tried
 # in the order they are listed: (the kinds of model it is made of, the least and the most of them (None: any number), the call it is written as -- `{names}` is those models in
@@ -145,7 +145,7 @@ PRIMITIVES = [
     ('half_space', '3D', 'half_space((0, 0, 1), ({x}, {y}, {z}))'),
     ('chain', '3D', _CHAIN),
     ('armature', 'Character', _ARMATURE),
-    ('stitching_loops', 'Character', _STITCHING_LOOPS),
+    ('feature_model', 'Character', _FEATURE_MODEL),
     ('low_level_body', '3D', _LOW_LEVEL_BODY),
     ('circle', '2D', 'circle({h}, ({x}, {y}))'),
     ('rectangle', '2D', 'rectangle(({xm}, {ym}), ({xp}, {yp}))'),
@@ -406,7 +406,7 @@ EXPORTS = [
      tr('The surface cut into islands, laid flat and packed into the square of the texture'),
      'export_mesh({var}, "{var}.glb", uvs=uv_unwrap(), uv_layout="{var}_uvs.png")'),
     ('uv_armature', tr('UV map'), tr('By armature part'),
-     tr('For a character: each armature laid out as a tube, each piece of stitched loops flat as it was drawn'),
+     tr('For a character: each armature laid out as a tube, each piece of feature models flat as it was drawn'),
      'export_mesh({var}, "{var}.glb", uvs=uv_armature(), uv_layout="{var}_uvs.png")'),
 ]
 
@@ -773,7 +773,7 @@ def _values(r):
         'xm': _num(x - h), 'xp': _num(x + h), 'ym': _num(y - h), 'yp': _num(y + h), 'zm': _num(z - h), 'zp': _num(z + h),
         'body': r.get('body', ''), 'other': r.get('other', ''), 'var': r.get('var') or (name + '_1'),
     }
-    # the loops of new stitching loops: half a face at the place (see _HALF_FACE)
+    # the loops of new feature models: half a face at the place (see _HALF_FACE)
     for key, (_closed, rows) in _HALF_FACE.items():
         for i, (dx, dy, dz) in enumerate(rows):
             values['f%s%dx' % (key, i)] = _num(x + dx * h)
@@ -796,7 +796,7 @@ def _images_after(r, head, expression):
         return ''
     for n, group, _ in PRIMITIVES:
         if n == r['name']:
-            if group not in _PLACED_GROUPS or n in ('profile', 'polyline', 'spline', 'symmetry_planes', 'armature', 'stitching_loops'):
+            if group not in _PLACED_GROUPS or n in ('profile', 'polyline', 'spline', 'symmetry_planes', 'armature', 'feature_model'):
                 return ''
             break
     else:
