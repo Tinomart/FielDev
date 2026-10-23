@@ -349,7 +349,7 @@ def _turned(v, t, cs, sn):
     return C.add(C.add(C.mul(v, cs), C.mul(C.cross(t, v), sn)), C.mul(t, C.dot(t, v) * (1.0 - cs)))
 
 
-def path_extrude(profile, path, twist=0):
+def path_extrude(profile, path, twist=0, ends=None):
     ''' A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
         along `path`, turning with it, without twisting about it unless the points of the curve say so.
         THE 2D SHAPE IS WHERE THE SWEEP STARTS: the curve says how it travels, not where from -- the whole sweep is moved so that the first point of the curve is the middle of
@@ -360,7 +360,12 @@ def path_extrude(profile, path, twist=0):
         the ROTATION of a point (its gizmo's rotate numbers) twists the profile about the curve there, and the twist runs between the points as a
         smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The ends are cut square.  A curve with corners is swept
         with mitered joints.  `path_extrude(circle(2), spline([a, b, c]))` is a bent tube; `extrude` is the straight case.  `path` may be a list of points:
-        the spline through them '''
+        the spline through them.
+        ends     (round at the start, round at the end): an end that is True is a DOME instead of the flat face of the profile -- past the end of the path the profile shrinks along a
+                 quarter of a circle (its size at a distance d from the end is the size there times sqrt(1 - (d / reach)^2), `reach` as long as the profile is wide), so that the end is the
+                 profile's own shape closing, as long as the middle of its box is inside it or the shape can be seen from there (round, convex and star-like sections: a plus, a triangle; not a U or an L,
+                 whose notch the dome covers).  The viewport builds the same dome from rings (Shape::sweepMesh) '''
+    ends = (False, False) if ends is None else (bool(ends[0]), bool(ends[1]))
     if isinstance(path, (list, tuple)):
         from fieldev.stdlib.curves import spline
         path = spline(path)
@@ -575,6 +580,33 @@ def path_extrude(profile, path, twist=0):
         stop = _linear(mj, -C.dot(mj, V[j]) - 1e-3)
         body = f.max(start).max(stop)
         best = body if best is None else best.min(body)
+    # Round ends: past the end of an open path the cross-section shrinks along a quarter of a circle, so that the end is a dome of the cross-section itself and not a ball that its shape
+    # clashes with.  It is one more piece of the sweep: the profile in the frame of the end piece (the ring's own plane, which is across the path unless the path leaves the profile at an
+    # angle), at the size that runs down to nothing at the tip, between the plane of the end and the tip
+    dome_ring = ring or box_ring
+    if not closed and dome_ring and best is not None and any(ends):
+        reach0 = sum(math.hypot(x, y) for x, y in dome_ring) / len(dome_ring)
+        for at_start in (True, False):
+            if not ends[0 if at_start else 1]:
+                continue
+            k = 0 if at_start else pieces - 1
+            j = (k + 1) % n
+            phi = (roll_at(k) + roll_at(j)) * 0.5 + total
+            cs, sn = math.cos(phi), math.sin(phi)
+            nk, bk = _turned(U[k], T[k], cs, sn), _turned(W[k], T[k], cs, sn)
+            flat = C.cross(nk, bk)
+            side = 1.0 if C.dot(flat, T[k]) >= 0 else -1.0
+            axis = C.mul(flat, -side if at_start else side)             # (out of the sweep)
+            end_at = V[0] if at_start else V[n - 1]
+            size0 = size_at(0 if at_start else n - 1)
+            reach = max(reach0 * size0, 1e-6)
+            d = _linear(axis, -C.dot(axis, end_at))                     # (how far past the plane of the end)
+            a = _linear(nk, -C.dot(nk, end_at))
+            b = _linear(bk, -C.dot(bk, end_at))
+            size = ((1.0 - (d * (1.0 / reach)).square()).max(1e-6).sqrt() * size0).max(1e-3)
+            f = _profile_at(profile, a, b, size, centre2d)
+            start = _linear(C.mul(axis, -1.0), C.dot(axis, end_at) - 1e-3)
+            best = best.min(f.max(start).max(d - reach))
     out = Shape(lib.libfive_tree_copy(best.ptr))
     if box_ring:
         # (the box of the rings: one that holds the sweep, not its exact extent)
@@ -607,6 +639,7 @@ def path_extrude(profile, path, twist=0):
         out._sweep_qflag, out._sweep_qscale, out._sweep_qdefault = path._ctrl_flag, path._ctrl_scale, path._ctrl_default
         out._sweep_qclosed = bool(path.closed)
         out._sweep_twist = Shape.wrap(twist)
+        out._sweep_round = ends
         out._drawn_key = _sweep_key          # (what tells whether two sweeps are the same shape without meshing either: see symmetries.symmetry_images, distinct=True)
     return out
 
@@ -638,7 +671,7 @@ def _sweep_key(s):
         n = len(ring)
         outline = min(tuple(run[i:] + run[:i]) for run in (ring, ring[::-1]) for i in range(max(n, 1)))
         return ('sweep', outline, tuple(path), bool(s._sweep_qclosed), q(s._sweep_twist), bool(getattr(s, '_sweep_free', False)),
-                bool(s._sweep_pdefault), bool(s._sweep_qdefault))
+                bool(s._sweep_pdefault), bool(s._sweep_qdefault), tuple(bool(v) for v in getattr(s, '_sweep_round', ())))
     except (AttributeError, TypeError, ValueError):
         return None
 

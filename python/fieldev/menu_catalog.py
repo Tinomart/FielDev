@@ -329,7 +329,7 @@ OPERATIONS = [
     # The cross-section of an armature, at its first node (made with every armature the menu makes: here for one that was written by hand)
     ('cut_face', 'Character', 'cut_face({body})', False),
     # A character: the armatures selected are joined into one body (the other half a mirror image), and are the skeleton of it
-    ('character', 'Character', 'character([{body}{others}], blend=3, symmetric="x")', 'optional'),
+    ('character', 'Character', 'character([{body}{others}], blend="auto", symmetric="x")', 'optional'),
     ('skeleton_of', 'Character', 'skeleton_of([{body}{others}], mirror="x")', 'optional'),
 ]
 

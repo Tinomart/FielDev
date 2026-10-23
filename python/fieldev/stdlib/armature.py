@@ -19,6 +19,11 @@ itself -- make the profile that size instead); the profile is a model of its own
 is does not matter: the armature is swept from the first node.  `cut_face(armature)` shows the profile there, as a linked clone (`instance`) turned the way the armature leaves the node, with a dot
 for each of the profile's points: pull a dot, and the profile -- and so the whole armature -- changes with it.
 
+The ENDS of an armature are round where the node there is a spline point -- every node is one unless it says `point(..., smooth=False)` -- a dome as thick as the armature is at that node; a node
+that is a corner ends the armature flat, with the face of the cross-section.  The size of a node is how thick the armature is there, exactly: a node of size 2 is twice as thick as one of size 1.
+A character joins its armatures with a blend as wide as each one is thick (`blend="auto"`, the default), so that a branch grows out of its parent the way a limb grows out of a body, whatever
+the size of the character; `blend=3` is 3 mm everywhere.
+
 The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  An armature
 that begins on a node of another armature -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where an armature is joined
 when its first node is not on the other.  There is one root: the first node of the first armature.
@@ -106,8 +111,36 @@ def _placed_natively(placed, sweep, move):
                  '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist'):
         setattr(placed, name, getattr(sweep, name))
     placed._sweep_free = getattr(sweep, '_sweep_free', False)
+    if getattr(sweep, '_sweep_round', None) is not None:
+        placed._sweep_round = sweep._sweep_round
     placed._sweep_guard = list(getattr(sweep, '_sweep_guard', []))
     placed._sweep_place = ((0.0, 0.0, 0.0), tuple(Shape.wrap(x) for x in move), (Shape.wrap(0.0),) * 3, (Shape.wrap(1.0),) * 3)
+
+
+# how wide the blend of a character is, as a share of the thickness of the armature that is joined: about a third of it is added at the inside of the joint, which is what makes it grow out
+_BLEND = 1.2
+
+
+def _thickness(one):
+    ''' How thick an armature is, as a number: the size of its cross-section times the mean scale of its nodes (a ball: its radius); None for what is not an armature (a feature model) '''
+    info = getattr(one, '_armature', None)
+    if info is None:
+        return None
+    if info.profile is None:
+        return C.value_of(Shape.wrap(info.sizes[0]))
+    mean = sum(max(c.scale, 1e-3) for c in info.ctrls) / len(info.ctrls)
+    return _profile_radius(info.profile) * mean
+
+
+def _joined(parts):
+    ''' The parts as one body, each joined to the ones before it with a blend as wide as it is thick (a part that is not an armature: as wide as the armatures are thick, on average) '''
+    sizes = [_thickness(p) for p in parts]
+    known = [s for s in sizes if s]
+    fallback = sum(known) / len(known) if known else 3.0
+    out = parts[0]
+    for one, size in zip(parts[1:], sizes[1:]):
+        out = F.smooth_union(out, one, (size or fallback) * _BLEND)
+    return out
 
 
 def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0):
@@ -123,7 +156,9 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
                  node whatever place it is at; a different profile is dropped on this one in the model tree to swap it
         name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
         parent   the name of the joint this armature hangs from, when its first node is not on a node of another armature
-        twist    degrees: the whole cross-section turned about the path '''
+        twist    degrees: the whole cross-section turned about the path
+
+        The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`) and flat at a corner '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more')
     if profile is not None and radii is not None:
@@ -175,7 +210,10 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         from fieldev.stdlib.profile import path_extrude
         base = profile if profile is not None else _base_profile(number)
         way = C.spline(list(points))
-        out = path_extrude(base, way, twist)
+        # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
+        # circle -- in the field and for the viewport by the same law)
+        rounds = (ctrls[0].flag != 0, ctrls[-1].flag != 0)
+        out = path_extrude(base, way, twist, ends=rounds)
         # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
         # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)
         shift = getattr(way, '_weld_shift', None)
@@ -288,17 +326,40 @@ def cut_face(one, node=0):
     return gizmo(instance(base), move=move, rotate=_euler(R))
 
 
-def character(armatures, blend=3, symmetric=None):
-    ''' The body made of armatures and feature models: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror
-        image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both) '''
+def _own_region(body):
+    ''' A body of armatures is meshed over a cube of its own, at the resolution the scene has, and not over the whole region of the scene: the field of a sweep is slow to clear empty space of, and
+        the memory it takes grows with the region (four characters of a few mm each, side by side, took more than 14 GB over a region of 70 mm).  The hint is (box, resolution, side, scene resolution):
+        a scene resolution above 0 says that the resolution follows the scene's '''
+    box = getattr(body, '_bounds', None)
+    if box is None:
+        return
+    ext = max(box[1][i] - box[0][i] for i in range(3))
+    if not ext > 0:
+        return
+    grow = 0.1 * ext
+    body._render_hint = (tuple(v - grow for v in box[0]), tuple(v + grow for v in box[1]), 1.0, ext + 2.0 * grow, 1.0)
+
+
+def character(armatures, blend="auto", symmetric=None):
+    ''' The body made of armatures and feature models: joined as one with a smooth blend where they meet, and, with `symmetric` "x", "y" or "z", the other half as the mirror
+        image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both)
+
+        blend  "auto" (the default): each armature is joined with a blend as wide as it is thick, so that a branch grows out of its parent the way a limb grows out of a body, whatever the
+               size of the character; or a number: a blend of that many mm everywhere (0: none) '''
     if not isinstance(armatures, (list, tuple)) or not armatures:
         raise TypeError('character(armatures): a list of armatures (and feature models), one or more')
-    body = F.union_all(list(armatures), blend)
+    if isinstance(blend, str):
+        if blend != "auto":
+            raise ValueError('character: blend is "auto" or a number of mm, not %r' % (blend,))
+        body = _joined(list(armatures))
+    else:
+        body = F.union_all(list(armatures), blend)
     body._parts = list(armatures)               # (the parts the UV map by armature unwraps the body by: armatures and feature models)
     boxes = [getattr(p, '_bounds', None) for p in armatures]
     if all(boxes):
         body._bounds = (tuple(min(b[0][c] for b in boxes) for c in range(3)), tuple(max(b[1][c] for b in boxes) for c in range(3)))
         body._bounds_loose = True
+        _own_region(body)
     if symmetric is None:
         return body
     from fieldev.stdlib import transforms
@@ -315,6 +376,7 @@ def character(armatures, blend=3, symmetric=None):
         lo[a], hi[a] = -m, m
         out._bounds = (tuple(lo), tuple(hi))
         out._bounds_loose = True
+        _own_region(out)
     out._parts = list(armatures)
     out._symmetric_axis = str(symmetric).lower()
     return out

@@ -1524,6 +1524,11 @@ itself -- make the profile that size instead); the profile is a model of its own
 is does not matter: the armature is swept from the first node.  `cut_face(armature)` shows the profile there, as a linked clone (`instance`) turned the way the armature leaves the node, with a dot
 for each of the profile's points: pull a dot, and the profile -- and so the whole armature -- changes with it.
 
+The ENDS of an armature are round where the node there is a spline point -- every node is one unless it says `point(..., smooth=False)` -- a dome as thick as the armature is at that node; a node
+that is a corner ends the armature flat, with the face of the cross-section.  The size of a node is how thick the armature is there, exactly: a node of size 2 is twice as thick as one of size 1.
+A character joins its armatures with a blend as wide as each one is thick (`blend="auto"`, the default), so that a branch grows out of its parent the way a limb grows out of a body, whatever
+the size of the character; `blend=3` is 3 mm everywhere.
+
 The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  An armature
 that begins on a node of another armature -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where an armature is joined
 when its first node is not on the other.  There is one root: the first node of the first armature.
@@ -1553,10 +1558,15 @@ name     what the skeleton calls the armature ("arm.R"); joints: the names of th
 parent   the name of the joint this armature hangs from, when its first node is not on a node of another armature
 twist    degrees: the whole cross-section turned about the path
 
-### `character(armatures, blend=3, symmetric=None)`
+The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`) and flat at a corner
 
-The body made of armatures and feature models: joined as one with a smooth blend of `blend` mm where they meet (0: none), and, with `symmetric` "x", "y" or "z", the other half as the mirror
+### `character(armatures, blend="auto", symmetric=None)`
+
+The body made of armatures and feature models: joined as one with a smooth blend where they meet, and, with `symmetric` "x", "y" or "z", the other half as the mirror
 image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both)
+
+blend  "auto" (the default): each armature is joined with a blend as wide as it is thick, so that a branch grows out of its parent the way a limb grows out of a body, whatever the
+       size of the character; or a number: a blend of that many mm everywhere (0: none)
 
 ### `cut_face(one, node=0)`
 

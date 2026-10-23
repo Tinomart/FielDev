@@ -13,6 +13,9 @@ the README has the design decisions (*Known limitations*).
 
 ## Characters and textures
 
+- **The round end of an armature does not follow a cross-section whose middle lies outside it.** The dome at a node that is a spline point is the cross-section shrinking toward the middle of its box, which keeps it inside
+  round, convex and star-like sections (the default, a rectangle, a triangle, a hexagon, a plus: measured, nothing sticks out); a U or an L, whose box middle is in the notch, gets a dome that covers the notch (up to 3 mm out of a U
+  20 mm wide). Give such a section a corner node (`point(..., smooth=False)`) for a flat end.
 - **The viewport shows the colour of a material, and nothing else of it.** `with_materials(model, [...])` shows each material's colour, as an engine shows it, with a key of their names; the roughness, metalness, glow,
   opacity, textures and everything else of a material are written when you export (`export_mesh`), and a colour that is a field is shown grey. Bake the textures and look at the `.glb` in a viewer or an engine for the rest. A model
   that is not given `with_materials` is drawn in neutral shading. The numbers of a material are linear, as glTF has them; a `"#3a6ea5"` is sRGB, as in a paint program, and is converted when the material is made, so it looks the same in

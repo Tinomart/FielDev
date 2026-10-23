@@ -215,6 +215,9 @@ public:
     /*  Numbers of the script that must still be what they were for the sweep to be drawn from its outline (a gizmo's turn about x or y of the profile, its move along z: a profile
      *  that leaves the plane z = 0 is not the outline): (a var, its value)  */
     void setSweepGuard(std::vector<std::pair<libfive::Tree::Id, float>> guard) { m_sweep_guard = std::move(guard); }
+    /*  The ends of an open sweep that are domes -- a few rings that shrink like a quarter of a circle, and a point at the tip -- and not the flat face of the profile (an armature
+     *  ends round at a node that is a spline point)  */
+    void setSweepRound(bool atStart, bool atEnd) { m_sweep_round_start = atStart; m_sweep_round_end = atEnd; }
     bool hasSweep() const { return !m_sweep_path.empty() && !m_sweep_profile.empty(); }
     /*  The one number (var) an expression of the script's numbers is made of, or null when it has none or several: what moves a point along an axis  */
     static libfive::Tree::Id soleVarOf(const libfive::Tree& expression);
@@ -731,6 +734,7 @@ protected:
     std::vector<ControlPoint> m_sweep_profile, m_sweep_path;
     bool m_sweep_profile_default = false, m_sweep_path_default = false, m_sweep_closed = false, m_sweep_placed = false, m_sweep_free = false;
     std::vector<std::pair<libfive::Tree::Id, float>> m_sweep_guard;
+    bool m_sweep_round_start = false, m_sweep_round_end = false;
     libfive::Tree m_sweep_twist = libfive::Tree::invalid();
     double m_sweep_about[3] = {0, 0, 0};
     libfive::Tree m_sweep_move[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};

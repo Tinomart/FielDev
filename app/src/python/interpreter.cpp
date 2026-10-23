@@ -1894,6 +1894,13 @@ void Interpreter::recordShape(
                     shape->setSweepFree(fr && PyObject_IsTrue(fr) == 1);
                     Py_XDECREF(fr);
                     shape->setSweepGuard(std::move(sweepGuard));
+                    // (the ends of the sweep that are domes: an armature ends round at a node that is a spline point)
+                    PyObject* rnd = PyObject_GetAttrString(obj, "_sweep_round");
+                    if (rnd && PyTuple_Check(rnd) && PyTuple_Size(rnd) == 2)
+                        shape->setSweepRound(PyObject_IsTrue(PyTuple_GetItem(rnd, 0)) == 1, PyObject_IsTrue(PyTuple_GetItem(rnd, 1)) == 1);
+                    else
+                        PyErr_Clear();
+                    Py_XDECREF(rnd);
                 }
                 Py_XDECREF(pd);
                 Py_XDECREF(qd);

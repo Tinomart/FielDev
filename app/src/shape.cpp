@@ -513,7 +513,7 @@ void Shape::setSweep(std::vector<ControlPoint> profile, bool profileDefault, std
 struct Shape::SweepNumbers
 {
     std::vector<libfive::pointshapes::Control> profile, path;
-    bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false;
+    bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false, roundStart = false, roundEnd = false;
     double twist = 0;                                                       // (degrees)
     Eigen::Vector3d about = Eigen::Vector3d::Zero(), move = Eigen::Vector3d::Zero(), rotate = Eigen::Vector3d::Zero(), scale = Eigen::Vector3d::Ones();
 };
@@ -534,6 +534,8 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
     out.pathDefault = m_sweep_path_default;
     out.closed = m_sweep_closed;
     out.free = m_sweep_free;
+    out.roundStart = m_sweep_round_start;
+    out.roundEnd = m_sweep_round_end;
     out.twist = evalConstant(m_sweep_twist, v);
     if (!std::isfinite(out.twist)) return false;
     out.placed = m_sweep_placed;
@@ -730,6 +732,7 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
 
     auto out = std::make_unique<libfive::Mesh>();
     using Tri = Eigen::Matrix<uint32_t, 3, 1>;
+    uint32_t startRing = 0, endRing = 0;                 // (the first vertex of the ring at the start of the path, and of the one at its end)
     for (int k = 0; k < pieces; ++k)
     {
         const int j = (k + 1) % n;
@@ -740,6 +743,8 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
         // (which way the profile faces along the path: a profile that the path leaves backwards is swept the other way round)
         const double facing = nk.cross(bk).dot(Tk) >= 0 ? 1.0 : -1.0;
         const uint32_t base = uint32_t(out->verts.size());
+        if (k == 0) startRing = base;
+        if (k == pieces - 1) endRing = base + uint32_t(E);
         // (the ring at the start of the piece, then the one at its end: the profile in this piece's frame, slid along the piece onto the plane that bisects the corner)
         for (int end = 0; end < 2; ++end)
         {
@@ -772,14 +777,80 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
             }
         }
         // (the triangles of the face face the way the profile's own normal does: the start cap faces back along the path, the end cap on along it)
-        if (!closed && k == 0)
+        if (!closed && k == 0 && !in.roundStart)
             for (const Tri& t : cap->branes)
                 out->branes.push_back(facing > 0 ? Tri(base + t[0] - capFirst, base + t[2] - capFirst, base + t[1] - capFirst)
                                                  : Tri(base + t[0] - capFirst, base + t[1] - capFirst, base + t[2] - capFirst));
-        if (!closed && k == pieces - 1)
+        if (!closed && k == pieces - 1 && !in.roundEnd)
             for (const Tri& t : cap->branes)
                 out->branes.push_back(facing > 0 ? Tri(base + uint32_t(E) + t[0] - capFirst, base + uint32_t(E) + t[1] - capFirst, base + uint32_t(E) + t[2] - capFirst)
                                                  : Tri(base + uint32_t(E) + t[0] - capFirst, base + uint32_t(E) + t[2] - capFirst, base + uint32_t(E) + t[1] - capFirst));
+    }
+    // Round ends: the end of an open sweep is a dome where the node there is a spline point -- the ring of the profile shrinking like a quarter of a circle in a few steps (the profile in the frame
+    // of the end piece, as the ring at the end of that piece is), and a point at the tip -- in place of the profile's flat face.  The first ring of a dome is the ring the end piece already has
+    if (!closed && (in.roundStart || in.roundEnd))
+    {
+        double mean = 0;
+        for (const auto& q : prof) mean += q.norm();
+        mean /= double(E);
+        auto dome = [&](uint32_t ring, const Vec& centre, const Vec& along, const Vec& nk, const Vec& bk, double size) {
+            static const double angles[] = {12.0, 24.0, 36.0, 48.0, 60.0, 71.0, 80.0, 86.0};
+            const double reach = mean * size;
+            // (a triangle of the dome faces out, away from the node: turned round here when it does not, so that no argument about the winding of the walls is needed)
+            auto outward = [&](uint32_t a, uint32_t b, uint32_t c) {
+                const Eigen::Vector3f pa = out->verts[a], pb = out->verts[b], pc = out->verts[c];
+                const Eigen::Vector3f normal = (pb - pa).cross(pc - pa);
+                const Eigen::Vector3f middle = (pa + pb + pc) / 3.0f - Eigen::Vector3f(float(centre.x()), float(centre.y()), float(centre.z()));
+                if (normal.dot(middle) >= 0) out->branes.push_back(Tri(a, b, c));
+                else out->branes.push_back(Tri(a, c, b));
+            };
+            uint32_t previous = ring;
+            for (const double deg : angles)
+            {
+                const double th = deg * M_PI / 180.0, cs = std::cos(th), sn = std::sin(th);
+                const uint32_t first = uint32_t(out->verts.size());
+                for (const auto& q : prof)
+                {
+                    const Vec p = centre + along * (reach * sn) + (nk * q.x() + bk * q.y()) * (size * cs);
+                    out->verts.push_back(Eigen::Vector3f(float(p.x()), float(p.y()), float(p.z())));
+                }
+                for (size_t i = 0; i < E; ++i)
+                {
+                    const uint32_t a = previous + uint32_t(i), b = previous + uint32_t((i + 1) % E), c = first + uint32_t((i + 1) % E), d = first + uint32_t(i);
+                    outward(a, b, c);
+                    outward(a, c, d);
+                }
+                previous = first;
+            }
+            const uint32_t tip = uint32_t(out->verts.size());
+            const Vec t = centre + along * reach;
+            out->verts.push_back(Eigen::Vector3f(float(t.x()), float(t.y()), float(t.z())));
+            for (size_t i = 0; i < E; ++i) outward(previous + uint32_t(i), previous + uint32_t((i + 1) % E), tip);
+        };
+        auto frameOf = [&](int k, Vec& nk, Vec& bk) {
+            const int j = (k + 1) % n;
+            const double phi = 0.5 * (rollAt(k) + rollAt(j)) + total;
+            const double cs = std::cos(phi), sn = std::sin(phi);
+            nk = turned(Uf[size_t(k)], T[size_t(k)], cs, sn);
+            bk = turned(Wf[size_t(k)], T[size_t(k)], cs, sn);
+        };
+        // (the dome stands on the plane of the ring -- the profile's own plane, across the path unless the path leaves the profile at an angle -- as the flat end does, and the field's does)
+        if (in.roundStart)
+        {
+            Vec nk, bk;
+            frameOf(0, nk, bk);
+            const Vec flat = nk.cross(bk).normalized();
+            const double side = flat.dot(T[0]) >= 0 ? 1.0 : -1.0;
+            dome(startRing, V[0], Vec(flat * -side), nk, bk, sizeAt(0));
+        }
+        if (in.roundEnd)
+        {
+            Vec nk, bk;
+            frameOf(pieces - 1, nk, bk);
+            const Vec flat = nk.cross(bk).normalized();
+            const double side = flat.dot(T[size_t(pieces - 1)]) >= 0 ? 1.0 : -1.0;
+            dome(endRing, V[size_t(n - 1)], Vec(flat * side), nk, bk, sizeAt(n - 1));
+        }
     }
     if (std::getenv("FIELDEV_SWEEP_DEBUG"))
     {
@@ -2524,6 +2595,7 @@ QString Shape::identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tre
     {
         const auto sid = [&](const libfive::Tree& t) { return t.is_valid() ? quintptr(t.cooptimize(canonical).id()) : quintptr(0); };
         key += QString("|sweep %1 %2 %3%4|f%5").arg(m_sweep_profile.size()).arg(m_sweep_path.size()).arg(m_sweep_closed ? 1 : 0).arg(m_sweep_free ? "F" : "").arg(quintptr(built_tree.id()));
+        key += QString("|r%1%2").arg(m_sweep_round_start ? 1 : 0).arg(m_sweep_round_end ? 1 : 0);              // (a dome or a flat end: not the same mesh)
         for (const auto* list : {&m_sweep_profile, &m_sweep_path})
         {
             for (const ControlPoint& c : *list)
