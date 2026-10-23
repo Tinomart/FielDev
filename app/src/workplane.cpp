@@ -314,7 +314,7 @@ void WorkPlanePanel::setPlane(const WorkPlane& plane, float step)
     m_updating = true;
     {
         QSignalBlocker a(m_grid), b(m_snap), c(m_snapPoints), d(m_auto), e(m_step), f(m_offset);
-        for (int i = 0; i < 4; ++i) m_modes[i]->setChecked(plane.mode == i + 1);
+        for (int i = 0; i < 3; ++i) m_modes[i]->setChecked(plane.mode == i + 1);
         m_grid->setChecked(plane.grid);
         m_snap->setChecked(plane.snap);
         m_snapPoints->setChecked(plane.snapPoints);

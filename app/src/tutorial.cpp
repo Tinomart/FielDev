@@ -1087,7 +1087,7 @@ void Tutorial::buildSteps()
         s.keys = true;
         s.closeRows = true;
         s.openRows = QStringList{"wall"};
-        s.done = [this] { return !m_editor->getScript().contains(QRegularExpression("\\bhole\\b")); };
+        s.done = [this] { return !m_editor->getScript().contains(QRegularExpression("\\bdoorway\\b")); };
         s.doneNote = T("Nice. Every use of the name changed.");
         s.show = [this, scene](std::function<void()> over) {
             const QRect r = scene()->rowRect("doorway", m_window);
@@ -1767,7 +1767,7 @@ void Tutorial::buildSteps()
         s.closeRows = true;
         s.enter = [this] {
             while (auto m = QApplication::activePopupWidget()) m->close();
-            useScript(tourHeader(QString()) + "peg = cylinder(3, 14, (0, 0, 0))\nbolt");
+            useScript(tourHeader(QString()) + "peg = cylinder(3, 14, (0, 0, 0))\npeg");
             m_view->standardView(View::VIEW_ISO);
             selectAgain({"peg"}, 12);              // (it is in the tree once the script has run)
             m_view->setFocus(Qt::OtherFocusReason);            // (Ctrl+D acts while the viewport has the keyboard)

@@ -177,7 +177,7 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     }
     else if (type == "armature")
     {
-        // nodes joined into a chain, the way a limb is: a fat line through three dots
+        // nodes joined into a chain, the way an armature is: a fat line through three dots
         const QPointF nodes[3] = {QPointF(3.2, 12.6), QPointF(7.4, 7.0), QPointF(12.8, 4.0)};
         p.setPen(QPen(alpha(c, 170), 3.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         p.setBrush(Qt::NoBrush);

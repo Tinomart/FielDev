@@ -188,10 +188,10 @@ box, walls that are not there, and a ball "too wide for the slot" between them i
 | `offset_exact(shape, distance)` | uniform offset along true normals, round at edges |
 | `shell_exact(shape, thickness, side='inside'\|'outside'\|'center')` | uniform hollow shell |
 | `round_edges(shape, radius)` | rounds every convex edge and corner |
-| `fillet(shape, radius)` | fills every concave edge and corner |
+| `fill_corners(shape, radius)` | fills every concave edge and corner |
 | `smooth(shape, radius, steps=1)` | smooths the surface without thickening the body: features smaller than about `radius` go, flat faces stay; more `steps` smooth further. A field like any other (a weighted sum of the body's field moved by whole radii: 6 copies for one step, 19 for two, 44 for three, 85 for four), so nothing is measured or meshed in it |
 
-`round_edges` and `fillet` roll a ball of the radius in the material and in the air: the centres of the ball are where the field is
+`round_edges` and `fill_corners` roll a ball of the radius in the material and in the air: the centres of the ball are where the field is
 `-radius` (or `radius`), and the surface of the result is a radius from them -- also read from the field, by the same walk. `reach` (mm)
 is how far from the surface the distance is made; an offset, a shell and a rounding ask for as much as they need. The old arguments
 `resolution` and `margin`, which belonged to the mesh, are gone.

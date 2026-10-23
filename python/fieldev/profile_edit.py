@@ -155,7 +155,7 @@ def _point_block(name, x, y, z):
 def _armature_node(req):
     ''' A node put down for an armature, as the viewport does it one click after another: `req['node']` is the variable of the node it follows, x, y, z where it goes, `scale` how big a
         cross-section a new armature gets.  The node that is the last of its armature is followed by the new node (`armature([a, b])` becomes `armature([a, b, c])`).  A node anywhere else
-        has a new armature begin at it, the way a limb branches: the same point is its first node and the new node its second '''
+        has a new armature begin at it, the way an arm branches off a body: the same point is its first node and the new node its second '''
     from fieldev import menu_catalog
     source, anchor = req['source'], req['node']
     tree = ast.parse(source)
