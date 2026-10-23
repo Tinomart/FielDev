@@ -3565,7 +3565,7 @@ void View::updateArmatureCursor(QPoint pos)
     if (m_arm.cursorValid || was) m_overlay->update();
 }
 
-// What is being put down: a ring on the node the next one follows, the way from it to where the cursor is with a node there, and in a line at the foot of the picture what the clicks do
+// What is being put down: a ring on the node the next one follows, the way from it to where the cursor is with a node there.  No text on the screen: what the clicks do is taught by the tour and the docs
 void View::drawArmaturePlacing(QPainter& painter)
 {
     if (!m_arm.on) return;
@@ -3590,22 +3590,6 @@ void View::drawArmaturePlacing(QPainter& painter)
         painter.setBrush(QColor(gold.red(), gold.green(), gold.blue(), 160));
         painter.drawEllipse(toScreen(m_arm.cursor), 7.0, 7.0);
     }
-    const QString hint = m_arm.hasAnchorPos
-        ? T("Click: the next node   |   click a node: go on from it   |   right click or Esc: this armature is done   |   Ctrl+Z: take the last node back")
-        : T("Click: the first node of an armature   |   click a node: go on from it   |   right click or Esc: stop   |   Ctrl+Z: take the last node back");
-    QFont font = painter.font();
-    font.setPointSizeF(10);
-    font.setBold(true);
-    painter.setFont(font);
-    const QFontMetrics fm(font);
-    const QString text = fm.elidedText(hint, Qt::ElideRight, std::max(100, width() - 60));
-    const double w = fm.horizontalAdvance(text) + 32, h = fm.height() + 14;
-    const QRectF box((width() - w) / 2.0, height() - h - 18.0, w, h);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(22, 76, 94, 225));
-    painter.drawRoundedRect(box, h / 2.0, h / 2.0);
-    painter.setPen(QColor(0xee, 0xe8, 0xd5));
-    painter.drawText(box, Qt::AlignCenter, text);
     painter.restore();
 }
 

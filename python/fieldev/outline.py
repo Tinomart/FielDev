@@ -234,6 +234,22 @@ def _text_of(src, stmt):
     return src.segment(stmt)
 
 
+def _mark_armature_nodes(gs):
+    ''' The nodes of an armature are marked by the call that makes it, after the statements of the nodes are done and their facts taken: the facts of the variables that
+        hold them are given now.  (A click on a node in the viewport finds out from them whether it is a node of an armature, to go on placing nodes from it) '''
+    Shape, _ = A._types()
+    nodes = {name for name, v in gs.items() if isinstance(v, Shape) and getattr(v, '_armature_factor', None) is not None}
+    if not nodes:
+        return
+    for (name, _), facts in _KNOWN.items():
+        if name in nodes:
+            facts['armature_node'] = True
+    for name in nodes:
+        latest = _LATEST.get(name)
+        if latest is not None:
+            latest[2]['armature_node'] = True
+
+
 def record(stmt, src, gs, value):
     ''' A statement of the running script is done: what it made is remembered (cheap: the facts of the values) '''
     try:
@@ -247,6 +263,8 @@ def record(stmt, src, gs, value):
                             facts = facts_of(gs[t.id])
                             _KNOWN[(t.id, text)] = facts
                             _LATEST[t.id] = (text, callee, facts)
+                if callee == 'armature':
+                    _mark_armature_nodes(gs)
             elif isinstance(stmt, ast.Expr):
                 _DISPLAYS[text] = facts_of(value)
             if _ERROR and _ERROR.get('text') == text:
@@ -1203,6 +1221,8 @@ def outline_json(arg):
                             item['handle_cap'] = facts['handle_cap']
                             if facts.get('ends_only'):
                                 item['ends_only'] = True
+                    if facts.get('armature_node'):
+                        item['armature_node'] = True        # (a node of an armature: a click on it in the viewport goes on placing nodes from it)
                     # placeholders: `...` written where an argument goes (such a statement does not run, nor does what is made from it)
                     if _holes(stmt):
                         spans = sorted(A._span(n) for n in ast.walk(stmt.value)

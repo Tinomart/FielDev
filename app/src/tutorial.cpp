@@ -859,7 +859,7 @@ void Tutorial::buildSteps()
         s.text = T("FielDev is a playful workshop for game makers: props, level pieces and whole characters, built from simple shapes and a little maths.")
                  + "\n\n" + T("Every shape is a line of a short script. Change a number and the picture follows; drag the picture and the number follows.")
                  + "\n\n" + T("The tour takes a few minutes and ends with a character of your own. Let's make something!");
-        s.hint = T("The guided tour is a few minutes. It starts again from Help ▸ Guided tour.");
+        s.hint = T("The tour starts again from Help ▸ Guided tour.");
         s.welcome = true;
         s.place = Center;
         add(s);

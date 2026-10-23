@@ -23,3 +23,7 @@ the README has the design decisions (*Known limitations*).
 - **`uv_unwrap` is a pure-Python unwrap**: a mesh of tens of thousands of triangles takes tens of seconds to lay out (the conformal map of an island of more than 6000 triangles is replaced by a planar projection), and the
   packing is a few per cent looser than a dedicated packer's.
 - **FielDev writes no animation and no morph targets**: it is a modelling program. A rigged glTF is the mesh in its bind pose with the skeleton and the skin weights.
+
+## Units
+
+- **Lengths are called millimetres everywhere in the program, while the models of a game have the unit of their engine** (a metre in most). The scale bar, the resolution ("samples per mm"), the size of an imported model ("mm per unit") and the docs all say millimetres. A unit for the scene, and what an export does with it, is open.
