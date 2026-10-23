@@ -264,7 +264,8 @@ class Curve(Shape):
     ''' A 1D shape (see `polyline`, `spline`).  .points are the points it was made from, .smooth the default of its points, .closed whether it is joined at its
         ends, .vertices the line it is drawn as (x, y, z) '''
     _kind = 'curve'
-    _no_gizmo = True                # (its points have the gizmos: they are what is dragged)
+    _no_gizmo = True                # (no gizmo() line with numbers of its own: its points have them, and the viewport shares them -- View::groupGizmo -- to move, turn and scale it)
+    _outline_gizmo = True           # (the model tree's gizmo button gives it a line without numbers, `x = gizmo(x, mode=...)`: when that shared gizmo is shown, off until said otherwise)
 
     def _remake(self, points, improper=False):
         ''' The same line through other points (the images of its points in a symmetry: see symmetries.symmetry_images) '''
@@ -284,7 +285,18 @@ class Curve(Shape):
             # say (the sweep starts at the profile: see path_extrude).  Its points are drawn there too (points.displayed), so a point dragged is dragged where it is seen
             out._ctrl_pos = [tuple(c + s for c, s in zip(expr, shift)) for expr in self._ctrl_pos]
             out.vertices = [tuple(a + s for a, s in zip(v, shift)) for v in self.vertices]
-        return out
+        return with_image_dots(self, out)
+
+
+def with_image_dots(model, shown):
+    ''' What is drawn for a profile or a line: `shown`, and -- when it is a placed copy of another (see handles.gizmo) -- the dots of its points, which are images of the original's
+        points: each is pressed, dragged and double clicked, and it is the original's point that changes (see points.image_dot) '''
+    dots = getattr(model, '_image_dots', None)
+    if not dots:
+        return shown
+    # (each of what is returned is asked for its own display in turn: what is drawn of the outline is not asked for the dots again, or it would answer with them once more)
+    shown.__dict__.pop('_image_dots', None)
+    return [shown] + list(dots)
 
 
 # ---- the fields: direct math (expressions of x, y, z), the way a vector renderer measures a polygon: no black boxes, so the renderer can drop what is far away
@@ -536,3 +548,5 @@ def spline(points, closed=False):
 
 polyline._makes_no_gizmo = True
 spline._makes_no_gizmo = True
+polyline._makes_outline_gizmo = True
+spline._makes_outline_gizmo = True

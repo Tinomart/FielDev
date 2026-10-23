@@ -19,11 +19,16 @@ FielDev writes one with Ctrl+D (or Operations > Repeating > instance):
 
 The original is only REFERRED to: the mark `# shadow: plate` keeps it where it is in the model tree (a shadow of it is shown under the copy), whether it is
 locked or not -- taking the original into the copy would move its row away and make the copy look like what the original is made of.
+Every model is cloned the same way, `copy = instance(model)`: a model that is not a shape -- a material, a number -- is its own value
+(no place to give it).  What is made of points -- a profile, a polyline, a spline -- is cloned like any shape: its copy is placed by its own gizmo, as the
+same outline through the images of the original's points (see gizmo()), so a point dragged, a number typed or a point added in the original changes every copy of it.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
+import copy
+
 from fieldev.ffi import lib
 from fieldev.shape import Shape
 
@@ -31,7 +36,7 @@ __all__ = ['instance']
 
 # What belongs to the original's own statements, not to what the original IS: its gizmo (the copy has its own), its lock, what it was placed from, the pivot of the faces
 # that were dragged, whether it is kept in the render cache
-_NOT_TAKEN = ('ptr', '_gizmo', '_locked', '_placed_from', '_placed_parts', '_pivot_shape', '_render_cache', '_literal_seen')
+_NOT_TAKEN = ('ptr', '_gizmo', '_locked', '_placed_from', '_placed_parts', '_pivot_shape', '_render_cache', '_literal_seen', '_outline_mode')
 
 
 def instance(shape):
@@ -40,11 +45,12 @@ def instance(shape):
         surfaces are pulled by, so dragging a surface of the copy or of the original moves both.  FielDev writes it with Ctrl+D, holding the original as a reference (`# shadow: original`: the original keeps its own row in the model tree,
         locked or not).  A copy that has a shape of its own is a copy of the statements instead (Shift+D) '''
     if not isinstance(shape, Shape):
-        raise TypeError('instance(): only a shape can be linked (a body, a 2D shape, a surface, a point ...), not %s -- a number or a result '
-                        'has no shape to follow' % type(shape).__name__)
-    if getattr(shape, '_ctrl_pos', None):
-        raise TypeError('instance(): a profile or a curve is made of its points, which are the models to place -- link the points, or copy the profile with its '
-                        'statements (Shift+D)')
+        # A model that is not a shape -- a material, a number -- has no place to give a copy of its own: the copy IS the value (the script runs again when the original changes, so
+        # the copy follows it)
+        try:
+            return copy.copy(shape)
+        except Exception:
+            return shape
     # What the copy is made of: the shape as it was BEFORE the gizmo of the original moved and turned it -- scaled as the gizmo scaled it -- so that where the original is, and how
     # it is turned, are the original's own; the copy has its own gizmo for that (FielDev writes it with the numbers the original's gizmo has, so that it starts on the original)
     source = shape
@@ -61,6 +67,17 @@ def instance(shape):
             for name, value in base.__dict__.items():
                 if name not in ('ptr', '_bounds', '_bounds_loose') and name not in source.__dict__:
                     source.__dict__[name] = value
+            # The box of the scaled shape, from the box the part had before: the app sizes the render of a shape from it, and a shape that does not know its box (the search for it
+            # fails for a part that has var()s: the gizmo's scale is some) is meshed at the scene's plain resolution -- a small circle or a small body is a few cells wide there, and
+            # a copy that was not drawn at all.  The numbers are the original's gizmo's: plain, or var()s of the script being run
+            box = getattr(base, '_bounds', None)
+            if box:
+                from fieldev.stdlib.handles import _placed_box
+                placed = _placed_box(box, about, (0, 0, 0), (0, 0, 0), scale)
+                if placed is not None:
+                    source._bounds = placed
+                    if getattr(base, '_bounds_loose', False):
+                        source._bounds_loose = True
     # (the copy is made without the class's own constructor: some classes -- a point, a surface -- are built from numbers and fields, not from a tree)
     out = type(source).__new__(type(source))
     Shape.__init__(out, lib.libfive_tree_copy(source.ptr))
@@ -70,4 +87,10 @@ def instance(shape):
     out._linked = True              # (FielDev: it is dragged by its gizmo only, which has no scale)
     out._no_handles = True          # (it has no handles() line of its own: it is pulled by the numbers of the original's)
     out._instance_of = shape
+    if getattr(source, '_outline_gizmo', False):
+        # (what is made of points -- a profile, a line -- has a gizmo without numbers, because its points have them: a copy is placed by numbers of its own, which gizmo() applies
+        # through the images of its points)
+        out._no_gizmo = False
+        out._outline_gizmo = False
+        out._editable = False
     return out
