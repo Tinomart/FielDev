@@ -219,6 +219,11 @@ public:
     /*  The one number (var) an expression of the script's numbers is made of, or null when it has none or several: what moves a point along an axis  */
     static libfive::Tree::Id soleVarOf(const libfive::Tree& expression);
     bool hasControls() const { return !m_controls.empty(); }
+    /*  The points a model is made of that is not drawn from them as a line or a face is (an armature, a feature model): only so that the viewport can share their gizmos when the model is selected
+     *  as a whole, as it does for the points of a profile (View::groupGizmo).  They change nothing about how the model is drawn  */
+    void setGroupPoints(std::vector<ControlPoint> points) { m_group_points = std::move(points); }
+    bool hasGroupPoints() const { return !m_group_points.empty(); }
+    bool groupHas(const Shape* point) const;
     bool isCurve() const { return hasControls() && !m_controls_face; }
     bool isFace() const { return hasControls() && m_controls_face; }
     /*  A 2D shape (a flat one, or a profile): drawn over the 3D ones, whatever is in front of it, in a shade of its own, and picked before them  */
@@ -710,6 +715,7 @@ protected:
     int m_point_style = 0;
     std::vector<ControlPoint> m_controls;
     bool m_controls_default = false, m_controls_closed = false, m_controls_face = false;
+    std::vector<ControlPoint> m_group_points;
     Gizmo::Mode m_outlineMode = Gizmo::NEVER;
     int m_editLine = -1;
     QMatrix4x4 m_editMap;

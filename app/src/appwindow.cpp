@@ -127,13 +127,13 @@ QString sizeText(qint64 n)
     return QString("%1 MB").arg(n / 1024.0 / 1024.0, 0, 'f', 1);
 }
 
-// The colours of FielDev: the dark teal of the viewport's cards and the model tree (#2a2358) and a deeper one for what is typed in (#1f1a45), cream
+// The colours of FielDev: the dark teal of the viewport's cards and the model tree (#164c5e) and a deeper one for what is typed in (#0f3a49), cream
 // text (#eee8d5), Solarized's greys for what is said quietly, the blue of the selection (#268bd2) for what is pressed
-const char* kMuted = "#beb2f0";
+const char* kMuted = "#93a1a1";
 const char* kError = "#ff8f7f";
 const char* kGood = "#a8cc5f";
-const char* kPanel = "#2a2358";
-const char* kDeep = "#1f1a45";
+const char* kPanel = "#164c5e";
+const char* kDeep = "#0f3a49";
 const char* kAccent = "#268bd2";
 
 QPalette appPalette()
@@ -153,10 +153,10 @@ QPalette appPalette()
     p.setColor(QPalette::ToolTipBase, QColor(kPanel));
     p.setColor(QPalette::ToolTipText, QColor("#eee8d5"));
     p.setColor(QPalette::Link, QColor("#5fb0ee"));
-    p.setColor(QPalette::Mid, QColor("#8a80c4"));
-    p.setColor(QPalette::Disabled, QPalette::Text, QColor("#8a80c4"));
-    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor("#8a80c4"));
-    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor("#8a80c4"));
+    p.setColor(QPalette::Mid, QColor("#586e75"));
+    p.setColor(QPalette::Disabled, QPalette::Text, QColor("#586e75"));
+    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor("#586e75"));
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor("#586e75"));
     return p;
 }
 
@@ -167,42 +167,42 @@ QString appStyleSheet()
         "QWidget { color: #eee8d5; }"
         "QLabel { background: transparent; }"
         "QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"
-        "QWidget#appHeader { background: %2; border-bottom: 1px solid rgba(190, 178, 240, 70); }"
-        "QWidget#appBelow { border-top: 1px solid rgba(190, 178, 240, 70); }"
-        "QWidget#appViewBar { background: %2; border-top: 1px solid rgba(190, 178, 240, 70); }"
-        "QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox { background: %2; color: #eee8d5; border: 1px solid rgba(190, 178, 240, 90);"
+        "QWidget#appHeader { background: %2; border-bottom: 1px solid rgba(147, 161, 161, 70); }"
+        "QWidget#appBelow { border-top: 1px solid rgba(147, 161, 161, 70); }"
+        "QWidget#appViewBar { background: %2; border-top: 1px solid rgba(147, 161, 161, 70); }"
+        "QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox { background: %2; color: #eee8d5; border: 1px solid rgba(147, 161, 161, 90);"
         "  border-radius: 5px; padding: 4px 7px; selection-background-color: %3; selection-color: white; }"
         "QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus { border-color: %3; }"
-        "QComboBox QAbstractItemView { background: %2; color: #eee8d5; border: 1px solid rgba(190, 178, 240, 100);"
+        "QComboBox QAbstractItemView { background: %2; color: #eee8d5; border: 1px solid rgba(147, 161, 161, 100);"
         "  selection-background-color: %3; selection-color: white; outline: none; }"
-        "QPushButton { background: rgba(190, 178, 240, 40); color: #eee8d5; border: 1px solid rgba(190, 178, 240, 90); border-radius: 5px;"
+        "QPushButton { background: rgba(147, 161, 161, 40); color: #eee8d5; border: 1px solid rgba(147, 161, 161, 90); border-radius: 5px;"
         "  padding: 5px 14px; }"
-        "QPushButton:hover { border-color: %3; background: rgba(190, 178, 240, 70); }"
-        "QPushButton:pressed { background: rgba(138, 92, 245, 150); }"
-        "QPushButton:disabled { color: #8a80c4; border-color: rgba(190, 178, 240, 45); background: rgba(190, 178, 240, 20); }"
+        "QPushButton:hover { border-color: %3; background: rgba(147, 161, 161, 70); }"
+        "QPushButton:pressed { background: rgba(38, 139, 210, 150); }"
+        "QPushButton:disabled { color: #586e75; border-color: rgba(147, 161, 161, 45); background: rgba(147, 161, 161, 20); }"
         "QPushButton#appRun { background: %3; color: white; border: none; border-radius: 6px; padding: 7px 24px; font-weight: 600; }"
         "QPushButton#appRun:hover { background: #3a9be0; }"
         "QPushButton#appRun:pressed { background: #1f77b4; }"
         "QPushButton#appRun[running=\"true\"] { background: #cb4b16; }"
         "QPushButton#appRun[running=\"true\"]:hover { background: #e0582a; }"
-        "QPushButton#appRun:disabled { background: rgba(190, 178, 240, 50); color: #beb2f0; }"
+        "QPushButton#appRun:disabled { background: rgba(147, 161, 161, 50); color: #93a1a1; }"
         "QCheckBox { spacing: 8px; }"
-        "QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid rgba(190, 178, 240, 130); border-radius: 4px; background: %2; }"
+        "QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid rgba(147, 161, 161, 130); border-radius: 4px; background: %2; }"
         "QCheckBox::indicator:hover { border-color: %3; }"
         "QCheckBox::indicator:checked { background: %3; border-color: #5fb0ee; }"
-        "QPlainTextEdit { background: %2; color: #eee8d5; border: 1px solid rgba(190, 178, 240, 70); border-radius: 6px; padding: 4px;"
+        "QPlainTextEdit { background: %2; color: #eee8d5; border: 1px solid rgba(147, 161, 161, 70); border-radius: 6px; padding: 4px;"
         "  selection-background-color: %3; selection-color: white; }"
-        "QProgressBar { background: rgba(190, 178, 240, 50); border: none; border-radius: 3px; }"
+        "QProgressBar { background: rgba(147, 161, 161, 50); border: none; border-radius: 3px; }"
         "QProgressBar::chunk { background: %3; border-radius: 3px; }"
         "QScrollBar:vertical { background: transparent; width: 11px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: rgba(190, 178, 240, 110); border-radius: 4px; min-height: 28px; margin: 2px; }"
-        "QScrollBar::handle:vertical:hover { background: rgba(190, 178, 240, 170); }"
+        "QScrollBar::handle:vertical { background: rgba(147, 161, 161, 110); border-radius: 4px; min-height: 28px; margin: 2px; }"
+        "QScrollBar::handle:vertical:hover { background: rgba(147, 161, 161, 170); }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
         "QScrollBar:horizontal { background: transparent; height: 11px; margin: 0; }"
-        "QScrollBar::handle:horizontal { background: rgba(190, 178, 240, 110); border-radius: 4px; min-width: 28px; margin: 2px; }"
+        "QScrollBar::handle:horizontal { background: rgba(147, 161, 161, 110); border-radius: 4px; min-width: 28px; margin: 2px; }"
         "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
         "QDialog, QMessageBox { background: %1; }"
-        "QSplitter::handle { background: rgba(190, 178, 240, 70); }"
+        "QSplitter::handle { background: rgba(147, 161, 161, 70); }"
     ).arg(kPanel, kDeep, kAccent);
 }
 

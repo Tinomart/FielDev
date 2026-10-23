@@ -885,6 +885,20 @@ int Shape::controlOf(const Shape* point) const
     return -1;
 }
 
+bool Shape::groupHas(const Shape* point) const
+{
+    if (!point) return false;
+    const auto& g = point->gizmo();
+    for (const ControlPoint& c : m_group_points)
+    {
+        for (int a = 0; a < 3; ++a)
+        {
+            if (g.move[a] && c.var[a] == g.move[a]) return true;
+        }
+    }
+    return false;
+}
+
 int Shape::controlAfterPiece(int piece) const
 {
     std::vector<libfive::pointshapes::Control> cs;
@@ -1634,6 +1648,7 @@ bool Shape::updateFrom(const Shape* other)
     // (the same tree: only whether its gizmo is shown, and its pivot,
     // can differ, and whether it is locked)
     m_gizmo = other->m_gizmo;
+    m_group_points = other->m_group_points;
     m_outlineMode = other->m_outlineMode;           // (when the gizmo of a profile or a line is shown: `x = gizmo(x, mode=...)` changes nothing in its tree)
     m_editLine = other->m_editLine;                 // (the line of the outline an image is an image of: what pressing its outline edits)
     m_editMap = other->m_editMap;

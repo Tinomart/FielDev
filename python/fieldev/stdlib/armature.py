@@ -95,6 +95,21 @@ def _sized(place, size):
     return gizmo(point(*xyz), scale=(size, size, size))
 
 
+def _placed_natively(placed, sweep, move):
+    ''' `placed` is `sweep` moved by `move` (a new shape: its field).  A sweep that is drawn natively from the numbers of its points (path_extrude: `_sweep_*`) is placed natively as well, the way
+        handles.gizmo places one: the viewport carries it by the numbers of the move, in a moment, and does not mesh the field of a sweep (thousands of terms: seconds at every node put down) '''
+    if getattr(sweep, '_sweep_ppos', None) is None:
+        return
+    from fieldev.stdlib.handles import _carry
+    _carry(placed, sweep)
+    for name in ('_sweep_ppos', '_sweep_prot', '_sweep_pflag', '_sweep_pscale', '_sweep_pradius', '_sweep_pdefault', '_sweep_qpos', '_sweep_qrot', '_sweep_qflag', '_sweep_qscale',
+                 '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist'):
+        setattr(placed, name, getattr(sweep, name))
+    placed._sweep_free = getattr(sweep, '_sweep_free', False)
+    placed._sweep_guard = list(getattr(sweep, '_sweep_guard', []))
+    placed._sweep_place = ((0.0, 0.0, 0.0), tuple(Shape.wrap(x) for x in move), (Shape.wrap(0.0),) * 3, (Shape.wrap(1.0),) * 3)
+
+
 def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0):
     ''' A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
@@ -165,7 +180,9 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)
         shift = getattr(way, '_weld_shift', None)
         if shift is not None:
-            out = transforms.move(out, C.sub((0.0, 0.0, 0.0), tuple(shift)))
+            sweep, back = out, C.sub((0.0, 0.0, 0.0), tuple(shift))
+            out = transforms.move(out, back)
+            _placed_natively(out, sweep, back)
             for item in [way] + list(getattr(way, 'points', [])):
                 try:
                     item._weld_shift = None
@@ -190,7 +207,17 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
     bend = 0.15 * max(hi[c] - lo[c] for c in range(3))
     out._bounds = (tuple(lo[c] - reach - bend for c in range(3)), tuple(hi[c] + reach + bend for c in range(3)))
     out._bounds_loose = True
+    if n > 1 and getattr(out, '_sweep_ppos', None) is None:
+        # (a sweep that is not drawn natively from its points -- a profile that is not made of points -- is meshed from its field, which is slow to clear empty space of: over the whole region
+        # of the scene it takes seconds at every node put down, so it is meshed over a cube of its own)
+        from fieldev.stdlib.custom_resolution import render_hint_for
+        hint = render_hint_for(out._bounds[0], out._bounds[1], 2.0 * ref * max(min(ctl.scale for ctl in ctrls), 1e-3))
+        if hint is not None:
+            out._render_hint = hint
+    out._group_pos = [ctl.expr for ctl in ctrls]        # (the points it is made of: the viewport shares their gizmos when the armature is selected as a whole, as it does for a profile's)
     out._armature = Armature(label, ctrls, list(joints), None if parent is None else str(parent), sizes, base, start)
+    out._no_gizmo = True                    # (no gizmo() line with numbers of its own: its nodes have them, and the viewport shares them -- View::groupGizmo -- to move, turn and scale the armature)
+    out._outline_gizmo = True               # (the model tree's gizmo button gives it a line without numbers, `x = gizmo(x, mode=...)`: when that shared gizmo is shown, off until said; the armature itself is returned)
     return out
 
 
@@ -341,5 +368,7 @@ def skeleton_of(armatures, mirror=None, plane=0.0, join=None):
 
 # What the menus offer them for (see fieldev.kinds.takes): an armature is made of points and a profile, a character and a skeleton of armatures (bodies)
 armature._takes = _declare({"point", "profile"}, [{"point"}])
+armature._makes_no_gizmo = True
+armature._makes_outline_gizmo = True
 character._takes = _declare({"solid"}, [{"solid"}])
 skeleton_of._takes = _declare({"solid"}, [{"solid"}])

@@ -131,7 +131,7 @@ protected:
                 line.addRoundedRect(QRectF(l).adjusted(-2, -1, 2, 1), 3, 3);
                 path = path.subtracted(line);
             }
-            p.fillPath(path, QColor(14, 10, 34, 168));
+            p.fillPath(path, QColor(3, 20, 28, 168));
         }
         // The lines of the script that were just changed (by the user's hand anywhere: the number, the tree, the viewport) glow
         // and fade: the script and what is drawn are one thing
@@ -166,7 +166,7 @@ protected:
         {
             p.setOpacity(1);
             p.drawPixmap(menuRect.topLeft(), menuPic);
-            p.setPen(QPen(QColor(190, 178, 240, 170), 1));
+            p.setPen(QPen(QColor(147, 161, 161, 170), 1));
             p.setBrush(Qt::NoBrush);
             p.drawRect(menuRect.adjusted(0, 0, -1, -1));
         }
@@ -319,15 +319,15 @@ Tutorial::Tutorial(QMainWindow* window, View* view, Editor* editor, std::functio
         "#TourCard { background: #0d3a4a; border: 2px solid #ffcc33; border-radius: 10px; }"
         "#TourCard[done=\"true\"] { border: 2px solid #82cc58; }"
         "#TourCard QLabel { color: #eee8d5; background: transparent; }"
-        "#TourCard QPushButton { color: #eee8d5; background: rgba(190, 178, 240, 40); border: 1px solid rgba(190, 178, 240, 110);"
+        "#TourCard QPushButton { color: #eee8d5; background: rgba(147, 161, 161, 40); border: 1px solid rgba(147, 161, 161, 110);"
         "  border-radius: 6px; padding: 5px 12px; font-size: 9.5pt; }"
-        "#TourCard QPushButton:hover { background: rgba(190, 178, 240, 90); }"
-        "#TourCard QPushButton:disabled { color: #6c8a93; border-color: rgba(190, 178, 240, 50); }"
+        "#TourCard QPushButton:hover { background: rgba(147, 161, 161, 90); }"
+        "#TourCard QPushButton:disabled { color: #6c8a93; border-color: rgba(147, 161, 161, 50); }"
         "#TourCard QPushButton#TourNext { background: #ffcc33; color: #10303b; border: 1px solid #ffcc33; font-weight: bold; }"
         "#TourCard QPushButton#TourNext:hover { background: #ffd966; }"
         "#TourCard[done=\"true\"] QPushButton#TourNext { background: #82cc58; border: 1px solid #82cc58; }"
         "#TourCard[done=\"true\"] QPushButton#TourNext:hover { background: #9bd873; }"
-        "#TourCard QPushButton#TourSkip { background: transparent; border: none; color: #beb2f0; padding: 5px 4px; }"
+        "#TourCard QPushButton#TourSkip { background: transparent; border: none; color: #93a1a1; padding: 5px 4px; }"
         "#TourCard QPushButton#TourSkip:hover { color: #eee8d5; text-decoration: underline; }");
     auto col = new QVBoxLayout(m_card);
     col->setContentsMargins(16, 12, 16, 12);
@@ -336,7 +336,7 @@ Tutorial::Tutorial(QMainWindow* window, View* view, Editor* editor, std::functio
     m_title = new QLabel;
     m_title->setStyleSheet("font-size: 12.5pt; font-weight: bold; color: #ffcc33;");
     m_counter = new QLabel;
-    m_counter->setStyleSheet("font-size: 8.5pt; color: #beb2f0;");
+    m_counter->setStyleSheet("font-size: 8.5pt; color: #93a1a1;");
     head->addWidget(m_title, 1);
     head->addWidget(m_counter);
     col->addLayout(head);
@@ -346,7 +346,7 @@ Tutorial::Tutorial(QMainWindow* window, View* view, Editor* editor, std::functio
     col->addWidget(m_text);
     m_note = new QLabel;
     m_note->setWordWrap(true);
-    m_note->setStyleSheet("font-size: 9pt; color: #beb2f0;");
+    m_note->setStyleSheet("font-size: 9pt; color: #93a1a1;");
     col->addWidget(m_note);
     col->addSpacing(4);
     auto buttons = new QHBoxLayout;
@@ -2307,7 +2307,7 @@ void Tutorial::showMe()
                 const Step& s = (*m_steps)[step];
                 if (s.enter) s.enter();
                 m_note->setText(s.hint + (s.hint.isEmpty() ? "" : "\n") + T("Everything is back as it was. Now you try."));
-                m_note->setStyleSheet("font-size: 9pt; color: #beb2f0;");
+                m_note->setStyleSheet("font-size: 9pt; color: #93a1a1;");
             });
         };
         after(800, [settle] { (*settle)(0); });          // (the run an edit makes starts a moment after the edit)
@@ -2336,7 +2336,7 @@ void Tutorial::showStep()
     m_title->setText(s.title);
     m_text->setText(s.text);
     m_note->setText(s.hint);
-    m_note->setStyleSheet("font-size: 9pt; color: #beb2f0;");
+    m_note->setStyleSheet("font-size: 9pt; color: #93a1a1;");
     m_note->setVisible(!s.hint.isEmpty());
     m_counter->setText(s.welcome || s.exitCard ? QString() : QString("%1 / %2").arg(m_index).arg(m_steps->size() - 2));
     m_skipTour->setText(s.welcome ? T("Skip the guided tour") : (s.last ? QString() : T("Skip the tour")));

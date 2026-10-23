@@ -21,11 +21,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 namespace FielDev {
 
-// (the viewport's backdrop, a toy box's sky: deep indigo below, violet above and a touch of bubblegum at the top right -- lighter than the cards on it)
-#define SKY_BL 0.1647, 0.1451, 0.4118
-#define SKY_BR 0.1608, 0.2314, 0.5255
-#define SKY_TL 0.3569, 0.2118, 0.6588
-#define SKY_TR 0.6196, 0.2706, 0.6588
+// (the viewport's backdrop: a calm dark slate that lightens very gently upwards -- it is looked at all day, so it takes no attention from the model and has no hue to tire the eyes)
+#define SKY_BL 0.098, 0.137, 0.188
+#define SKY_BR 0.098, 0.137, 0.188
+#define SKY_TL 0.165, 0.216, 0.286
+#define SKY_TR 0.165, 0.216, 0.286
 
 void Background::initializeGL()
 {

@@ -41,7 +41,7 @@ QHash<QString, Kind>& kinds()
         {"point",      {"Point",        QColor("#ffc93c")}},
         {"points",     {"Point set",    QColor("#ff9f43")}},
         {"import",     {"Import",       QColor("#1cc9c0")}},
-        {"symmetry",   {"Symmetry",     QColor("#ff5fa2")}},
+        {"symmetry",   {"Symmetry",     QColor("#d33682")}},
         {"block",      {"Custom block", QColor("#9fb4ff")}},
         // (not kinds of model: the parts of the right-click menus that are not primitives)
         {"operation",  {"Operation",    QColor("#ff9ec7")}},
@@ -49,7 +49,7 @@ QHash<QString, Kind>& kinds()
         {"python",     {"Python",       QColor("#8b7bff")}},
         // (the Characters menu)
         {"character",  {"Character",    QColor("#ffcf4a")}},
-        {"armature",   {"Armature",     QColor("#ff7a59")}},
+        {"armature",   {"Armature",     QColor("#7fd1ff")}},
         {"feature",    {"Feature model", QColor("#ff8fc2")}},
     };
     return k;
@@ -287,7 +287,7 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
 // The mark of a custom block: a small badge at the lower right with a function's f
 void drawBlockMark(QPainter& p)
 {
-    p.setPen(QPen(QColor(0x2a, 0x23, 0x58), 1.6));
+    p.setPen(QPen(QColor(0x16, 0x4c, 0x5e), 1.6));
     p.setBrush(QColor(0xee, 0xe8, 0xd5));
     p.drawEllipse(QPointF(12.2, 12.2), 3.4, 3.4);
     QPainterPath f;
@@ -297,7 +297,7 @@ void drawBlockMark(QPainter& p)
     f.moveTo(11.0, 11.9);
     f.lineTo(13.3, 11.9);
     p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(QColor(0x2a, 0x23, 0x58), 1.05, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setPen(QPen(QColor(0x16, 0x4c, 0x5e), 1.05, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.drawPath(f);
 }
 

@@ -1668,6 +1668,46 @@ void Interpreter::recordShape(
             PyErr_Clear();
         }
         {
+            // (the points a model is made of that is not drawn from them as a line or a face is -- an armature, a feature model: the viewport shares their gizmos when it is selected as a whole,
+            // see Shape::setGroupPoints.  The mode of that gizmo is `x = gizmo(x, mode=...)`: never when no such line is there)
+            PyObject* gp = PyObject_GetAttrString(obj, "_group_pos");
+            if (gp && PyList_Check(gp) && PyList_Size(gp) > 0)
+            {
+                std::vector<Shape::ControlPoint> points;
+                bool good = true;
+                for (Py_ssize_t i = 0; i < PyList_Size(gp) && good; ++i)
+                {
+                    PyObject* at = PyList_GetItem(gp, i);
+                    if (!PyTuple_Check(at) || PyTuple_Size(at) != 3) { good = false; break; }
+                    Shape::ControlPoint c;
+                    for (int a = 0; a < 3; ++a)
+                    {
+                        c.pos[a] = treeOfShape(PyTuple_GetItem(at, a));
+                        if (!c.pos[a].is_valid()) { good = false; break; }
+                        c.var[a] = Shape::soleVarOf(c.pos[a]);
+                    }
+                    if (good) points.push_back(std::move(c));
+                }
+                if (good)
+                {
+                    shape->setGroupPoints(std::move(points));
+                    if (PyObject_HasAttrString(obj, "_outline_mode"))
+                    {
+                        PyObject* om = PyObject_GetAttrString(obj, "_outline_mode");
+                        if (om && PyUnicode_Check(om))
+                        {
+                            const QString name = QString::fromUtf8(PyUnicode_AsUTF8(om));
+                            shape->setOutlineMode(name == "always" ? Shape::Gizmo::ALWAYS : name == "click" ? Shape::Gizmo::CLICK : Shape::Gizmo::NEVER);
+                        }
+                        Py_XDECREF(om);
+                        PyErr_Clear();
+                    }
+                }
+            }
+            Py_XDECREF(gp);
+            PyErr_Clear();
+        }
+        {
             // (a straight extrusion of a profile of points -- a prism: its points, and a and b, as expressions of the script's numbers, and the numbers that must still be what
             // they were; the viewport makes it from them natively at every render: see Shape::setPrism and fieldev.stdlib.profile.extrude)
             PyObject* pp = PyObject_GetAttrString(obj, "_prism_pos");

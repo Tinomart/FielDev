@@ -93,27 +93,27 @@ WorkPlanePanel::WorkPlanePanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     // (the look of the section card)
     setStyleSheet(
-        "#WorkPlanePanel { background: rgba(42, 35, 88, 222);"
-        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 6px; }"
-        "QLabel { color: #beb2f0; font-size: 8pt; }"
+        "#WorkPlanePanel { background: rgba(22, 76, 94, 222);"
+        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
+        "QLabel { color: #93a1a1; font-size: 8pt; }"
         "QLabel#WorkPlaneInfo { color: #eee8d5; }"
         "QLabel#WorkPlaneReadout { color: #eee8d5; font-size: 8.5pt; }"
-        "QToolButton { color: #eee8d5; background: rgba(190, 178, 240, 28);"
-        "  border: 1px solid rgba(190, 178, 240, 60); border-radius: 4px;"
+        "QToolButton { color: #eee8d5; background: rgba(147, 161, 161, 28);"
+        "  border: 1px solid rgba(147, 161, 161, 60); border-radius: 4px;"
         "  padding: 2px 8px; font-size: 8pt; }"
-        "QToolButton:hover { background: rgba(190, 178, 240, 60); }"
-        "QToolButton:checked { background: rgba(138, 92, 245, 170);"
-        "  border-color: rgba(138, 92, 245, 230); color: white; }"
-        "QToolButton:disabled { color: rgba(190, 178, 240, 120); }"
+        "QToolButton:hover { background: rgba(147, 161, 161, 60); }"
+        "QToolButton:checked { background: rgba(38, 139, 210, 170);"
+        "  border-color: rgba(38, 139, 210, 230); color: white; }"
+        "QToolButton:disabled { color: rgba(147, 161, 161, 120); }"
         "QToolButton#WorkPlaneHeader { background: transparent; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 4px; }"
-        "QToolButton#WorkPlaneClose { background: transparent; border: none; color: #beb2f0;"
+        "QToolButton#WorkPlaneClose { background: transparent; border: none; color: #93a1a1;"
         "  padding: 2px 5px; font-size: 9pt; }"
         "QToolButton#WorkPlaneClose:hover { color: #eee8d5; }"
         "QDoubleSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
-        "  border: 1px solid rgba(190, 178, 240, 70); border-radius: 3px; padding: 1px 2px;"
-        "  font-size: 8pt; selection-background-color: rgba(138, 92, 245, 200); }"
-        "QDoubleSpinBox:disabled { color: rgba(190, 178, 240, 140); }");
+        "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 3px; padding: 1px 2px;"
+        "  font-size: 8pt; selection-background-color: rgba(38, 139, 210, 200); }"
+        "QDoubleSpinBox:disabled { color: rgba(147, 161, 161, 140); }");
 
     m_header->setObjectName("WorkPlaneHeader");
     m_header->setText(QString(QChar(0x25be)) + "  " + T("Work plane"));
@@ -332,7 +332,7 @@ void WorkPlanePanel::setPlane(const WorkPlane& plane, float step)
         T("Every click puts a point on the plane.")};
     const int mode = std::max(0, std::min(3, plane.mode));
     m_hint->setText(hints[mode]);
-    m_hint->setStyleSheet(mode == 0 ? "color: #beb2f0;" : "color: #eee8d5;");
+    m_hint->setStyleSheet(mode == 0 ? "color: #93a1a1;" : "color: #eee8d5;");
     const QVector3D n = plane.normal(), o = plane.origin();
     auto number = [](float x) { return QString::number(std::fabs(x) < 5e-5f ? 0.0 : double(x), 'g', 4); };
     m_info->setText(T("Normal (%1, %2, %3), through (%4, %5, %6)")

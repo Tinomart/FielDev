@@ -52,6 +52,34 @@ def _box_of(shape, bounds):
     return tuple(float(v) for v in b[0]), tuple(float(v) for v in b[1])
 
 
+def render_hint_for(lo, hi, thin, per_thin=3.0, most=192, pad=0.25):
+    ''' The render hint (see Shape.setRenderHint) of a body that fills the box lo..hi and is `thin` across at its thinnest: the viewport meshes it over a cube of its own, at a resolution
+        that puts `per_thin` samples across `thin`, however large the scene's region is.  For a field whose empty space the mesher cannot clear quickly (a sweep along a spline, the
+        distance to a mesh) the cost grows with the region it meshes, not with the body: a three-node armature took 23 s over a region of +-10 mm and 1.7 s over its own box.  The cube is
+        the box widened by `pad` of its size, so that a node dragged a little stays inside it (the script runs again, and the cube with it, when it is let go); at most `most` samples a side.
+        None when the box has no size '''
+    lo = [float(v) for v in lo]
+    hi = [float(v) for v in hi]
+    ext0 = max(hi[i] - lo[i] for i in range(3))
+    if not ext0 > 0:
+        return None
+    grow = pad * ext0
+    lo = tuple(v - grow for v in lo)
+    hi = tuple(v + grow for v in hi)
+    ext = ext0 + 2.0 * grow
+    used = per_thin / max(float(thin), 1e-9)
+    samples = used * ext
+    if samples > most:
+        used = most / ext
+        samples = float(most)
+    if samples < 16.0:
+        used = 16.0 / ext
+        samples = 16.0
+    d = max(1, int(math.ceil(math.log2(samples * 1.05))))
+    side = 2.0 ** d / used
+    return (lo, hi, 0.999 * used, side, -1.0)
+
+
 def custom_resolution(shape, resolution, bounds=None):
     ''' `shape` drawn at a resolution of its own: `resolution` samples per mm, whatever the scene's resolution is (see the module).
 

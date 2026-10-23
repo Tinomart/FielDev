@@ -253,25 +253,25 @@ SymmetryPanel::SymmetryPanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     // (the look of the work plane's card)
     setStyleSheet(
-        "#SymmetryPanel { background: rgba(42, 35, 88, 222);"
-        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 6px; }"
-        "QLabel { color: #beb2f0; font-size: 8pt; }"
+        "#SymmetryPanel { background: rgba(22, 76, 94, 222);"
+        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
+        "QLabel { color: #93a1a1; font-size: 8pt; }"
         "QLabel#SymmetryInfo { color: #eee8d5; }"
-        "QToolButton { color: #eee8d5; background: rgba(190, 178, 240, 28);"
-        "  border: 1px solid rgba(190, 178, 240, 60); border-radius: 4px;"
+        "QToolButton { color: #eee8d5; background: rgba(147, 161, 161, 28);"
+        "  border: 1px solid rgba(147, 161, 161, 60); border-radius: 4px;"
         "  padding: 2px 6px; font-size: 8pt; }"
-        "QToolButton:hover { background: rgba(190, 178, 240, 60); }"
+        "QToolButton:hover { background: rgba(147, 161, 161, 60); }"
         "QToolButton:checked { background: rgba(211, 54, 130, 170);"
         "  border-color: rgba(211, 54, 130, 230); color: white; }"
-        "QToolButton:disabled { color: rgba(190, 178, 240, 120); }"
+        "QToolButton:disabled { color: rgba(147, 161, 161, 120); }"
         "QToolButton#SymmetryHeader { background: transparent; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 4px; }"
-        "QToolButton#SymmetryClose { background: transparent; border: none; color: #beb2f0;"
+        "QToolButton#SymmetryClose { background: transparent; border: none; color: #93a1a1;"
         "  padding: 2px 5px; font-size: 9pt; }"
         "QToolButton#SymmetryClose:hover { color: #eee8d5; }"
         "QDoubleSpinBox, QSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
-        "  border: 1px solid rgba(190, 178, 240, 70); border-radius: 3px; padding: 1px 2px;"
-        "  font-size: 8pt; selection-background-color: rgba(138, 92, 245, 200); }");
+        "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 3px; padding: 1px 2px;"
+        "  font-size: 8pt; selection-background-color: rgba(38, 139, 210, 200); }");
 
     m_header->setObjectName("SymmetryHeader");
     m_header->setText(QString(QChar(0x25be)) + "  " + T("Symmetry"));

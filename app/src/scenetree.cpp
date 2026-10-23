@@ -434,6 +434,13 @@ QString sizeText(const QJsonArray& b)
     return dims.join(QString(" ") + QChar(0x00d7) + " ");
 }
 
+// A model that is made of points, which are models of their own: a profile, a line, an armature, a feature model.  The points made for it go with it when it is deleted, are hidden and shown with it,
+// are copied with it (Shift+D), and are given their gizmos when it is selected so that its own gizmo -- the shared one of its points -- can be shown
+static bool madeOfPoints(const QString& callee)
+{
+    return callee == "profile" || callee == "polyline" || callee == "spline" || callee == "armature" || callee == "feature_model";
+}
+
 QString keyOf(const QJsonObject& it)
 {
     const QString kind = it["kind"].toString();
@@ -1266,7 +1273,7 @@ protected:
         if (fit.right() > viewport()->width() - 2) fit.moveRight(viewport()->width() - 2);
         p.setOpacity(m_ok ? 0.96 : 0.6);
         p.setPen(QPen(m_ok ? blue : QColor(0xdc, 0x32, 0x2f), 1.4));
-        p.setBrush(QColor(0x1f, 0x1a, 0x45));
+        p.setBrush(QColor(0x0b, 0x32, 0x40));
         p.drawRoundedRect(fit, 5, 5);
         m_ghostIcon.paint(&p, QRect(fit.left() + 4, fit.top() + 3, 16, 16));
         p.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -1285,7 +1292,7 @@ protected:
             if (note.top() < 2) note.moveTop(2);
             p.setOpacity(0.97);
             p.setPen(QPen(QColor(0xdc, 0x32, 0x2f), 1.2));
-            p.setBrush(QColor(0x1f, 0x1a, 0x45));
+            p.setBrush(QColor(0x0b, 0x32, 0x40));
             p.drawRoundedRect(note, 5, 5);
             p.setPen(QColor(0xee, 0xe8, 0xd5));
             p.drawText(note.adjusted(6, 5, -6, -5), Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, m_why);
@@ -1419,7 +1426,7 @@ private:
             p.drawLine(QPointF(6, y), QPointF(viewport()->width() - 6, y));
         }
         p.setPen(QPen(blue, m_gapHot ? 2.0 : 1.6));
-        p.setBrush(m_gapHot ? blue : QColor(0x1f, 0x1a, 0x45));
+        p.setBrush(m_gapHot ? blue : QColor(0x0b, 0x32, 0x40));
         p.drawEllipse(QRectF(c).adjusted(1, 1, -1, -1));
         p.setPen(QPen(m_gapHot ? QColor(0xee, 0xe8, 0xd5) : blue, 2.0, Qt::SolidLine, Qt::RoundCap));
         const QPointF m = QRectF(c).center();
@@ -1482,16 +1489,16 @@ ScenePanel::ScenePanel(QWidget* parent)
     setObjectName("ScenePanel");
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet(
-        "#ScenePanel { background: rgba(42, 35, 88, 222);"
-        "  border: 1px solid rgba(190, 178, 240, 90); border-radius: 6px; }"
+        "#ScenePanel { background: rgba(22, 76, 94, 222);"
+        "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
         "QTreeWidget { background: transparent; color: #eee8d5; border: none;"
         "  outline: none; font-size: 8.5pt; }"
         "QTreeWidget::item { padding: 1px 0px; }"
-        "QTreeWidget::item:hover { background: rgba(190, 178, 240, 40); }"
-        "QTreeWidget::item:selected { background: rgba(138, 92, 245, 150); color: white; }"
+        "QTreeWidget::item:hover { background: rgba(147, 161, 161, 40); }"
+        "QTreeWidget::item:selected { background: rgba(38, 139, 210, 150); color: white; }"
         "QToolButton#SceneHeader { color: #eee8d5; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 6px; text-align: left; }"
-        "QLabel { color: #beb2f0; font-size: 8pt; padding: 0px 6px 4px 6px; }"
+        "QLabel { color: #93a1a1; font-size: 8pt; padding: 0px 6px 4px 6px; }"
         // The script has an error: the card says so (a red frame, the header, the note under the rows)
         "#ScenePanel[error=\"true\"] { border: 2px solid rgba(255, 56, 56, 245); }"
         "QToolButton#SceneHeader[error=\"true\"] { color: #ff4a4a; }"
@@ -1500,13 +1507,13 @@ ScenePanel::ScenePanel(QWidget* parent)
         "QLabel[waiting=\"true\"] { color: #f5a623; font-size: 8.5pt; }"
         // The scroll bars of the card: a thin pill that floats over nothing -- no track, no arrows
         "QScrollBar:vertical { background: transparent; width: 11px; margin: 2px 0px; border: none; }"
-        "QScrollBar::handle:vertical { background: rgba(190, 178, 240, 105); border-radius: 4px; min-height: 28px;"
+        "QScrollBar::handle:vertical { background: rgba(147, 161, 161, 105); border-radius: 4px; min-height: 28px;"
         "  margin: 0px 2px; }"
-        "QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed { background: rgba(190, 178, 240, 190); }"
+        "QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed { background: rgba(147, 161, 161, 190); }"
         "QScrollBar:horizontal { background: transparent; height: 11px; margin: 0px 2px; border: none; }"
-        "QScrollBar::handle:horizontal { background: rgba(190, 178, 240, 105); border-radius: 4px; min-width: 28px;"
+        "QScrollBar::handle:horizontal { background: rgba(147, 161, 161, 105); border-radius: 4px; min-width: 28px;"
         "  margin: 2px 0px; }"
-        "QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed { background: rgba(190, 178, 240, 190); }"
+        "QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed { background: rgba(147, 161, 161, 190); }"
         "QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; background: none; border: none; }"
         "QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }");
 
@@ -2896,7 +2903,7 @@ void ScenePanel::rebuild()
         e->setProperty("fn", fn);
         e->setProperty("shown", shown);
         e->setToolTip(T("Samples per mm"));
-        e->setStyleSheet("QLineEdit { background: rgba(0, 0, 0, 80); color: #eee8d5; border: 1px solid rgba(190, 178, 240, 90);"
+        e->setStyleSheet("QLineEdit { background: rgba(0, 0, 0, 80); color: #eee8d5; border: 1px solid rgba(147, 161, 161, 90);"
                          " border-radius: 2px; padding: 0px 3px; font-size: 8.5pt; selection-background-color: #268bd2; }"
                          "QLineEdit:focus { border: 1px solid #268bd2; background: rgba(0, 0, 0, 120); }");
         e->installEventFilter(this);
@@ -2921,7 +2928,7 @@ void ScenePanel::rebuild()
             // A part that was imported as a mesh (tessellated) is drawn from its own triangles: there is nothing to mesh, so no resolution
             // changes how it looks
             auto mesh = new QLabel("(" + meshNote + ")");
-            mesh->setStyleSheet("color: #beb2f0; font-size: 8.5pt; padding: 0px;");
+            mesh->setStyleSheet("color: #93a1a1; font-size: 8.5pt; padding: 0px;");
             mesh->setToolTip(T("This part was imported as a mesh: it is drawn from its own triangles, not meshed from a field, so a resolution "
                              "does not change how it looks."));
             lay->addWidget(mesh);
@@ -3316,7 +3323,7 @@ QList<QJsonObject> ScenePanel::ownedPointsOf(const QJsonObject& owner) const
 {
     QList<QJsonObject> out;
     const QString callee = owner["callee"].toString();
-    if (callee != "profile" && callee != "polyline" && callee != "spline") return out;
+    if (!madeOfPoints(callee)) return out;
     QSet<QString> seen;
     for (const QString& name : directInputs(owner))
     {
@@ -4751,7 +4758,7 @@ QList<TextEdit> ScenePanel::plainCopyEdits(const QList<QJsonObject>& selected, Q
     for (const auto& it : selected)
     {
         const QString callee = it["callee"].toString();
-        if (callee == "profile" || callee == "polyline" || callee == "spline")
+        if (madeOfPoints(callee))
         {
             for (const QString& input : directInputs(it))
             {
@@ -5189,7 +5196,7 @@ void ScenePanel::deleteItems(const QList<QJsonObject>& items)
         for (const auto& o : all)
         {
             const QString callee = o["callee"].toString();
-            if (callee != "profile" && callee != "polyline" && callee != "spline") continue;
+            if (!madeOfPoints(callee)) continue;
             for (const QString& name : directInputs(o))
             {
                 const QJsonObject p = itemForVar(name);
@@ -6746,7 +6753,7 @@ void ScenePanel::prepareSelection()
             // A profile, a polyline or a spline has no gizmo of its own: where its gizmo is shown (its mode is not never: it starts as never) it is moved by the gizmos of its points
             // (the viewport shares them, see View::groupGizmo), so its points are made ready to be dragged as well -- a point that has no gizmo() line is given one
             const QString outline = m.item["callee"].toString();
-            if ((outline == "profile" || outline == "polyline" || outline == "spline") && m.item["mode"].toString("click") != "never")
+            if (madeOfPoints(outline) && m.item["mode"].toString("click") != "never")
             {
                 for (const QString& input : directInputs(m.item))
                 {

@@ -33,6 +33,7 @@ tapered cone are not exact.
 A round cone between each two points that follow each other, joined as one body.
 
 - **`points`** are the joints in order: points (`point(x, y, z)`, dragged in the viewport with their gizmos) or tuples of numbers. One point makes a ball.
+- **An armature has the gizmo of an outline, as a profile, a polyline or a spline has**: it has no numbers of its own, its nodes do. Selected as a whole, its nodes share **one gizmo** -- arrows and a dot that move all of it, knobs that stretch it, rings that turn it and scale it about the middle of its nodes. The gizmo button of its row in the model tree (off until you switch it on) writes `arm = gizmo(arm, mode='click')`, which returns the armature itself. A feature model is the same, with its points.
 - **The radius at a joint is the size of its point times `radii[i]`.** The size of a point is the scale of its gizmo (the gold ring round it, 1 for a point
   that has no gizmo). With no `radii` the size of a point is its radius, so the armature is shaped in the viewport: drag the points to move it, drag
   the rings to make it thicker or thinner there. `radii` is a number for all the joints, or a list with one for each; its numbers can be fields.

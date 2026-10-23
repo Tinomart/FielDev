@@ -197,7 +197,7 @@ def feature_model(features, view='front', mirror=None, snap=0.0, openings=True, 
         Returns a shape: the exact distance to the surface, made a shell of `thickness` when the surface is open and a solid when it is closed (`back=True`, with no opening left) '''
     if not isinstance(features, (list, tuple)) or not features:
         raise TypeError('feature_model(features): a list of features, each a list of points')
-    records, positions = [], []
+    records, positions, exprs = [], [], []
     for k, one in enumerate(features):
         if _is_node(one):
             raise TypeError('feature_model: features is a list of features, each a list of points -- item %d is a point, not a feature' % k)
@@ -205,7 +205,9 @@ def feature_model(features, view='front', mirror=None, snap=0.0, openings=True, 
         closed = bool(says)
         if len(points) < (3 if closed else 2):
             raise ValueError('feature_model: feature %d has %d points -- %s' % (k, len(points), 'a closed feature has 3 or more' if closed else 'a feature has 2 or more'))
-        pos = [c.pos for c in C.controls(points)]
+        ctrls = C.controls(points)
+        exprs.extend(c.expr for c in ctrls)
+        pos = [c.pos for c in ctrls]
         positions.append(pos)
         records.append({'nodes': pos, 'closed': closed, 'mirror': getattr(one, 'mirror', None), 'opening': getattr(one, 'opening', None)})
     if sum(len(p) for p in positions) > _MOST_NODES:
@@ -229,9 +231,14 @@ def feature_model(features, view='front', mirror=None, snap=0.0, openings=True, 
     pad = 0.5 * float(thickness) + 0.05 * span + 1e-3
     out._bounds = (tuple(min(p[c] for p in flat_all) - pad for c in range(3)), tuple(max(p[c] for p in flat_all) + pad for c in range(3)))
     out._bounds_loose = True
+    out._group_pos = exprs                  # (the points it is made of: the viewport shares their gizmos when the feature model is selected as a whole, as it does for a profile's)
     out._feature_model = FeatureModel(label, surface, len(records), float(thickness))
+    out._no_gizmo = True                    # (no gizmo() line with numbers of its own: its points have them, and the viewport shares them -- View::groupGizmo -- to move, turn and scale it)
+    out._outline_gizmo = True               # (the model tree's gizmo button gives it a line without numbers, `x = gizmo(x, mode=...)`; the feature model itself is returned)
     return out
 
 
 # What the menus offer it for (see fieldev.kinds.takes): a feature model is made of points
 feature_model._takes = _declare({'point'}, [{'point'}])
+feature_model._makes_no_gizmo = True
+feature_model._makes_outline_gizmo = True
