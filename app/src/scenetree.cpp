@@ -6365,7 +6365,7 @@ void ScenePanel::editPoints(const QString& op, int line0, const QVector3D& press
     emit(pointEditDone(op == "insert" ? doc["line"].toInt(-1) : -1));
 }
 
-void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, double scale)
+void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, double scale, double factor)
 {
     if (!m_support || !m_source)
     {
@@ -6377,7 +6377,9 @@ void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, dou
         // The first node: a new armature of one node, made like any new model (the cross-section it is given is as large as the place is)
         m_placed = QJsonArray{QJsonArray{double(at.x()), double(at.y()), double(at.z())}};
         m_placedSmooth = false;
+        m_placedSize = factor;                  // (the cross-section is made as large as the place is, as ever; how much thicker the node was asked to be is the scale of its gizmo)
         createFromMenu("primitive", "armature", at, scale, -1, -1);
+        m_placedSize = 1.0;
         m_placed = QJsonArray();
         return;
     }
@@ -6391,6 +6393,7 @@ void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, dou
     request["y"] = double(at.y());
     request["z"] = double(at.z());
     request["scale"] = scale;
+    request["factor"] = factor;
     QString error;
     const QString answer = m_support("profile_edit", QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)), &error);
     if (answer.isEmpty())
@@ -6412,7 +6415,8 @@ void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, dou
         return;
     }
     const QString name = doc["name"].toString();
-    m_selectNew = name;                      // (the new node is selected once the script has run: its gizmo is there to drag)
+    // (the armature is selected, not the node that was written: with the armature selected the rings of all its nodes stay on the screen, which is what the mode is for)
+    m_selectNew = doc["armature"].toString().isEmpty() ? name : doc["armature"].toString();
     m_selectNewTries = 0;
     emit(editScript(edits, doc["label"].toString()));
     emit(armatureNodeDone(name, at));
@@ -7451,6 +7455,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
     const QJsonArray placed = m_placed;
     const QJsonObject symdef = m_symdefRequest;
     const bool placedSmooth = m_placedSmooth;
+    const double placedSize = m_placedSize;
     const bool operation = kind == "operation";
     // A support, a load or another condition of a simulation, when several models are selected: the first is the body, the others are
     // where the condition is -- made of them like an operation (with one model selected, or none, it has a placeholder where it acts)
@@ -7479,6 +7484,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
             m_placed = placed;
             m_symdefRequest = symdef;
             m_placedSmooth = placedSmooth;
+            m_placedSize = placedSize;
             createFromMenu(kind, name, point, scale,
                            (operation && !selectedModels().isEmpty()) || (withBodies && !regionOnly && selectedModels().size() >= 2) ? -1 : line0);
         };
@@ -7585,6 +7591,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
     request["y"] = point.y();
     request["z"] = point.z();
     request["scale"] = scale;
+    if (placedSize != 1.0) request["size"] = placedSize;
     if (m_workPlaneActive && kind == "primitive")
     {
         // (a new model made while the work plane's view is open: where it is, and the plane's axes, which the points of a profile are laid out in)

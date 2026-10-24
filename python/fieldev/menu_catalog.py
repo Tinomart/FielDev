@@ -688,7 +688,7 @@ def _placed_template(name, r):
         A profile of a spline (`smooth`) has spline points '''
     places = [tuple(_num(float(c)) for c in p) for p in r['points']]
     if name == 'armature':
-        return _armature_text(places, r.get('scale'))
+        return _armature_text(places, r.get('scale'), size=r.get('size'))
     return _stroke_text(name, places, r.get('smooth'), r)
 
 

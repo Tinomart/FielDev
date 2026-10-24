@@ -183,6 +183,7 @@ def _armature_node(req):
     tree = ast.parse(source)
     lines = source.split('\n')
     x, y, z = (_num_text(float(req[c])) for c in 'xyz')
+    factor = float(req.get('factor', 1.0) or 1.0)           # (Shift + wheel in the viewport: how thick the new node is against the one before it)
     held = []
     for stmt in tree.body:
         call = stmt.value if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) else None
@@ -203,7 +204,7 @@ def _armature_node(req):
             k += 1
         new = '%s_p%d' % (owner, k)
         # (the new node is as thick as the one before it; the one before it, once it is in the middle, is a corner: only the ends of an armature are spline points)
-        block = _point_block(new, x, y, z, _num_text(_armature_info(owner, anchor)[1]))
+        block = _point_block(new, x, y, z, _num_text(_armature_info(owner, anchor)[1] * factor))
         edits = [[host.lineno - 1, 0, host.lineno - 1, 0, ''.join(b + '\n' for b in block)]]
         if len(nodes.elts) >= 2:
             before = next((a for a in tree.body if isinstance(a, ast.Assign) and len(a.targets) == 1 and isinstance(a.targets[0], ast.Name) and a.targets[0].id == anchor
@@ -225,7 +226,7 @@ def _armature_node(req):
             end = joints.elts[-1]
             row, col = end.end_lineno - 1, _char_col(lines[end.end_lineno - 1], end.end_col_offset)
             edits.append([row, col, row, col, ', "%s_%d"' % (label, j)])
-        return json.dumps({'edits': edits, 'label': 'Add a node to %s' % owner, 'line': host.lineno - 1 + len(block) - 1, 'name': new})
+        return json.dumps({'edits': edits, 'label': 'Add a node to %s' % owner, 'line': host.lineno - 1 + len(block) - 1, 'name': new, 'armature': owner})
     # a node in the middle: the new armature is written under the one it branches from (and under its display line and cut face)
     host = held[0]
     owner = host.targets[0].id
@@ -235,7 +236,7 @@ def _armature_node(req):
         n += 1
     var = '%s_%d' % (stem, n)
     half, node_size = _armature_info(owner, anchor)
-    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'), half, node_size)
+    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'), half, node_size * factor)
     end = host
     for stmt in tree.body[tree.body.index(host) + 1:]:
         shows = isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name) and stmt.value.id in (owner, owner + '_face')
@@ -246,7 +247,7 @@ def _armature_node(req):
         end = stmt
     row = end.end_lineno - 1
     col = len(lines[row])
-    return json.dumps({'edits': [[row, col, row, col, '\n\n' + text]], 'label': 'New armature from %s' % anchor, 'line': -1, 'name': var + '_p1'})
+    return json.dumps({'edits': [[row, col, row, col, '\n\n' + text]], 'label': 'New armature from %s' % anchor, 'line': -1, 'name': var + '_p1', 'armature': var})
 
 
 def edit(arg):

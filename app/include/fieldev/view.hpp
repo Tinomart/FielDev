@@ -349,7 +349,7 @@ signals:
     /*  A line or a spline was put down (or a profile: closed): its name in the library (`profile`, `polyline`, `spline`), its points, and whether the outline is smooth  */
     void placementFinished(QString name, QList<QVector3D> points, bool smooth);
     /*  A click of the armature mode: a node at `at` after the node `anchor` (empty: the first of a new armature); `scale` is how large things are there  */
-    void armatureNodeRequested(QString anchor, QVector3D at, double scale);
+    void armatureNodeRequested(QString anchor, QVector3D at, double scale, double factor);
     void armaturePlacingChanged(bool on);
 
     /*
@@ -653,6 +653,7 @@ protected:
         bool hasAnchorPos = false;
         bool cursorValid = false;
         QVector3D cursor;
+        double size = 1.0;                  // (how thick the node to be put down is against the one before it -- or against the armature it branches from: Shift + wheel)
     };
     ArmaturePlacing m_arm;
     // The symmetry (see setActiveSymmetry)

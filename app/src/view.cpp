@@ -3534,6 +3534,7 @@ void View::stepBackArmature()
 {
     if (!m_arm.anchor.isEmpty())
     {
+        m_arm.size = 1.0;
         m_arm.anchor.clear();
         m_arm.hasAnchorPos = false;
         m_overlay->update();
@@ -3583,12 +3584,13 @@ void View::placeArmatureNode(QPoint pos)
     if (!armatureCursor(pos, at)) return;
     if (m_arm.hasAnchorPos && (at - m_arm.anchorPos).length() < 1e-4f) return;          // (the second click of a double click)
     m_arm.busy = true;
-    emit(armatureNodeRequested(m_arm.anchor, at, scaleAt(pos, at)));
+    emit(armatureNodeRequested(m_arm.anchor, at, scaleAt(pos, at), m_arm.size));
 }
 
 void View::armatureNodeDone(QString var, QVector3D at)
 {
     m_arm.busy = false;
+    m_arm.size = 1.0;                       // (the next node is as thick as this one again)
     if (!m_arm.on) return;
     if (var.isEmpty())
     {
@@ -3663,6 +3665,7 @@ void View::drawArmaturePlacing(QPainter& painter)
         const float L = gizmoLength(m_arm.cursor);
         if (L > 0) cursorR = std::max(4.0, 80.0 * worldR / double(L));
     }
+    cursorR = std::max(3.0, cursorR * m_arm.size);          // (Shift + wheel sets how thick the node to be put down is: the ring at the cursor and the tube to it follow)
     QPointF a;
     double anchorR = 12.0;
     if (m_arm.hasAnchorPos)
@@ -4686,6 +4689,15 @@ void View::wheelEvent(QWheelEvent *event)
 {
     QOpenGLWidget::wheelEvent(event);
     event->accept();
+    // In the armature mode the wheel with Shift or Ctrl sets how thick the node to be put down is -- the ring at the cursor -- unless the mouse is on the dot of a node that is there: that node is scaled
+    // (with the armature selected, as it is while nodes are put down, the other way would scale the whole armature)
+    if (m_arm.on && (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier)) && !pointDotAt(event->pos()))
+    {
+        const int d = event->angleDelta().y() != 0 ? event->angleDelta().y() : event->angleDelta().x();
+        m_arm.size = std::min(10.0, std::max(0.1, m_arm.size * std::pow(1.1, double(d) / 120.0)));
+        m_overlay->update();
+        return;
+    }
     // Shift + wheel, or Ctrl + wheel, scales what can be scaled: the point the mouse is on (selected or not), else the selection.  When there is nothing like that the wheel zooms, as it does
     if ((event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier)) &&
         scaleSelectionByWheel(event->angleDelta().y() != 0 ? event->angleDelta().y() : event->angleDelta().x(), event->pos())) return;
