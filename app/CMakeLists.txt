@@ -91,6 +91,9 @@ set(QOBJECTS
 
 if(WIN32)
     add_executable(FielDev WIN32 ${SRCS} ${QOBJECTS} deploy/windows/icon.rc)
+    # (the icon is in the resource file by its name: the resource is made again when the .ico changes -- the build did not see that by itself, and the exe kept the first icon through every
+    # new one, the old FielDes icon, until a new logo was looked at in the exe)
+    set_source_files_properties(deploy/windows/icon.rc PROPERTIES OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/deploy/windows/fieldev.ico)
 else()
     add_executable(FielDev ${SRCS} ${QOBJECTS})
 endif()

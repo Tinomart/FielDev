@@ -42,6 +42,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QLineEdit>
 #include <QPointer>
 #include <QThread>
+#include <chrono>
+#include <cstdlib>
+#include <thread>
 #include <QHelpEvent>
 #include <QToolTip>
 #include <iostream>
@@ -3434,6 +3437,15 @@ void Window::closeEvent(QCloseEvent* event)
                 }
             }
             view->cancelShapes();
+            // The program ends with its window.  Windows keeps the folder of a running program locked, and a user closed the window and found FielDev still in the task manager: the other windows are
+            // closed, the event loop is left, and a watchdog ends the process after a grace period if something still holds it (the interpreter thread in a long call of the kernel, a render that does not
+            // stop).  FIELDEV_KEEP_OLD_EXIT keeps the old way, to compare
+            if (!qEnvironmentVariableIsSet("FIELDEV_KEEP_OLD_EXIT"))
+            {
+                settings.sync();
+                std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(4)); std::_Exit(0); }).detach();
+                QTimer::singleShot(0, qApp, [] { QApplication::closeAllWindows(); QCoreApplication::quit(); });
+            }
         }
     }
 }

@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
+#include <cstdlib>
 #include "fieldev/language.hpp"
 #include "libfive/run_progress.hpp"
 
@@ -85,7 +86,8 @@ Language::Language(Interpreter* interpreter,
 Language::~Language() {
     m_interpreter->halt();
     m_interpreterThread.quit();
-    m_interpreterThread.wait();
+    // (a long call of the kernel does not see the halt: the program is ending and everything is saved, so after a grace period the process ends -- it must not stay in the task manager)
+    if (!m_interpreterThread.wait(2500)) std::_Exit(0);
 }
 
 void Language::onShowDocs() {

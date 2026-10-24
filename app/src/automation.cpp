@@ -90,6 +90,10 @@ Automation::Automation(QWidget* window, QObject* parent)
     add("grab", [this](const QString& path){
         m_window->grab().save(path);
     });
+    add("close", [this](const QString&){
+        m_window->setWindowModified(false);
+        m_window->close();
+    });
     add("quit", [this](const QString&){
         m_window->setWindowModified(false);
         QApplication::exit(0);
