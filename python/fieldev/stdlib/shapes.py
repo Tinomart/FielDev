@@ -40,6 +40,18 @@ def _ringed(shape, make):
     return shape
 
 
+def with_sizing(shape, sizing):
+    ''' `shape`, told how a sweep along a path (`path_extrude`, `armature`) sizes it where the points of the path are thicker or thinner: 'scale' (the default: the whole section is multiplied about
+        its middle, so a U stays a U at every size) or 'offset' (its outline is moved in or out, so that a thinner section lies inside a thicker one -- and a notch or a hole narrows as the size
+        grows).  The shape alone says it -- a sweep has no argument for it.  The 2D shapes say it as an argument -- `ring(2, 1.2, sizing='offset')`, `profile([...], sizing='offset')` --; this is
+        for any other, such as the one that `difference` makes:  tube = with_sizing(difference(circle(2), circle(1.2)), 'offset') '''
+    if sizing is not None:
+        if sizing not in ('scale', 'offset'):
+            raise ValueError("sizing is 'scale' or 'offset', not %r" % (sizing,))
+        shape._sizing = sizing
+    return shape
+
+
 _RING_STEPS = 72            # (the sides of the outline of a circle: 0.1 % of its radius from the circle)
 _RING_ARC = 12              # (the sides of the outline of a quarter of a rounded corner)
 
@@ -48,8 +60,8 @@ _RING_ARC = 12              # (the sides of the outline of a quarter of a rounde
 
 stdlib.circle.argtypes = [tfloat, tvec2]
 stdlib.circle.restype = libfive_tree
-def circle(r, center=(0, 0)):
-    """ A 2D circle with the given radius and optional center
+def circle(r, center=(0, 0), sizing=None):
+    """ A 2D circle with the given radius and optional center.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
     """
     args = [Shape.wrap(r), list([Shape.wrap(i) for i in center])]
     out = Shape(stdlib.circle(
@@ -61,7 +73,7 @@ def circle(r, center=(0, 0)):
         _ringed(out, lambda: _circle_points(args[0], args[1][0], args[1][1]))
         # (what handles() makes the ring of when it puts var()s for the numbers of a circle -- its centre and its radius, in that order -- see handles.py)
         out._ring_params = (3, lambda v: (lambda: _circle_points(v[2], v[0], v[1])), [center[0], center[1], r])
-    return out
+    return with_sizing(out, sizing)
 
 
 def _circle_points(R, cx, cy):
@@ -73,8 +85,8 @@ def _circle_points(R, cx, cy):
 
 stdlib.ring.argtypes = [tfloat, tfloat, tvec2]
 stdlib.ring.restype = libfive_tree
-def ring(ro, ri, center=(0, 0)):
-    """ A 2D ring with the given outer/inner radii and optional center
+def ring(ro, ri, center=(0, 0), sizing=None):
+    """ A 2D ring with the given outer/inner radii and optional center.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
     """
     args = [Shape.wrap(ro), Shape.wrap(ri), list([Shape.wrap(i) for i in center])]
     out = Shape(stdlib.ring(
@@ -83,7 +95,7 @@ def ring(ro, ri, center=(0, 0)):
         tvec2(*[a.ptr for a in args[2]])))
     if _number(ro) and len(center) == 2 and all(_number(c) for c in center):
         _bounded(out, (center[0] - ro, center[1] - ro, 0), (center[0] + ro, center[1] + ro, 0))
-    return out
+    return with_sizing(out, sizing)
 
 stdlib.polygon.argtypes = [tfloat, ctypes.c_int, tvec2]
 stdlib.polygon.restype = libfive_tree
@@ -101,21 +113,21 @@ def _polygon_sides(r, n, center):
     return normals, offsets
 
 
-def _rebuilt_polygon(normals, offsets):
+def _rebuilt_polygon(normals, offsets, sizing=None):
     out = _own(_triangle_planes(normals, offsets))
     _ringed(out, lambda: _triangle_corners(normals, offsets))
-    return _parametric(out, offsets, lambda v: _rebuilt_polygon(normals, v))
+    return with_sizing(_parametric(out, offsets, lambda v: _rebuilt_polygon(normals, v, sizing)), sizing)
 
 
-def polygon(r, n, center=(0, 0)):
-    """ A polygon with center-to-vertex distance r and n sides.  Its handles pull a side each -- a side moves parallel to itself, the others stay -- and the gizmo's pivot is where the polygon was made, so a side pulled moves that side only, at any scale
+def polygon(r, n, center=(0, 0), sizing=None):
+    """ A polygon with center-to-vertex distance r and n sides.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`.  Its handles pull a side each -- a side moves parallel to itself, the others stay -- and the gizmo's pivot is where the polygon was made, so a side pulled moves that side only, at any scale
     """
     if _number(r) and r > 0 and isinstance(n, int) and n >= 3 and len(center) == 2 and all(_number(c) for c in center):
         normals, offsets = _polygon_sides(r, n, center)
         out = _own(_triangle_planes(normals, offsets))
         _bounded(out, (center[0] - r, center[1] - r, 0), (center[0] + r, center[1] + r, 0))     # (the corners are within r of the centre: a box that holds it)
         _ringed(out, lambda: _triangle_corners(normals, offsets))
-        return _parametric(out, offsets, lambda v: _rebuilt_polygon(normals, v))
+        return with_sizing(_parametric(out, offsets, lambda v: _rebuilt_polygon(normals, v, sizing)), sizing)
     args = [Shape.wrap(r), n, list([Shape.wrap(i) for i in center])]
     out = Shape(stdlib.polygon(
         args[0].ptr,
@@ -132,7 +144,7 @@ def polygon(r, n, center=(0, 0)):
             first = -math.pi / 2 + (math.pi / n if n % 2 == 0 else 0.0)
             return [(cx + R * math.cos(first + 2 * math.pi * k / n), cy + R * math.sin(first + 2 * math.pi * k / n)) for k in range(n)]
         _ringed(out, ring)
-    return out
+    return with_sizing(out, sizing)
 
 def _own(field):
     ''' A shape that owns a copy of the tree of `field` (`field` is held by the caller for the whole call: a pointer read off a temporary would be of a tree that is already
@@ -175,21 +187,21 @@ def _rect_distance(a0, a1, b0, b1, r=None):
     return inside + outside if r is None else inside + outside - r
 
 
-def rectangle(a, b):
+def rectangle(a, b, sizing=None):
     """ A rectangle between the corners a (the low one) and b (the high one) (a true distance outside it: an offset of it is a rounded rectangle).  Its four numbers are
-        its four sides, so the handles of a rectangle pull one side each
+        its four sides, so the handles of a rectangle pull one side each.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
     """
     out = _own(_rect_distance(a[0], a[1], b[0], b[1]))
     if len(a) == 2 and len(b) == 2:
         _bounded(out, (a[0], a[1], 0), (b[0], b[1], 0))
         A0, A1, B0, B1 = (Shape.wrap(v) for v in (a[0], a[1], b[0], b[1]))
         _ringed(out, lambda: [(A0, A1), (B0, A1), (B0, B1), (A0, B1)] if _plain(a[0]) != _plain(b[0]) and _plain(a[1]) != _plain(b[1]) else None)
-    return _parametric(out, [a[0], a[1], b[0], b[1]], lambda v: rectangle((v[0], v[1]), (v[2], v[3])))
+    return with_sizing(_parametric(out, [a[0], a[1], b[0], b[1]], lambda v: rectangle((v[0], v[1]), (v[2], v[3]), sizing)), sizing)
 
 
-def rounded_rectangle(a, b, r):
+def rounded_rectangle(a, b, r, sizing=None):
     """ A rectangle with rounded corners of radius r, between the corners a (the low one) and b (the high one) (a true distance outside it).  The corners are tangent to the
-        sides whatever the numbers are: its handles pull a side each (the radius with them)
+        sides whatever the numbers are: its handles pull a side each (the radius with them).  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
     """
     out = _own(_rect_distance(a[0], a[1], b[0], b[1], r))
     if len(a) == 2 and len(b) == 2:
@@ -210,7 +222,7 @@ def rounded_rectangle(a, b, r):
                     points.append((cx + R * math.cos(t), cy + R * math.sin(t)))
             return points
         _ringed(out, ring)
-    return _parametric(out, [a[0], a[1], b[0], b[1], r], lambda v: rounded_rectangle((v[0], v[1]), (v[2], v[3]), v[4]))
+    return with_sizing(_parametric(out, [a[0], a[1], b[0], b[1], r], lambda v: rounded_rectangle((v[0], v[1]), (v[2], v[3]), v[4], sizing)), sizing)
 
 stdlib.triangle.argtypes = [tvec2, tvec2, tvec2]
 stdlib.triangle.restype = libfive_tree

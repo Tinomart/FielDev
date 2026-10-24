@@ -273,6 +273,9 @@ def gizmo(shape, move=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1), about=None, 
             out._point_pos = _position_of(out.xyz)       # (where its dot is drawn when the gizmo is not there)
         except Exception:
             pass
+    # (how a sweep sizes the shape goes on to what places it)
+    if getattr(shape, '_sizing', None) is not None:
+        out._sizing = shape._sizing
     # (the outline of a primitive goes on to what places it: the outline of the placed shape, made of the numbers of the gizmo -- for as long as the shape stays in the plane z = 0)
     make = getattr(shape, '_ring_points', None)
     if make is not None and not getattr(shape, '_linked', False):

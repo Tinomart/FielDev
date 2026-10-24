@@ -42,9 +42,9 @@ Iterates a part in a 3D array
 
 A box between two opposite corners (a true distance outside it: an offset of it has rounded edges)
 
-### `circle(r, center=(0, 0))`
+### `circle(r, center=(0, 0), sizing=None)`
 
-A 2D circle with the given radius and optional center
+A 2D circle with the given radius and optional center.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
 
 ### `cone(radius, height, base=(0, 0, 0))`
 
@@ -65,9 +65,9 @@ A value which is empty everywhere
 A plane which divides the world into inside and outside, defined by its
 normal and a single point on the plane
 
-### `polygon(r, n, center=(0, 0))`
+### `polygon(r, n, center=(0, 0), sizing=None)`
 
-A polygon with center-to-vertex distance r and n sides.  Its handles pull a side each -- a side moves parallel to itself, the others stay -- and the gizmo's pivot is where the polygon was made, so a side pulled moves that side only, at any scale
+A polygon with center-to-vertex distance r and n sides.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`.  Its handles pull a side each -- a side moves parallel to itself, the others stay -- and the gizmo's pivot is where the polygon was made, so a side pulled moves that side only, at any scale
 
 ### `prism(a, b, c, z0, z1)`
 
@@ -79,24 +79,24 @@ and the gizmo's pivot is where the prism was made, so a face pulled moves that f
 A pyramid defined by its base rectangle (the corners a and b), lower Z value, and height: its tip stands above the middle of the base.  It has five faces -- the base and four
 slanted ones -- and its handles pull one each, parallel to itself (the slopes stay what they were made with)
 
-### `rectangle(a, b)`
+### `rectangle(a, b, sizing=None)`
 
 A rectangle between the corners a (the low one) and b (the high one) (a true distance outside it: an offset of it is a rounded rectangle).  Its four numbers are
-its four sides, so the handles of a rectangle pull one side each
+its four sides, so the handles of a rectangle pull one side each.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
 
-### `ring(ro, ri, center=(0, 0))`
+### `ring(ro, ri, center=(0, 0), sizing=None)`
 
-A 2D ring with the given outer/inner radii and optional center
+A 2D ring with the given outer/inner radii and optional center.  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
 
 ### `rounded_box(a, b, r)`
 
 Rounded box with the given bounds.  The radius `r` is a fraction, 0 to 1, of half the shortest side of the box (r = 0.4 on a box 15 mm thick rounds its edges with a radius of 3 mm; 1 makes the
 shortest side a half circle).  Its handles pull a side each -- a side moves, the others and the rounding stay -- and the gizmo's pivot is where the box was made, so a side pulled moves that side only, at any scale
 
-### `rounded_rectangle(a, b, r)`
+### `rounded_rectangle(a, b, r, sizing=None)`
 
 A rectangle with rounded corners of radius r, between the corners a (the low one) and b (the high one) (a true distance outside it).  The corners are tangent to the
-sides whatever the numbers are: its handles pull a side each (the radius with them)
+sides whatever the numbers are: its handles pull a side each (the radius with them).  `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path sizes it: see `with_sizing`
 
 ### `sphere(radius, center=(0, 0, 0))`
 
@@ -109,6 +109,13 @@ A torus lying round the z axis, with the given outer radius, inner radius, and (
 ### `triangle(a, b, c)`
 
 A 2D triangle between three corners.  Its handles pull a side each: a side moves parallel to itself, and the gizmo's pivot is where the triangle was made, so a side pulled moves that side only, at any scale
+
+### `with_sizing(shape, sizing)`
+
+`shape`, told how a sweep along a path (`path_extrude`, `armature`) sizes it where the points of the path are thicker or thinner: 'scale' (the default: the whole section is multiplied about
+its middle, so a U stays a U at every size) or 'offset' (its outline is moved in or out, so that a thinner section lies inside a thicker one -- and a notch or a hole narrows as the size
+grows).  The shape alone says it -- a sweep has no argument for it.  The 2D shapes say it as an argument -- `ring(2, 1.2, sizing='offset')`, `profile([...], sizing='offset')` --; this is
+for any other, such as the one that `difference` makes:  tube = with_sizing(difference(circle(2), circle(1.2)), 'offset')
 
 ## Combining shapes (CSG)
 
@@ -1432,7 +1439,7 @@ A 2D shape pulled into a solid: the part of space between the distances `a` and 
 z = 0 for the shapes that lie there -- a circle, a rectangle -- so that is zmin and zmax; the plane of a profile is the plane of its points,
 and the normal is the direction u x v of that plane).  `extrude(circle(5), 0, 10)` is a cylinder 10 tall
 
-### `path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False)`
+### `path_extrude(profile, path, twist=0, ends=None, across=False)`
 
 A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
 along `path`, turning with it, without twisting about it unless the points of the curve say so.
@@ -1450,17 +1457,18 @@ ends     (round at the start, round at the end): an end that is True is a DOME i
          quarter of a circle (its size at a distance d from the end is the size there times sqrt(1 - (d / reach)^2), `reach` as long as the profile is wide), so that the end is the
          profile's own shape closing, as long as the middle of its box is inside it or the shape can be seen from there (round, convex and star-like sections: a plus, a triangle; not a U or an L,
          whose notch the dome covers).  The viewport builds the same dome from rings (Shape::sweepMesh).
-sizing   what the thickness of a point (its scale) does to the section: 'scale' (the default) multiplies the whole section about the middle of its box; 'offset' moves its outline in or out by
-         (scale - 1) times the radius of the widest circle the section holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is
-         exactly the scale -- and the round ends close along the same offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm
-         thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it.  A section that has no outline of numbers (a ring, a difference of shapes) is measured from its field: the widest circle is found on a grid,
-         right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not inside a thicker one; 'offset' keeps the
-         thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none at about 2.5; a ring of outer radius 2 and
-         hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
+sizing   (not an argument: the SECTION says it, `profile(..., sizing=)`, `ring(..., sizing=)`, `with_sizing`; 'scale' where it says nothing) what the thickness of a point (its scale) does to the
+         section: 'scale' multiplies the whole section about the middle of its box; 'offset' moves its outline in or out by (scale - 1) times the radius of the widest circle the section
+         holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is exactly the scale -- and the round ends close along the same
+         offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm thinner than the pull) the field fills it in or lets it
+         vanish, and the viewport holds the outline on the middle line of it.  A section that has no outline of numbers (a ring, a difference of shapes) is measured from its field: the
+         widest circle is found on a grid, right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not
+         inside a thicker one; 'offset' keeps the thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none
+         at about 2.5; a ring of outer radius 2 and hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
 across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
          in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle
 
-### `profile(source, smooth=False, radius=0)`
+### `profile(source, smooth=False, radius=0, sizing=None)`
 
 The 2D shape the points of `source` enclose -- a list of points, or a curve -- as a closed outline through them in the order given, in the plane
 through the first three of them (the others are projected onto it).  `smooth` is what a point is that does not say (point(..., smooth=True) or
@@ -1472,7 +1480,11 @@ corner) by default.  With fewer than three points, or all on a line, it is empty
 
 `source` can also be a SURFACE picked on a part (`select_surface`): the 2D shape of its outline -- the outline of the face, holes included, in the plane
 of the face (exact for a flat face), or, for a surface that is not flat, of its projection onto the plane through its middle, along the way it faces on
-average.  It is made from the surface and moves with it: it has no points of its own to drag
+average.  It is made from the surface and moves with it: it has no points of its own to drag.
+
+`sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path (`path_extrude`, `armature`) sizes this shape where the points of the path are thicker or thinner:
+'scale' multiplies the whole of it, so a U stays a U at every size; 'offset' moves its outline in or out, so that a thinner section lies inside a thicker one, and a notch
+narrows as the size grows.  The shape alone says it: a sweep has no argument for it (see `with_sizing`)
 
 ## Characters: armatures made of points
 
@@ -1556,7 +1568,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
 sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in
 
-### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizing='scale')`
+### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0)`
 
 A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
@@ -1571,8 +1583,8 @@ profile  the cross-section: any 2D shape (a profile made of points, a polygon, a
 name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
 parent   the name of the joint this armature hangs from, when its first node is not on a node of another armature
 twist    degrees: the whole cross-section turned about the path
-sizing   what the size of a node does to the cross-section there: "scale" (the default) multiplies the whole of it about its middle; "offset" moves its outline in or out by (size - 1) times
-         the radius of the widest circle it holds, so that a thinner cross-section of any shape stays inside a thicker one (see `path_extrude`)
+The cross-section says how the size of a node sizes it: `sizing=` of the 2D shape -- `profile(..., sizing="offset")`, `ring(..., sizing="offset")`, `with_sizing` --, "scale" where it says
+nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
 The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
 last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it

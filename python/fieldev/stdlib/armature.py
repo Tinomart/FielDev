@@ -144,7 +144,7 @@ def _joined(parts):
     return out
 
 
-def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizing="scale"):
+def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0):
     ''' A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
             arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
@@ -158,15 +158,13 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
         parent   the name of the joint this armature hangs from, when its first node is not on a node of another armature
         twist    degrees: the whole cross-section turned about the path
-        sizing   what the size of a node does to the cross-section there: "scale" (the default) multiplies the whole of it about its middle; "offset" moves its outline in or out by (size - 1) times
-                 the radius of the widest circle it holds, so that a thinner cross-section of any shape stays inside a thicker one (see `path_extrude`)
+        The cross-section says how the size of a node sizes it: `sizing=` of the 2D shape -- `profile(..., sizing="offset")`, `ring(..., sizing="offset")`, `with_sizing` --, "scale" where it says
+        nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
         The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
         last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more')
-    if sizing not in ("scale", "offset"):
-        raise ValueError('armature: sizing is "scale" or "offset", not %r' % (sizing,))
     if profile is not None and radii is not None:
         raise ValueError('armature: radii is the size of the cross-section the armature makes for itself -- a profile of your own has its own size: change its points, or the size of the nodes '
                          '(the gold ring of their gizmos)')
@@ -219,7 +217,7 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
         # circle -- in the field and for the viewport by the same law)
         rounds = (ctrls[0].flag != 0, ctrls[-1].flag != 0)
-        out = path_extrude(base, way, twist, ends=rounds, sizing=sizing, across=True)
+        out = path_extrude(base, way, twist, ends=rounds, across=True)
         core = out
         # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
         # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)

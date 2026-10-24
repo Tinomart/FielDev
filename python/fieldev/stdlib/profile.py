@@ -35,6 +35,7 @@ import math
 from fieldev.ffi import lib
 from fieldev.shape import Shape
 from fieldev.stdlib import curves as C
+from fieldev.stdlib.shapes import with_sizing
 
 __all__ = ['profile', 'Profile', 'extrude', 'path_extrude']
 
@@ -49,7 +50,7 @@ class Profile(Shape):
     def _remake(self, points, improper=False):
         ''' The same outline through other points (the images of its points in a symmetry: see symmetries.symmetry_images) -- the other way round for a mirror image, which turns
             the way round: reversed, it faces as this one does '''
-        return profile(points[::-1] if improper else points, smooth=self.smooth, radius=getattr(self, 'radius', 0))
+        return profile(points[::-1] if improper else points, smooth=self.smooth, radius=getattr(self, 'radius', 0), sizing=getattr(self, '_sizing', None))
 
     def _display(self):
         # What the viewport draws is the face of the outline, made natively from the points' numbers: no field is needed for that, so none is made
@@ -118,7 +119,7 @@ def _from_surface(selection):
     return made
 
 
-def profile(source, smooth=False, radius=0):
+def profile(source, smooth=False, radius=0, sizing=None):
     ''' The 2D shape the points of `source` enclose -- a list of points, or a curve -- as a closed outline through them in the order given, in the plane
         through the first three of them (the others are projected onto it).  `smooth` is what a point is that does not say (point(..., smooth=True) or
         smooth=False): False, a corner (a hard edge: the default), or True, a spline point.  A spline point leaves in the direction the rotation of its gizmo
@@ -129,10 +130,14 @@ def profile(source, smooth=False, radius=0):
 
         `source` can also be a SURFACE picked on a part (`select_surface`): the 2D shape of its outline -- the outline of the face, holes included, in the plane
         of the face (exact for a flat face), or, for a surface that is not flat, of its projection onto the plane through its middle, along the way it faces on
-        average.  It is made from the surface and moves with it: it has no points of its own to drag '''
+        average.  It is made from the surface and moves with it: it has no points of its own to drag.
+
+        `sizing` ('scale' or 'offset'; None: scale) is how a sweep along a path (`path_extrude`, `armature`) sizes this shape where the points of the path are thicker or thinner:
+        'scale' multiplies the whole of it, so a U stays a U at every size; 'offset' moves its outline in or out, so that a thinner section lies inside a thicker one, and a notch
+        narrows as the size grows.  The shape alone says it: a sweep has no argument for it (see `with_sizing`) '''
     from fieldev.stdlib.selection import SurfaceSelection
     if isinstance(source, SurfaceSelection):
-        return _from_surface(source)
+        return with_sizing(_from_surface(source), sizing)
     if isinstance(source, C.Curve):
         items = list(source.points)
         smooth = bool(smooth) or source.smooth          # (a curve that is a spline is a spline as the outline too)
@@ -178,7 +183,7 @@ def profile(source, smooth=False, radius=0):
     out.points, out.smooth, out.radius = items, smooth, radius
     out._ctrls = ctrls
     C.viewport_data(out, ctrls, smooth, True)
-    return out
+    return with_sizing(out, sizing)
 
 
 profile._makes_no_gizmo = True
@@ -547,7 +552,7 @@ def _smooth_sizes(V, owners, sizes, closed):
     return out
 
 
-def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False):
+def path_extrude(profile, path, twist=0, ends=None, across=False):
     ''' A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
         along `path`, turning with it, without twisting about it unless the points of the curve say so.
         THE 2D SHAPE IS WHERE THE SWEEP STARTS: the curve says how it travels, not where from -- the whole sweep is moved so that the first point of the curve is the middle of
@@ -564,18 +569,18 @@ def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False
                  quarter of a circle (its size at a distance d from the end is the size there times sqrt(1 - (d / reach)^2), `reach` as long as the profile is wide), so that the end is the
                  profile's own shape closing, as long as the middle of its box is inside it or the shape can be seen from there (round, convex and star-like sections: a plus, a triangle; not a U or an L,
                  whose notch the dome covers).  The viewport builds the same dome from rings (Shape::sweepMesh).
-        sizing   what the thickness of a point (its scale) does to the section: 'scale' (the default) multiplies the whole section about the middle of its box; 'offset' moves its outline in or out by
-                 (scale - 1) times the radius of the widest circle the section holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is
-                 exactly the scale -- and the round ends close along the same offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm
-                 thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it.  A section that has no outline of numbers (a ring, a difference of shapes) is measured from its field: the widest circle is found on a grid,
-                 right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not inside a thicker one; 'offset' keeps the
-                 thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none at about 2.5; a ring of outer radius 2 and
-                 hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
+        sizing   (not an argument: the SECTION says it, `profile(..., sizing=)`, `ring(..., sizing=)`, `with_sizing`; 'scale' where it says nothing) what the thickness of a point (its scale) does to the
+                 section: 'scale' multiplies the whole section about the middle of its box; 'offset' moves its outline in or out by (scale - 1) times the radius of the widest circle the section
+                 holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is exactly the scale -- and the round ends close along the same
+                 offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm thinner than the pull) the field fills it in or lets it
+                 vanish, and the viewport holds the outline on the middle line of it.  A section that has no outline of numbers (a ring, a difference of shapes) is measured from its field: the
+                 widest circle is found on a grid, right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not
+                 inside a thicker one; 'offset' keeps the thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none
+                 at about 2.5; a ring of outer radius 2 and hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
         across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
                  in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle '''
     ends = (False, False) if ends is None else (bool(ends[0]), bool(ends[1]))
-    if sizing not in ('scale', 'offset'):
-        raise ValueError("path_extrude: sizing is 'scale' or 'offset', not %r" % (sizing,))
+    sizing = getattr(profile, '_sizing', None) or 'scale'          # (the section says how it is sized: `profile(..., sizing=)`, `with_sizing` ...; 'scale' where it says nothing)
     if isinstance(path, (list, tuple)):
         from fieldev.stdlib.curves import spline
         path = spline(path)
