@@ -2016,13 +2016,16 @@ void ScenePanel::fitRegion()
         std::cerr << "[region] models (" << nlo[0] << ", " << nlo[1] << ", " << nlo[2] << ")-(" << nhi[0] << ", " << nhi[1] << ", " << nhi[2] << ") region ("
                   << lo[0] << ", " << lo[1] << ", " << lo[2] << ")-(" << hi[0] << ", " << hi[1] << ", " << hi[2] << ") outside " << outside << " may shrink "
                   << allowShrink << " unknown " << unknown << std::endl;
-    // Room round the models: a tenth of their size, at least 1 mm
+    // Room round the models: a tenth of their size, at least 1 mm -- and half of it while an armature is being built, node after node: every node that reaches out of a region that fits
+    // tightly (the tube of a node reaches further than the node and its ring say) is another edit and another run of the script, with every shape meshed again.  With the larger room the
+    // region is not shrunk to the models either while the armature is built (the region of the first nodes is left as it is: a shrink is a second run too)
+    const bool building = m_armatureClock.isValid() && m_armatureClock.elapsed() < 120000;
     const double boxLongest = std::max(nhi[0] - nlo[0], std::max(nhi[1] - nlo[1], nhi[2] - nlo[2]));
-    const double room = std::max(1.0, 0.1 * boxLongest);
+    const double room = std::max(1.0, (building ? 0.5 : 0.1) * boxLongest);
     // The region shrinks to them when it has become much larger than they need (models that got smaller or went away: with none left it is
     // not touched -- there is nothing to fit it to)
     const double regionLongest = std::max(hi[0] - lo[0], std::max(hi[1] - lo[1], hi[2] - lo[2]));
-    const bool shrink = allowShrink && !outside && regionLongest > 2.5 * (boxLongest + 2 * room);
+    const bool shrink = allowShrink && !building && !outside && regionLongest > 2.5 * (boxLongest + 2 * room);
     if (!outside && !shrink) return;
     // The region grown on the sides that are reached (or, shrinking, fitted to the models): whole numbers, with that room
     QStringList text;
@@ -6367,6 +6370,7 @@ void ScenePanel::editPoints(const QString& op, int line0, const QVector3D& press
 
 void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, double scale, double factor)
 {
+    m_armatureClock.start();                    // (an armature is being built: see fitRegion)
     if (!m_support || !m_source)
     {
         emit(armatureNodeDone(QString(), at));

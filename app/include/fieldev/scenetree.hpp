@@ -769,7 +769,8 @@ protected:
     QString m_activeSymVar;                    // (the symmetry model that is selected: what is made is made with its images while it is in use)
     QJsonObject m_symdefRequest;               // (the planes of a symmetry that is being made: planes, kind, centre, axis, first)
     bool m_placedSmooth = false;
-    double m_placedSize = 1.0;                 // (the scale of the gizmo of the first node of an armature that createFromMenu makes: Shift + wheel in the armature mode)
+    QElapsedTimer m_armatureClock;             // (since an armature node was last put down: the region is given more room while an armature is built, see fitRegion)
+    double m_placedSize = 1.0;                // (the scale of the gizmo of the first node of an armature that createFromMenu makes: Shift + wheel in the armature mode)
     QVector3D m_workPlaneOrigin, m_workPlaneU, m_workPlaneV;
     float m_workPlaneStep = 0;
     int m_selectNewTries = 0;
