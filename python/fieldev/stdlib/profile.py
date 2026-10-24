@@ -513,7 +513,7 @@ def _size_slopes(sizes, reach, closed):
 
 
 def _smooth_sizes(V, owners, sizes, closed):
-    ''' The size of the section at every vertex of a path (a list).  The size of a point is how thick the profile is there; between two points it runs along a smooth curve through the sizes -- a
+    ''' The size of the section at every vertex of a path (a list).  The size at a point (`sizes`) is how thick the profile is there; between two points it runs along a smooth curve through the sizes -- a
         monotone cubic (Fritsch and Butland: it never goes past the sizes, a point thicker than both its neighbours is the top of a bulge, and the thickness changes direction at no point) -- in the
         LENGTH of the path between the points, not in the parameter of the spline, which runs fast where a point is big and left a step in the thickness where the sizes differ.  Two points, or sizes
         that are all alike: the straight line.  The viewport does the same (`Shape::sweepMesh`) '''
@@ -552,7 +552,26 @@ def _smooth_sizes(V, owners, sizes, closed):
     return out
 
 
-def path_extrude(profile, path, twist=0, ends=None, across=False):
+def _section_sizes(sizes, count, who):
+    ''' The size of the section at each of `count` points of a path: `sizes` -- one number (or var()) for each point, not negative -- or 1 for each where none are given.  The list as it is
+        given (numbers or expressions of var()s: what the viewport follows while a size is dragged) and as numbers now '''
+    if sizes is None:
+        return [Shape.wrap(1.0) for _ in range(count)], [1.0] * count
+    if not isinstance(sizes, (list, tuple)) or len(sizes) != count:
+        raise ValueError('%s: sizes is a list of %d numbers, one for each point of the path (1: the section as it is), not %r' % (who, count, sizes))
+    exprs, values = [], []
+    for k, v in enumerate(sizes):
+        if isinstance(v, bool) or not isinstance(v, (int, float, Shape)):
+            raise ValueError('%s: sizes[%d] is a number (or a var()), not %r' % (who, k, v))
+        value = float(C.value_of(v)) if isinstance(v, Shape) else float(v)
+        if not math.isfinite(value) or value < 0:
+            raise ValueError('%s: sizes[%d] is a number that is not negative, not %r' % (who, k, v))
+        exprs.append(Shape.wrap(v))
+        values.append(value)
+    return exprs, values
+
+
+def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
     ''' A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
         along `path`, turning with it, without twisting about it unless the points of the curve say so.
         THE 2D SHAPE IS WHERE THE SWEEP STARTS: the curve says how it travels, not where from -- the whole sweep is moved so that the first point of the curve is the middle of
@@ -561,7 +580,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False):
         or a rectangle is such a shape as a profile is.  The path is DRAWN where the sweep goes -- through the middle of its cross-section, from the middle of the shape, its
         points with it -- whatever its own numbers say; only its shape matters, and the first point of it is the middle of the shape:
         the ROTATION of a point (its gizmo's rotate numbers) twists the profile about the curve there, and the twist runs between the points as a
-        smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The thickness of a point (the scale of its gizmo) runs between the points as a smooth curve through the sizes, along the length of the path -- a monotone cubic: it never
+        smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The thickness at a point (its entry of `sizes`; the scale of its gizmo has no say in it: that is how strongly the curve leaves the point) runs between the points as a smooth curve through the sizes, along the length of the path -- a monotone cubic: it never
         goes past them and changes direction at no point -- not as a straight line that turns at every point and shows as a ring round the body.  The ends are cut square.  A curve with corners is swept
         with mitered joints.  `path_extrude(circle(2), spline([a, b, c]))` is a bent tube; `extrude` is the straight case.  `path` may be a list of points:
         the spline through them.
@@ -577,6 +596,8 @@ def path_extrude(profile, path, twist=0, ends=None, across=False):
                  widest circle is found on a grid, right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not
                  inside a thicker one; 'offset' keeps the thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none
                  at about 2.5; a ring of outer radius 2 and hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
+        sizes    how big the section is at each point of the path: one number (or var()) for each point, 1 (the default: every point) the section as it is, 2 twice as thick -- a number of its own,
+                 not the scale of the point, which is how strongly the curve leaves it (the influence of the point: its gizmo, a point of the path that is selected)
         across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
                  in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle '''
     ends = (False, False) if ends is None else (bool(ends[0]), bool(ends[1]))
@@ -727,10 +748,10 @@ def path_extrude(profile, path, twist=0, ends=None, across=False):
         return a0 * (1 - t) + a1 * t
 
     total = math.radians(C.value_of(twist))
-    # the scale of a point is how thick the profile is there; between the points it runs along a smooth curve through the sizes in the length of the path (`_smooth_sizes`): a straight line
+    # the size of a point is how thick the profile is there (`sizes`: not the scale of the point, which is how strongly the curve leaves it); between the points it runs along a smooth curve through the sizes in the length of the path (`_smooth_sizes`): a straight line
     # between the sizes turned at every point, a ring on the surface round a body of points of different sizes.  The viewport does the same (Shape::sweepMesh)
-    sizes = [c.scale for c in ctrls]
-    vertex_size = _smooth_sizes(V, owners, sizes, closed)
+    size_exprs, size_values = _section_sizes(sizes, len(ctrls), 'path_extrude')
+    vertex_size = _smooth_sizes(V, owners, size_values, closed)
 
     def size_at(j):
         return max(vertex_size[j], 1e-3)
@@ -888,6 +909,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False):
             out._sweep_pradius = profile._ctrl_radius
         out._sweep_qpos, out._sweep_qrot = path._ctrl_pos, path._ctrl_rot
         out._sweep_qflag, out._sweep_qscale, out._sweep_qdefault = path._ctrl_flag, path._ctrl_scale, path._ctrl_default
+        out._sweep_qsize = size_exprs                  # (how thick the section is at each point of the path: see `sizes`)
         out._sweep_qclosed = bool(path.closed)
         out._sweep_twist = Shape.wrap(twist)
         out._sweep_round = ends
@@ -921,9 +943,10 @@ def _sweep_key(s):
                     for p, r, f, sc in zip(ppos, prot, pflag, pscale)]
         ring = points(s._sweep_ppos, s._sweep_prot, s._sweep_pflag, s._sweep_pscale)
         path = points(s._sweep_qpos, s._sweep_qrot, s._sweep_qflag, s._sweep_qscale)
+        thick = tuple(q(num(v)) for v in s._sweep_qsize)
         n = len(ring)
         outline = min(tuple(run[i:] + run[:i]) for run in (ring, ring[::-1]) for i in range(max(n, 1)))
-        return ('sweep', outline, tuple(path), bool(s._sweep_qclosed), q(s._sweep_twist), bool(getattr(s, '_sweep_free', False)),
+        return ('sweep', outline, tuple(path), thick, bool(s._sweep_qclosed), q(s._sweep_twist), bool(getattr(s, '_sweep_free', False)),
                 bool(s._sweep_pdefault), bool(s._sweep_qdefault), tuple(bool(v) for v in getattr(s, '_sweep_round', ())),
                 bool(getattr(s, '_sweep_offset', False)), bool(getattr(s, '_sweep_across', False)))
     except (AttributeError, TypeError, ValueError):

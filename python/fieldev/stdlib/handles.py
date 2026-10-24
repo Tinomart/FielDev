@@ -286,7 +286,7 @@ def gizmo(shape, move=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1), about=None, 
     # (a sweep drawn natively from its points is placed natively too: the viewport places it by the numbers of the gizmo, about the point `c`)
     if getattr(shape, '_sweep_ppos', None) is not None and getattr(shape, '_sweep_place', None) is None:
         for name in ('_sweep_ppos', '_sweep_prot', '_sweep_pflag', '_sweep_pscale', '_sweep_pradius', '_sweep_pdefault', '_sweep_qpos', '_sweep_qrot', '_sweep_qflag', '_sweep_qscale',
-                     '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist'):
+                     '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist', '_sweep_qsize'):
             setattr(out, name, getattr(shape, name))
         out._sweep_free = getattr(shape, '_sweep_free', False)          # (the sweep of a primitive: its outline is in the plane z = 0)
         for flag in ('_sweep_round', '_sweep_offset', '_sweep_across', '_sweep_inner'):

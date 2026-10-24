@@ -291,6 +291,9 @@ public slots:
     /*  A node put down for an armature in the viewport (the armature mode): at `at`, after the node `anchor` -- a variable of the script; empty: it is the first node, and a new armature
      *  of one node is made.  The node is written into the script at once; armatureNodeDone says which node the next one follows.  `scale` is how large things are at the place  */
     void addArmatureNode(const QString& anchor, const QVector3D& at, double scale, double factor = 1.0);
+    /*  The sizes of the armature that `node` (a variable of the script) belongs to are written into its call as var()s -- one for each node -- so that the circle round a node and the wheel over it
+     *  can change them: the first press or notch on an armature whose sizes are plain numbers, or that has none  */
+    void makeArmatureSizes(const QString& node);
 
     /*  A selection rectangle drawn in the viewport: the models displayed by these lines are the selection
      *  (with `add`, they join the selection that there is)  */
@@ -770,7 +773,7 @@ protected:
     QJsonObject m_symdefRequest;               // (the planes of a symmetry that is being made: planes, kind, centre, axis, first)
     bool m_placedSmooth = false;
     QElapsedTimer m_armatureClock;             // (since an armature node was last put down: the region is given more room while an armature is built, see fitRegion)
-    double m_placedSize = 1.0;                // (the scale of the gizmo of the first node of an armature that createFromMenu makes: Shift + wheel in the armature mode)
+    double m_placedSize = 1.0;                // (the size of the first node of an armature that createFromMenu makes: Shift + wheel in the armature mode)
     QVector3D m_workPlaneOrigin, m_workPlaneU, m_workPlaneV;
     float m_workPlaneStep = 0;
     int m_selectNewTries = 0;

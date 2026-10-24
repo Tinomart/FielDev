@@ -6381,7 +6381,7 @@ void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, dou
         // The first node: a new armature of one node, made like any new model (the cross-section it is given is as large as the place is)
         m_placed = QJsonArray{QJsonArray{double(at.x()), double(at.y()), double(at.z())}};
         m_placedSmooth = false;
-        m_placedSize = factor;                  // (the cross-section is made as large as the place is, as ever; how much thicker the node was asked to be is the scale of its gizmo)
+        m_placedSize = factor;                  // (the cross-section is made as large as the place is, as ever; how much thicker the node was asked to be is its size in `sizes`)
         createFromMenu("primitive", "armature", at, scale, -1, -1);
         m_placedSize = 1.0;
         m_placed = QJsonArray();
@@ -6424,6 +6424,32 @@ void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, dou
     m_selectNewTries = 0;
     emit(editScript(edits, doc["label"].toString()));
     emit(armatureNodeDone(name, at));
+}
+
+void ScenePanel::makeArmatureSizes(const QString& node)
+{
+    if (!m_support || !m_source || node.isEmpty()) return;
+    QJsonObject request;
+    request["op"] = "armature_sizes";
+    request["source"] = m_source();
+    request["line"] = 1;
+    request["node"] = node;
+    QString error;
+    const QString answer = m_support("profile_edit", QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)), &error);
+    if (answer.isEmpty())
+    {
+        if (!error.isEmpty()) notify(error);
+        return;
+    }
+    const QJsonObject doc = QJsonDocument::fromJson(answer.toUtf8()).object();
+    QList<TextEdit> edits;
+    for (const auto v : doc["edits"].toArray())
+    {
+        const auto a = v.toArray();
+        if (a.size() == 5) edits << TextEdit{a[0].toInt(), a[1].toInt(), a[2].toInt(), a[3].toInt(), a[4].toString()};
+    }
+    if (edits.isEmpty()) return;
+    emit(editScript(edits, doc["label"].toString()));
 }
 
 void ScenePanel::selectFieldKeys(const QStringList& keys, bool add)

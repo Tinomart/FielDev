@@ -22,6 +22,7 @@ the README has the design decisions (*Known limitations*).
   the viewport and in an engine (the same colour typed as the numbers `(0.227, 0.431, 0.647)` is read as linear and looks lighter).
 - **A reference image follows its handle when you let go, not while you drag.** Its handle is a point with a gizmo (the menu writes it); the picture is drawn from the numbers of the last run of the script, and the script runs again
   when the drag ends. Its `height`, `opacity` and `flip` are numbers in the script.
+- **A plain `path_extrude` has `sizes` but no circle in the viewport.** How thick a sweep is at a point is the number in `sizes` of the call (a var(): change it in the script). Only the nodes of an armature have the circle round them that is dragged and the Shift + wheel over the node that sets the same number. The scale of a point -- the gold ring of its gizmo -- is how strongly the curve leaves it, for both.
 - **A feature model follows a dragged point when the script runs again, not during the drag.** Its surface is a mesh made of the points (every point a vertex, every loop an edge loop), so it changes when you let go of a point; an armature, which is a path extrude with a cross-section of its own, follows a dragged node at once.
 - **`uv_unwrap` is a pure-Python unwrap**: a mesh of tens of thousands of triangles takes tens of seconds to lay out (the conformal map of an island of more than 6000 triangles is replaced by a planar projection), and the
   packing is a few per cent looser than a dedicated packer's.

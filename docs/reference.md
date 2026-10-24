@@ -1439,7 +1439,7 @@ A 2D shape pulled into a solid: the part of space between the distances `a` and 
 z = 0 for the shapes that lie there -- a circle, a rectangle -- so that is zmin and zmax; the plane of a profile is the plane of its points,
 and the normal is the direction u x v of that plane).  `extrude(circle(5), 0, 10)` is a cylinder 10 tall
 
-### `path_extrude(profile, path, twist=0, ends=None, across=False)`
+### `path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None)`
 
 A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
 along `path`, turning with it, without twisting about it unless the points of the curve say so.
@@ -1449,7 +1449,7 @@ when it is oblique; a shape whose plane holds the direction of the curve is turn
 or a rectangle is such a shape as a profile is.  The path is DRAWN where the sweep goes -- through the middle of its cross-section, from the middle of the shape, its
 points with it -- whatever its own numbers say; only its shape matters, and the first point of it is the middle of the shape:
 the ROTATION of a point (its gizmo's rotate numbers) twists the profile about the curve there, and the twist runs between the points as a
-smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The thickness of a point (the scale of its gizmo) runs between the points as a smooth curve through the sizes, along the length of the path -- a monotone cubic: it never
+smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The thickness at a point (its entry of `sizes`; the scale of its gizmo has no say in it: that is how strongly the curve leaves the point) runs between the points as a smooth curve through the sizes, along the length of the path -- a monotone cubic: it never
 goes past them and changes direction at no point -- not as a straight line that turns at every point and shows as a ring round the body.  The ends are cut square.  A curve with corners is swept
 with mitered joints.  `path_extrude(circle(2), spline([a, b, c]))` is a bent tube; `extrude` is the straight case.  `path` may be a list of points:
 the spline through them.
@@ -1465,6 +1465,8 @@ sizing   (not an argument: the SECTION says it, `profile(..., sizing=)`, `ring(.
          widest circle is found on a grid, right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not
          inside a thicker one; 'offset' keeps the thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none
          at about 2.5; a ring of outer radius 2 and hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
+sizes    how big the section is at each point of the path: one number (or var()) for each point, 1 (the default: every point) the section as it is, 2 twice as thick -- a number of its own,
+         not the scale of the point, which is how strongly the curve leaves it (the influence of the point: its gizmo, a point of the path that is selected)
 across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
          in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle
 
@@ -1532,10 +1534,10 @@ meet at a joint are one smooth body there.  Where the radius changes fast over a
 
 Armatures: a character made of parts, each a path of nodes with a cross-section, and the skeleton that goes with them.
 
-    shoulder = point(18, 0, 138)                            # a node: a point, with the size of its gizmo (the gold ring) as how thick the armature is there
+    shoulder = point(18, 0, 138)                            # a node: a point (the scale of its gizmo is how strongly the curve leaves it)
     elbow = point(31, 0, 113)
     hand = point(37, 8, 92)
-    arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+    arm = armature([shoulder, elbow, hand], sizes=[1, 0.75, 0.58], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
     spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
     face = cut_face(arm)                                    # the cross-section of the arm, shown at its first node: its points are the profile's
     hero = character([spine, arm, ...], blend=4, symmetric="x")          # the body: the parts joined with a blend, and the left half as the mirror image
@@ -1544,9 +1546,9 @@ Armatures: a character made of parts, each a path of nodes with a cross-section,
 An ARMATURE is a path extruded: a cross-section swept along a smooth curve through its nodes (the curve is a Catmull-Rom spline through the nodes, so the armature bends smoothly), thicker or
 thinner at each node, and every number in it is an expression of the nodes, so that a node dragged in the viewport moves the armature with it at once.  The cross-section is a PROFILE:
 by default one that is made for the armature -- a square whose four corners are spline points, so that it is nearly round, with a radius of `radii` (1 by default) -- or any 2D shape of your
-own, `armature([...], profile=my_profile)`: a profile you made from points, a polygon, a rectangle.  The profile is the same for the whole armature, and a node's size (the gold ring of its gizmo)
-makes it bigger or smaller there (keep it near 1: a node's size is also how strongly the path leaves it, and a node many times the size of the profile swings the path out and back on
-itself -- make the profile that size instead); the profile is a model of its own, so a different one is swapped in by dropping it on the profile the armature uses in the model tree.  Where the profile
+own, `armature([...], profile=my_profile)`: a profile you made from points, a polygon, a rectangle.  The profile is the same for the whole armature, and the size of a node (`sizes`: the circle round the node, the real radius there)
+makes it bigger or smaller there (the scale of a node's gizmo, which shows when the point itself is selected, is not the thickness: it is how strongly the path leaves the node, and a node with a scale many times 1 swings the path out and back on
+itself); the profile is a model of its own, so a different one is swapped in by dropping it on the profile the armature uses in the model tree.  Where the profile
 is does not matter: the armature is swept from the first node.  `cut_face(armature)` shows the profile there, as a linked clone (`instance`) turned the way the armature leaves the node, with a dot
 for each of the profile's points: pull a dot, and the profile -- and so the whole armature -- changes with it.
 
@@ -1568,16 +1570,18 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
 sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in
 
-### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0)`
+### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizes=None)`
 
 A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
-    arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+    arm = armature([shoulder, elbow, hand], sizes=[1, 0.75, 0.58], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
 
-points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a node's gizmo -- the gold ring, 1 for a tuple -- is
-         how big the cross-section is there: the ring is drawn as a circle of the armature's real radius round the node
-radii    the size of the cross-section the armature is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or, for nodes that are
-         tuples of numbers, a list with one number for each node (a point has its own size, in its gizmo)
+points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a point's gizmo is how strongly the curve leaves it (its influence,
+         1 by default: it shows when that point is selected); how thick the armature is at a node is `sizes`, not the point's scale
+radii    the size of the cross-section the armature is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or a list with one
+         number for each node, the radius at that node
+sizes    how big the cross-section is at each node, as a number of its own -- a list, one number (or var()) for each node, 1 the cross-section as it is -- on top of `radii`.  The circle round a
+         node, drawn with the armature's real radius there, is what changes it (drag it, or Shift + wheel over the node)
 profile  the cross-section: any 2D shape (a profile made of points, a polygon, a rectangle).  None: a square with spline points, made for the armature.  It is swept from the first
          node whatever place it is at; a different profile is dropped on this one in the model tree to swap it
 name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)

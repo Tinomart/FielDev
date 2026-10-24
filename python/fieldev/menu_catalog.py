@@ -82,7 +82,7 @@ _CHAIN = _LINE_POINTS + '#@@#\nchain([' + _LINE_LIST + '], radii={q})'
 _CUT_POINTS, _CUT_LIST = _points(('{qa}', '{qa}', '0'), ('{qn}', '{qa}', '0'), ('{qn}', '{qn}', '0'), ('{qa}', '{qn}', '0'), base='{var}_cut', shown=False)
 _CUT = _CUT_POINTS + '{var}_cut = profile([' + _CUT_LIST + '], smooth=True)\n'
 _FACE = '\n#@@@#\n{var}_face = cut_face({var})\n{var}_face'
-_ARMATURE = _LINE_POINTS + _CUT + '#@@#\narmature([' + _LINE_LIST + '], profile={var}_cut, name="{var}")' + _FACE
+_ARMATURE = _LINE_POINTS + _CUT + '#@@#\narmature([' + _LINE_LIST + '], profile={var}_cut, sizes=[' + ', '.join(['var(1)'] * (_LINE_LIST.count(',') + 1)) + '], name="{var}")' + _FACE
 
 
 # The loops of new feature models: half a face drawn on the front view, as (x, y, z) in halves of the size from the place -- an outline from the chin to the top of the head (open, its ends
@@ -129,9 +129,9 @@ FROM_SELECTION = {
     'chain': (tr('An armature through points: a round cone between each two, thick where the point is big.  With points selected: made from them, in the order you selected them.  '
                  'With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the armature is there'),
               [({'point'}, 1, None, 'chain([{names}], radii=3)')]),
-    'armature': (tr('A part of a character: a smooth path through points, thick where the point is big (a path extrude), and the joints of its skeleton.  With points selected: made '
-                'from them, in the order you selected them.  With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the '
-                'armature is there; an armature that begins on a point of another armature is a branch of it'),
+    'armature': (tr('A part of a character: a smooth path through points, thick where its size is big (a path extrude), and the joints of its skeleton.  With points selected: made '
+                'from them, in the order you selected them.  With none: three new points to drag.  The circle round a point is how thick the armature is there (drag it, or Shift + wheel over the point); the gold ring of its gizmo is how strongly the path leaves it; '
+                'an armature that begins on a point of another armature is a branch of it'),
              [({'point'}, 1, None, 'armature([{names}], radii=3)')]),
 }
 
@@ -692,30 +692,34 @@ def _placed_template(name, r):
     return _stroke_text(name, places, r.get('smooth'), r)
 
 
-def _armature_text(places, scale=None, first=None, half=None, size=None):
-    ''' An armature put down in the viewport, node after node: the nodes, each a model of its own with its gizmo (so that it can be dragged, and its size is how thick the armature is
-        there), and the call through them.  The thickness is a sixth of the longest stretch between two nodes, a round number: an armature of a drawing is about that thick.  The first and the
+def _armature_text(places, scale=None, first=None, half=None, size=None, first_size=None):
+    ''' An armature put down in the viewport, node after node: the nodes, each a model of its own with its gizmo (so that it can be dragged), and the call through them with `sizes`, a var() for each node: how
+        thick the armature is there (the circle round the node in the viewport).  The thickness is a sixth of the longest stretch between two nodes, a round number: an armature of a drawing is about that thick.  The first and the
         last node are spline points (round ends), every one in the middle is a corner.  `half`: the half width of the cross-section, when it is to be as wide as one that is there (a branch is as
-        thick as the armature it grows from); `size`: the scale of the nodes (a branch's new node is as big as the node it begins at) '''
+        thick as the armature it grows from); `size`: the size of the nodes put down (a branch's new node is as big as the node it begins at, times the factor of the wheel); `first_size`: the size at the node `first` '''
     pts = [tuple(float(c) for c in p) for p in places]
     # (one node has no stretch to measure: the size of the place it is put at, a fifth of it)
     reach = max((math.dist(a, b) for a, b in zip(pts, pts[1:])), default=(scale or 10.0) * 1.2)
-    points, listing = _points(*places, corners=set(range(1, len(places) - 1)), size=None if size is None else _num(size))
+    points, listing = _points(*places, corners=set(range(1, len(places) - 1)))
     # (the cross-section of the armature: the square with spline points, whose radius is a sixth of the longest stretch, written above it as a profile of its own, and its clone under the armature)
     q = _nice(reach / 6.0)
     width = half if half else 0.75 * q
     plus, minus = _num(width), _num(-width)
     cut_points, cut_list = _points((plus, plus, '0'), (minus, plus, '0'), (minus, minus, '0'), (plus, minus, '0'), base='{var}_cut', shown=False)
+    each = _num(float(size)) if size is not None else '1'
+    entries = [each] * len(places)
     if first:
         listing = '%s, %s' % (first, listing)           # (a branch: it begins at a node that is there already)
-    return points + cut_points + '{var}_cut = profile([%s], smooth=True)\n' % cut_list + '#@@#\n' + 'armature([%s], profile={var}_cut, name="{var}")' % listing + _FACE
+        entries.insert(0, _num(float(first_size)) if first_size is not None else each)
+    sizes = ', '.join('var(%s)' % e for e in entries)
+    return points + cut_points + '{var}_cut = profile([%s], smooth=True)\n' % cut_list + '#@@#\n' + 'armature([%s], profile={var}_cut, sizes=[%s], name="{var}")' % (listing, sizes) + _FACE
 
 
-def armature_branch(var, anchor, place, scale=None, half=None, size=None):
+def armature_branch(var, anchor, place, scale=None, half=None, size=None, first_size=None):
     ''' An armature that begins at a node of another one, as the viewport puts it down when a node in the middle of an armature is picked and the next one is placed: the statements of a
         new armature `var` -- the node at `place` (the texts of x, y, z), its cross-section and the call through `anchor` (the variable of the node it begins at) and the new node, with the
-        line that shows it and its cut face -- as they are written in the script.  `half` and `size` make it as thick as the armature it grows from (see _armature_text) '''
-    prelude, rest = _armature_text([place], scale, anchor, half, size).split('#@@#\n')
+        line that shows it and its cut face -- as they are written in the script.  `half`, `size` and `first_size` make it as thick as the armature it grows from (see _armature_text) '''
+    prelude, rest = _armature_text([place], scale, anchor, half, size, first_size).split('#@@#\n')
     call, face = rest.split('\n#@@@#\n')
     return (prelude + '{var} = ' + call + '\n{var}\n' + face).replace('{var}', var)
 

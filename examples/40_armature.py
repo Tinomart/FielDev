@@ -6,7 +6,7 @@
 #   export_mesh(hero, "hero.glb", symmetric="x", skeleton=bones)
 #
 # An armature is a path extruded: a round cross-section swept along a smooth curve through the nodes (or any 2D shape: armature(..., profile=rectangle(...))).  The thickness at a node is
-# the size of its point -- the gold ring of its gizmo -- times radii; every number is an expression of the nodes, so a node dragged in the viewport moves its armature at once.
+# its size (`sizes`, 1 where not given; the circle round the node in the viewport) times radii; every number is an expression of the nodes, so a node dragged in the viewport moves its armature at once.
 # An armature that starts on a node of another armature (the same point, or a place within half a millimetre) hangs from that joint; `parent="chest"` says where an armature is joined when it does
 # not start on a node.  A joint with an `influence` (a body or a field) owns the skin where that field is negative: here the jaw owns a small box of the head.
 #
@@ -113,7 +113,7 @@ def main_joint(vertex):
     return names[joints[vertex][0]]
 
 
-for label, place, radius, joint_name in (("the end of the hand (the flat end of the last armature, where the bone of the forearm ends)", (37, 8, 92), 3, ("hand.R", "elbow.R")),
+for label, place, radius, joint_name in (("the end of the hand (the round end of the arm, the tip of its dome, where the bone of the forearm ends)", (38.1, 9.5, 88), 3, ("hand.R", "elbow.R")),
                                          ("the middle of the right forearm", (34, 4, 102), 4, "elbow.R"),
                                          ("the middle of the left forearm", (-34, 4, 102), 4, "elbow.L"), ("the right shin", (11, 0, 30), 5, "knee.R")):
     found = near(place, radius)

@@ -8,8 +8,9 @@
 #   * Press an EDGE of the blue outline and drag: a new point comes out of it (written into the list of the profile).
 #   * Double-click a point: a CORNER (a square dot, a hard edge) becomes a SPLINE POINT (a round dot with a ring: the outline goes smoothly through it),
 #     and back.  The corner at the top right of the tile is a spline point already: smooth=True.
-#   * Select a spline point: its ring turns the direction the curve leaves it in; the gold ring round it scales it -- for a profile, how strongly the
-#     curve leaves it; for the tube below, how THICK the tube is there (the middle point of the path is drawn at 1.8 times the thickness).
+#   * Select a spline point: its ring turns the direction the curve leaves it in; the gold ring round it scales it -- how strongly the curve
+#     leaves it (its influence).  How THICK the tube below is at a point is a number of its own, `sizes` of path_extrude: the second point of the path is 1.8 times as thick
+#     (change the number in the script; an armature, example 33, has a circle round each node for it).
 #   * Select the tile and its points are the dots round it. Select several points together (Ctrl+click) and one dot moves them all, in the plane.
 #   * Shift+D copies a model, Ctrl+D links it (see example 27).
 from fieldev import *
@@ -43,16 +44,10 @@ tile = extrude(
 )
 tile
 
-# A path of four points, and the tube along it. The scale of a point is how thick the tube is there: the gizmo of q2 has a scale of 1.8.
+# A path of four points, and the tube along it. How thick the tube is at a point is `sizes`, a number for each point: the second is 1.8, so the tube is 1.8 times as thick there.  (The scale of a point's gizmo is not that: it is how strongly the curve leaves the point.)
 q1 = point(70, 5, 10)
 q1
 q2 = point(88, 24, 24)
-q2 = gizmo(
-    q2,
-    move=(var(0), var(0), var(0)),
-    rotate=(var(0), var(0), var(0)),
-    scale=(var(1.8), var(1.8), var(1.8)),
-)
 q2
 q3 = point(102, 44, 16)
 q3
@@ -79,5 +74,6 @@ cross_section
 tube = path_extrude(
     cross_section,
     path,
+    sizes=[var(1), var(1.8), var(1), var(1)],
 )
 tube

@@ -513,6 +513,7 @@ void Shape::setSweep(std::vector<ControlPoint> profile, bool profileDefault, std
 struct Shape::SweepNumbers
 {
     std::vector<libfive::pointshapes::Control> profile, path;
+    std::vector<double> size;                                               // (how thick the section is at each point of the path)
     bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false, roundStart = false, roundEnd = false, offset = false, across = false;
     double twist = 0;                                                       // (degrees)
     Eigen::Vector3d about = Eigen::Vector3d::Zero(), move = Eigen::Vector3d::Zero(), rotate = Eigen::Vector3d::Zero(), scale = Eigen::Vector3d::Ones();
@@ -530,6 +531,14 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
     }
     if (!controlNumbersOf(m_sweep_profile, true, v, out.profile, this) || out.profile.size() < 3) return false;
     if (!controlNumbersOf(m_sweep_path, false, v, out.path, this) || out.path.size() < 2) return false;
+    out.size.assign(out.path.size(), 1.0);
+    for (size_t i = 0; i < m_sweep_path.size() && i < out.size.size(); ++i)
+        if (m_sweep_path[i].hasSize)
+        {
+            const double z = evalConstant(m_sweep_path[i].size, v);
+            if (!std::isfinite(z)) return false;
+            out.size[i] = std::max(0.0, z);
+        }
     out.profileDefault = m_sweep_profile_default;
     out.pathDefault = m_sweep_path_default;
     out.closed = m_sweep_closed;
@@ -891,7 +900,7 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
             byArc[i] = 1;
         }
         std::vector<double> secant(stretches, 0.0), slope(size_t(m), 0.0);
-        for (size_t i = 0; i < stretches; ++i) secant[i] = (in.path[size_t((i + 1) % size_t(m))].scale - in.path[i].scale) / reach[i];
+        for (size_t i = 0; i < stretches; ++i) secant[i] = (in.size[size_t((i + 1) % size_t(m))] - in.size[i]) / reach[i];
         for (int i = 0; i < m; ++i)
         {
             if (!closed && (i == 0 || i == m - 1))
@@ -909,12 +918,12 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
         for (int j = 0; j < n; ++j)
         {
             const int i = owners[size_t(j)].first;
-            if (!(closed || i + 1 < m)) { vertexSize[size_t(j)] = in.path[size_t(i)].scale; continue; }
+            if (!(closed || i + 1 < m)) { vertexSize[size_t(j)] = in.size[size_t(i)]; continue; }
             const int i1 = (i + 1) % m;
             const double u = byArc[size_t(i)] ? std::min(std::max((arc[size_t(j)] - start[size_t(i)]) / reach[size_t(i)], 0.0), 1.0) : owners[size_t(j)].second;
             const double h = reach[size_t(i)], u2 = u * u, u3 = u2 * u;
-            vertexSize[size_t(j)] = (2 * u3 - 3 * u2 + 1) * in.path[size_t(i)].scale + (u3 - 2 * u2 + u) * h * slope[size_t(i)]
-                                    + (3 * u2 - 2 * u3) * in.path[size_t(i1)].scale + (u3 - u2) * h * slope[size_t(i1)];
+            vertexSize[size_t(j)] = (2 * u3 - 3 * u2 + 1) * in.size[size_t(i)] + (u3 - 2 * u2 + u) * h * slope[size_t(i)]
+                                    + (3 * u2 - 2 * u3) * in.size[size_t(i1)] + (u3 - u2) * h * slope[size_t(i1)];
         }
     }
     auto sizeAt = [&](int j) { return std::max(vertexSize[size_t(j)], 1e-3); };
@@ -1162,7 +1171,7 @@ int Shape::controlOf(const Shape* point) const
     return -1;
 }
 
-bool Shape::groupHas(const Shape* point) const
+bool Shape::groupHas(const Shape* point, bool byPlace) const
 {
     if (!point) return false;
     const auto& g = point->gizmo();
@@ -1171,6 +1180,21 @@ bool Shape::groupHas(const Shape* point) const
         for (int a = 0; a < 3; ++a)
         {
             if (g.move[a] && c.var[a] == g.move[a]) return true;
+        }
+    }
+    // A point that has no numbers of its own yet -- no gizmo line -- is found where its dot is: the points of a group that are plain numbers are where they say
+    QVector3D at;
+    if (byPlace && !g.move[0] && !g.move[1] && !g.move[2] && point->dotPosition(at))
+    {
+        for (const ControlPoint& c : m_group_points)
+        {
+            bool match = true;
+            for (int a = 0; a < 3 && match; ++a)
+            {
+                const auto* number = c.pos[a].is_valid() ? std::get_if<libfive::TreeConstant>(c.pos[a].get()) : nullptr;
+                match = number && std::fabs(double(number->value) - double(at[a])) <= 1e-4 * (1.0 + std::fabs(double(at[a])));
+            }
+            if (match) return true;
         }
     }
     return false;
@@ -1941,6 +1965,8 @@ bool Shape::updateFrom(const Shape* other)
     m_linked = other->m_linked;
     m_isPoint = other->m_isPoint;
     m_armatureFactor = other->m_armatureFactor;
+    m_armatureSizeVar = other->m_armatureSizeVar;
+    m_armatureSize = other->m_armatureSize;
     m_hasPointPos = other->m_hasPointPos;
     m_pointPos = other->m_pointPos;
     m_appLabel = other->m_appLabel;
@@ -1982,6 +2008,13 @@ bool Shape::updateFrom(const Shape* other)
     m_script_box_valid = other->m_script_box_valid;
     m_script_lo = other->m_script_lo;
     m_script_hi = other->m_script_hi;
+    // (the number that says how big an armature is at this node may be a variable the script made after this shape was: the sizes written into the call by the first press of a circle.  The
+    // shape keeps the variables it was made with, so this one is put in, with the value the script gives it)
+    if (other->m_armatureSizeVar)
+    {
+        const auto given = other->vars.find(other->m_armatureSizeVar);
+        if (given != other->vars.end() && vars.find(other->m_armatureSizeVar) == vars.end()) vars[other->m_armatureSizeVar] = given->second;
+    }
     m_script_vars = other->vars;
     m_script_vars_known = true;
     const bool varsChanged = updateVars(other->vars);
@@ -2055,6 +2088,7 @@ void Shape::buildDeps() const
                     if (c.hasRot) add(c.rot[a]);
                 }
                 if (c.hasScale) add(c.scale);
+                if (c.hasSize) add(c.size);
                 if (c.hasRadius) add(c.radius);
             }
         }
@@ -2074,6 +2108,16 @@ void Shape::buildDeps() const
         }
         m_deps_known = true;
     }
+}
+
+float Shape::armatureSize() const
+{
+    if (m_armatureSizeVar)
+    {
+        const auto it = vars.find(m_armatureSizeVar);
+        if (it != vars.end()) return it->second;
+    }
+    return m_armatureSize;
 }
 
 bool Shape::usesVar(libfive::Tree::Id id) const
@@ -2812,6 +2856,7 @@ QString Shape::identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tre
                 if (c.hasRot)
                     for (int a = 0; a < 3; ++a) key += QString(",r%1").arg(sid(c.rot[a]));
                 if (c.hasScale) key += QString(",s%1").arg(sid(c.scale));
+                if (c.hasSize) key += QString(",z%1").arg(sid(c.size));
                 if (c.hasRadius) key += QString(",R%1").arg(sid(c.radius));
             }
         }

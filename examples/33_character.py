@@ -1,11 +1,11 @@
 # A character: armatures that taper between joints, joined into one body, with the other half made by a mirror.
 #
-#   arm = armature([shoulder, elbow, hand], radii=6)          a tube through the points, as thick at each as 6 times its size
+#   arm = armature([shoulder, elbow, hand], radii=6, sizes=[1, 0.75, 0.58])     a tube through the points, as thick at each as 6 times its size
 #   hero = character([spine, head, arm, leg, foot], blend=4, symmetric="x")
 #
-# The radius at a joint is `radii` times the SIZE of its point -- the scale of its gizmo.  Things to try, with the viewport focused:
+# The radius at a joint is `radii` times its SIZE, the number `sizes` has for it.  Things to try, with the viewport focused:
 #   * Press a point (the shoulder, the elbow, the hand) and drag it: the arm follows, and so does the arm on the other side.
-#   * Select the elbow: the gold ring round it is its size.  Drag it and the arm is thicker or thinner there.
+#   * Select the arm: the circle round each of its points is the real radius there.  Drag the circle of the elbow and the arm is thicker or thinner there; or hover the elbow and use Shift + wheel.
 #   * The body is modelled once, on the right of x = 0; symmetric="x" makes the left half.  An armature takes points or tuples of numbers: the spine, the
 #     head, the leg and the foot are tuples -- nothing to drag -- the arm is made of points.
 #   * export_mesh(hero, "character.glb") would write it as a mesh (see example 32).
@@ -17,28 +17,16 @@ view.set_bounds((-70, -40, -12), (70, 40, 185))
 view.set_resolution(1)
 view.set_quality(8)
 
-# The arm: three points, each a model of its own.  The radius there is 6 times the size of the point: the elbow is 0.75 of that (4.5) and the hand 0.58 (3.5), as their gizmos say.
+# The arm: three points, each a model of its own.  The radius there is 6 times its size: the elbow is 0.75 of that (4.5) and the hand 0.58 (3.5), as `sizes` says.
 shoulder = point(18, 0, 138)
 shoulder
 elbow = point(31, 0, 113)
-elbow = gizmo(
-    elbow,
-    move=(var(0), var(0), var(0)),
-    rotate=(var(0), var(0), var(0)),
-    scale=(var(0.75), var(0.75), var(0.75)),
-)
 elbow
 hand = point(37, 8, 92)
-hand = gizmo(
-    hand,
-    move=(var(0), var(0), var(0)),
-    rotate=(var(0), var(0), var(0)),
-    scale=(var(0.58), var(0.58), var(0.58)),
-)
 hand
 
 # The parts, each an armature -- a tube along its nodes.  The tuples are the nodes of the spine, the head, the leg and the foot; a list of radii says how thick each is
-arm = armature([shoulder, elbow, hand], radii=6, name="arm")
+arm = armature([shoulder, elbow, hand], radii=6, sizes=[var(1), var(0.75), var(0.58)], name="arm")
 spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine")
 head = armature([(0, 2, 159), (0, 2, 167)], radii=11, name="head")
 leg = armature([(9, 0, 88), (11, 0, 48), (11, 0, 9)], radii=[8, 5.5, 4], name="leg")

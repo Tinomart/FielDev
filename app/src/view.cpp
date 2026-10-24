@@ -1753,14 +1753,13 @@ void View::mousePressEvent(QMouseEvent* event)
         }
         if (event->button() == Qt::LeftButton)
         {
-            // The ring of a node of an armature that is selected: pressed, it scales the thickness of that node, as the ring of a selected node does
+            // The circle round a node of an armature that is selected: pressed, it sets how thick the armature is at that node (its size in `sizes`; the scale of the point is another thing)
             if (!m_arm.on)
             {
                 if (Shape* node = armatureRingAt(event->pos()))
                 {
                     syncPicker();
-                    beginGizmoDrag(GizmoGrip{node, 2, 0}, event->pos());
-                    if (gizmo_drag)
+                    if (beginSizeDrag(node, event->pos()))
                     {
                         press_pos = QPoint(-100000, -100000);   // not a selection click
                         press_target = nullptr;
@@ -3616,21 +3615,17 @@ void View::updateArmatureCursor(QPoint pos)
     if (m_arm.cursorValid || was) m_overlay->update();
 }
 
-// How thick the armature is at a node, as the radius of its ring in model units: the number the armature gave the node (the radius of its cross-section) times the node's own scale
+// How thick the armature is at a node, as the radius of its ring in model units: the number the armature gave the node (the radius of its cross-section) times the node's own size
 double View::armatureRadiusWorld(const Shape* s) const
 {
-    const auto& h = s->gizmo();
-    const auto& vars = s->getVars();
-    double sum = 0;
-    int n = 0;
-    for (int a = 0; a < 3; ++a)
-    {
-        const auto it = h.scale[a] ? vars.find(h.scale[a]) : vars.end();
-        if (it == vars.end()) continue;
-        sum += it->second;
-        ++n;
-    }
-    return double(s->armatureFactor()) * std::max(0.0, n ? sum / n : 1.0);
+    return double(s->armatureFactor()) * std::max(0.0, double(s->armatureSize()));
+}
+
+// Where a node of an armature is: its dot (a point with no gizmo has no pivot of its own: that is the origin)
+static QVector3D armatureNodePos(const Shape* s)
+{
+    QVector3D p;
+    return s->dotPosition(p) ? p : s->gizmoPivot();
 }
 
 // How thick the armature is at the node the next one follows (a node in the middle of an armature: the armature the next one branches from)
@@ -3731,13 +3726,30 @@ void View::drawArmatureRings(QPainter& painter)
         if (!armature->isSelected() || !armature->hasGroupPoints()) continue;
         for (const Shape* node : shapes)
         {
-            if (!node->isPoint() || !(node->armatureFactor() > 0.0f) || !armature->groupHas(node)) continue;
-            const double r = ringPx(node);
-            const QPointF c = toScreen(node->gizmoPivot());
-            painter.setPen(QPen(QColor(0, 0, 0, 80), 4.2));
+            if (!node->isPoint() || !(node->armatureFactor() > 0.0f) || !armature->groupHas(node, true)) continue;
+            const double r = armatureRingPx(node);
+            const QPointF c = toScreen(armatureNodePos(node));
+            const bool dragged = gizmo_drag && m_sizeDrag && gizmo_active.shape == node;
+            painter.setPen(QPen(QColor(0, 0, 0, 80), dragged ? 5.4 : 4.2));
             painter.drawEllipse(c, r, r);
-            painter.setPen(QPen(QColor(0xe0, 0xa8, 0x20, 230), 2.0));          // (the gold of the scale ring of a point)
+            painter.setPen(QPen(QColor(0x6e, 0xc6, 0xe6, 235), dragged ? 3.0 : 2.0));          // (the blue of the size: the gold ring is the scale of the point)
             painter.drawEllipse(c, r, r);
+            if (dragged)
+            {
+                const QString text = QString::fromUtf8("\xc3\x97") + QString::number(double(gizmo_factor), 'f', 2);
+                QFont font = painter.font();
+                font.setPointSizeF(8.5);
+                painter.setFont(font);
+                const QFontMetrics fm(font);
+                const QPointF at = c + QPointF(0.7071, -0.7071) * r;
+                const QRectF box(at + QPointF(8, -8 - fm.height()), QSizeF(fm.horizontalAdvance(text) + 10, fm.height() + 4));
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(QColor(72, 116, 118, 225));
+                painter.drawRoundedRect(box, 4, 4);
+                painter.setPen(QColor(0xee, 0xe8, 0xd5));
+                painter.drawText(box, Qt::AlignCenter, text);
+                painter.setBrush(Qt::NoBrush);
+            }
         }
     }
     painter.restore();
@@ -3754,13 +3766,55 @@ Shape* View::armatureRingAt(QPoint pos) const
         if (!armature->isSelected() || !armature->hasGroupPoints()) continue;
         for (Shape* node : shapes)
         {
-            if (!node->isPoint() || !(node->armatureFactor() > 0.0f) || !node->hasGizmo() || !armature->groupHas(node)) continue;
-            const QPointF c = toScreen(node->gizmoPivot());
-            const double d = std::fabs(std::hypot(at.x() - c.x(), at.y() - c.y()) - ringPx(node));
+            if (!node->isPoint() || !(node->armatureFactor() > 0.0f) || !armature->groupHas(node, true)) continue;
+            const QPointF c = toScreen(armatureNodePos(node));
+            const double d = std::fabs(std::hypot(at.x() - c.x(), at.y() - c.y()) - armatureRingPx(node));
             if (d < bestDist) { bestDist = d; best = node; }
         }
     }
     return best;
+}
+
+// A press on the circle round a node of an armature: how thick the armature is there follows the cursor -- how far the cursor is from the middle, against where the circle was pressed -- as the
+// number of `sizes` that is the node's.  An armature whose sizes are not variables yet (one written by hand, or made from points) has them written first: the press is used up for that, and the
+// next one drags
+bool View::beginSizeDrag(Shape* node, QPoint pos)
+{
+    m_sizeDrag = false;
+    const libfive::Tree::Id var = node->armatureSizeVar();
+    const auto& vars = node->getVars();
+    const auto it = var ? vars.find(var) : vars.end();
+    if (it == vars.end())
+    {
+        if (node->sourceLine() >= 0 && m_scene && !node->isLocked()) emit(armatureSizesRequested(m_scene->varAtLine(node->sourceLine())));
+        return true;
+    }
+    m_regionGrown = false;
+    gizmo_oriented = false;
+    gizmo_frame_shape = nullptr;
+    gizmo_sign = 1.0f;
+    gizmo_active = GizmoGrip{node, 2, 0};
+    gizmo_press = pos;
+    gizmo_pivot = armatureNodePos(node);
+    gizmo_id = var;
+    gizmo_value0 = it->second;
+    for (int a = 0; a < 3; ++a)
+    {
+        gizmo_scale_id[a] = a == 0 ? var : nullptr;
+        gizmo_scale0[a] = a == 0 ? it->second : 1.0f;
+    }
+    gizmo_len = gizmoLength(gizmo_pivot);
+    gizmo_factor = 1.0f;
+    gizmo_uniform = true;
+    gizmo_centre = toScreen(gizmo_pivot);
+    gizmo_press_r = std::max(8.0, std::hypot(double(pos.x()) - gizmo_centre.x(), double(pos.y()) - gizmo_centre.y()));
+    gizmo_ring0 = armatureRingPx(node);
+    m_sizeDrag = true;
+    gizmo_drag = true;
+    setCursor(Qt::ClosedHandCursor);
+    emit(dragStart());
+    m_overlay->update();
+    return true;
 }
 
 void View::addReferenceImage(const QString& plane, const QVector3D& point, double scale, int atLine, const QString& file)
@@ -4641,8 +4695,26 @@ void View::waitForWheelNumbers(float factor)
 
 void View::applyPendingWheel()
 {
-    if (m_wheelPending == 1.0f) { m_wheelPendingTimer.stop(); return; }
-    if (applyWheelFactor(m_wheelPending, nullptr))
+    if (m_wheelPending == 1.0f) { m_wheelNode.clear(); m_wheelPendingTimer.stop(); return; }
+    if (!m_wheelNode.isEmpty())
+    {
+        // (the notches wait for the sizes of an armature to be variables: the node they are for is found again by its variable, once the script has run)
+        Shape* node = nullptr;
+        for (Shape* s : shapes)
+        {
+            if (s->isPoint() && s->armatureFactor() > 0.0f && s->sourceLine() >= 0 && m_scene && m_scene->varAtLine(s->sourceLine()) == m_wheelNode) { node = s; break; }
+        }
+        if (node && node->armatureSizeVar() && node->getVars().count(node->armatureSizeVar()))
+        {
+            const float factor = m_wheelPending;
+            m_wheelPending = 1.0f;
+            m_wheelNode.clear();
+            m_wheelPendingTimer.stop();
+            sizeByWheel(factor, node);
+            return;
+        }
+    }
+    else if (applyWheelFactor(m_wheelPending, nullptr))
     {
         m_wheelPending = 1.0f;
         m_wheelPendingTimer.stop();
@@ -4651,6 +4723,7 @@ void View::applyPendingWheel()
     // (about five seconds: when the run that writes the numbers has not come by then it is not coming)
     if (++m_wheelPendingTries > 40)
     {
+        m_wheelNode.clear();
         m_wheelPending = 1.0f;
         m_wheelPendingTimer.stop();
     }
@@ -4663,6 +4736,8 @@ bool View::scaleSelectionByWheel(int delta, QPoint at)
     // The point whose dot the mouse is on is scaled whether it is selected or not -- the wheel acts on what the mouse is pointing at.  One of several selected points stands for them all
     // (as a drag of its dot moves them all), and a point that is not selected is scaled alone
     Shape* hovered = pointDotAt(at);
+    // A node of an armature: the wheel over its dot sets how thick the armature is there (its size), selected or not.  The scale of its point -- how strongly the curve leaves it -- is the ring of its gizmo
+    if (hovered && hovered->armatureFactor() > 0.0f) return sizeByWheel(factor, hovered);
     if (hovered && !hovered->isSelected())
     {
         if (hovered->sourceLine() < 0 || hovered->isLocked()) return false;
@@ -4683,6 +4758,38 @@ bool View::scaleSelectionByWheel(int delta, QPoint at)
         return true;
     }
     return false;
+}
+
+// Shift + wheel over the dot of a node of an armature: how thick the armature is there, as the number of `sizes` that is the node's.  When the sizes are not variables yet they are written into the call
+// first, and the notches that come meanwhile are kept, as one factor, and applied when the script has run again -- as they are for the numbers of a gizmo
+bool View::sizeByWheel(float factor, Shape* node)
+{
+    if (!node || node->isLocked()) return false;
+    const libfive::Tree::Id var = node->armatureSizeVar();
+    const auto& vars = node->getVars();
+    const auto it = var ? vars.find(var) : vars.end();
+    if (it == vars.end())
+    {
+        if (node->sourceLine() < 0 || !m_scene) return false;
+        const QString name = m_scene->varAtLine(node->sourceLine());
+        if (name.isEmpty()) return false;
+        if (m_wheelNode != name)
+        {
+            m_wheelNode = name;
+            m_wheelPending = 1.0f;
+            emit(armatureSizesRequested(name));
+        }
+        waitForWheelNumbers(factor);
+        return true;
+    }
+    if (!m_wheelScaling)
+    {
+        m_wheelScaling = true;
+        emit(dragStart());
+    }
+    applyGizmoNumbers({{var, std::max(0.01f, it->second * factor)}});
+    m_wheelTimer.start();
+    return true;
 }
 
 void View::wheelEvent(QWheelEvent *event)
@@ -6006,27 +6113,21 @@ float View::gizmoLength(const QVector3D& pivot) const
     return best > 1e-6 ? float(eps * 80.0 / best) : 0.0f;
 }
 
-double View::ringPx(const Shape* s) const
+double View::ringPx(const Shape*) const
 {
-    // The ring that scales a point is the same size on the screen for every point -- the factor it scales by is what a drag changes -- except for a node of an armature: its ring IS the
-    // thickness of the armature there, a circle round the node of the armature's real radius (the node's scale times the number `radii` gave), so that it is sized against the picture the
-    // armature is modelled over (the way Dust3D shows the size of a node).  Never smaller than a few pixels, so that it can still be pressed
+    // The ring that scales a point is the same size on the screen for every point -- the factor it scales by is what a drag changes.  (The circle round a node of an armature is another thing: how thick the
+    // armature is there, see armatureRingPx)
+    return kUniformRingPx;
+}
+
+// The circle round a node of an armature is how thick the armature is there: a circle round the node of the armature's real radius (the number `radii` gave the node times its size), so that it is sized
+// against the picture the armature is modelled over (the way Dust3D shows the size of a node).  Never smaller than a few pixels, so that it can still be pressed
+double View::armatureRingPx(const Shape* s) const
+{
     if (!s || !(s->armatureFactor() > 0.0f)) return kUniformRingPx;
-    const auto& h = s->gizmo();
-    const auto& vars = s->getVars();
-    double sum = 0;
-    int n = 0;
-    for (int a = 0; a < 3; ++a)
-    {
-        const auto it = h.scale[a] ? vars.find(h.scale[a]) : vars.end();
-        if (it == vars.end()) continue;
-        sum += it->second;
-        ++n;
-    }
-    const double scale = n ? sum / n : 1.0;
-    const float L = gizmoLength(s->gizmoPivot());
+    const float L = gizmoLength(armatureNodePos(s));
     if (!(L > 0)) return kUniformRingPx;
-    return std::max(9.0, 80.0 * double(s->armatureFactor()) * std::max(0.0, scale) / double(L));
+    return std::max(9.0, 80.0 * double(s->armatureFactor()) * std::max(0.0, double(s->armatureSize())) / double(L));
 }
 
 int View::selectedShapeCount() const
@@ -7242,10 +7343,10 @@ void View::drawGizmo(QPainter& painter)
             for (Shape* m : members)
             {
                 if (!(m->armatureFactor() > 0.0f)) continue;
-                const double r = ringPx(m);
+                const double r = armatureRingPx(m);
                 painter.setBrush(Qt::NoBrush);
-                painter.setPen(QPen(QColor(kUniformColor.red(), kUniformColor.green(), kUniformColor.blue(), 150), 1.4));
-                painter.drawEllipse(toScreen(m->gizmoPivot()), r, r);
+                painter.setPen(QPen(QColor(0x6e, 0xc6, 0xe6, 150), 1.4));
+                painter.drawEllipse(toScreen(armatureNodePos(m)), r, r);
             }
             dot(p0, hotG(3, 0));
         }
@@ -7337,7 +7438,7 @@ void View::drawGizmo(QPainter& painter)
             {
                 const GizmoGrip& now = gizmo_drag ? gizmo_active : gizmo_hover;
                 const bool on = now.kind == 2 && now.shape == s;
-                const bool dragging = gizmo_drag && gizmo_active.kind == 2 && gizmo_active.shape == s;
+                const bool dragging = gizmo_drag && gizmo_active.kind == 2 && gizmo_active.shape == s && !m_sizeDrag;
                 QColor c = kUniformColor;
                 if (on) c = c.lighter(140);
                 // (the ring as pressed, when it is being dragged)
@@ -7547,6 +7648,7 @@ void View::growRegionToHold(const double nlo[3], const double nhi[3])
 
 void View::beginGizmoDrag(const GizmoGrip& g, QPoint pos)
 {
+    m_sizeDrag = false;
     gizmo_ring0 = g.shape && !g.group ? ringPx(g.shape) : kUniformRingPx;
     m_regionGrown = false;
     gizmo_oriented = false;

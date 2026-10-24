@@ -1493,6 +1493,7 @@ Window::Window(Arguments args)
         connect(view, &View::radiusVarRequested, scene, [=](int line, int control) { scene->editPoints("radius", line, QVector3D(), QVector3D(), control); });
         connect(scene, &ScenePanel::pointEditDone, view, &View::expectNewPoint);
         connect(view, &View::armatureNodeRequested, scene, &ScenePanel::addArmatureNode);
+        connect(view, &View::armatureSizesRequested, scene, &ScenePanel::makeArmatureSizes);
         connect(scene, &ScenePanel::armatureNodeDone, view, &View::armatureNodeDone);
         connect(view, &View::fieldsRectSelected, this, [=](QStringList keys, bool add) {
             scene->selectFieldKeys(keys, add);

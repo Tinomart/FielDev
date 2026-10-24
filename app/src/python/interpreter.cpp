@@ -1792,13 +1792,15 @@ void Interpreter::recordShape(
             PyObject* qp = PyObject_GetAttrString(obj, "_sweep_qpos");
             if (pp && PyList_Check(pp) && PyList_Size(pp) > 0 && qp && PyList_Check(qp) && PyList_Size(qp) > 0)
             {
-                auto readPoints = [&](const char* pos, const char* rot, const char* scale, const char* flag, const char* radius, std::vector<Shape::ControlPoint>& points) -> bool {
+                auto readPoints = [&](const char* pos, const char* rot, const char* scale, const char* flag, const char* radius, const char* size, std::vector<Shape::ControlPoint>& points) -> bool {
                     PyObject* cp = PyObject_GetAttrString(obj, pos);
                     PyObject* cr = PyObject_GetAttrString(obj, rot);
                     PyObject* cs = PyObject_GetAttrString(obj, scale);
                     PyObject* cf = PyObject_GetAttrString(obj, flag);
                     PyObject* crad = radius ? PyObject_GetAttrString(obj, radius) : nullptr;      // (the points of a path have no radius: a round corner is a corner of a face)
                     if (!crad) PyErr_Clear();
+                    PyObject* csz = size ? PyObject_GetAttrString(obj, size) : nullptr;                 // (how thick the sweep is at each point of its path)
+                    if (!csz) PyErr_Clear();
                     bool good = cp && PyList_Check(cp);
                     for (Py_ssize_t i = 0; good && i < PyList_Size(cp); ++i)
                     {
@@ -1826,6 +1828,12 @@ void Interpreter::recordShape(
                             c.scale = treeOfShape(sc);
                             c.hasScale = c.scale.is_valid();
                         }
+                        PyObject* sz = (csz && PyList_Check(csz) && i < PyList_Size(csz)) ? PyList_GetItem(csz, i) : nullptr;
+                        if (sz && sz != Py_None)
+                        {
+                            c.size = treeOfShape(sz);
+                            c.hasSize = c.size.is_valid();
+                        }
                         PyObject* fl = (cf && PyList_Check(cf) && i < PyList_Size(cf)) ? PyList_GetItem(cf, i) : nullptr;
                         if (fl && PyLong_Check(fl)) c.flag = int(PyLong_AsLong(fl));
                         PyObject* rd = (crad && PyList_Check(crad) && i < PyList_Size(crad)) ? PyList_GetItem(crad, i) : nullptr;
@@ -1841,11 +1849,12 @@ void Interpreter::recordShape(
                     Py_XDECREF(cs);
                     Py_XDECREF(cf);
                     Py_XDECREF(crad);
+                    Py_XDECREF(csz);
                     return good;
                 };
                 std::vector<Shape::ControlPoint> profile, path;
-                bool good = readPoints("_sweep_ppos", "_sweep_prot", "_sweep_pscale", "_sweep_pflag", "_sweep_pradius", profile) &&
-                            readPoints("_sweep_qpos", "_sweep_qrot", "_sweep_qscale", "_sweep_qflag", nullptr, path);
+                bool good = readPoints("_sweep_ppos", "_sweep_prot", "_sweep_pscale", "_sweep_pflag", "_sweep_pradius", nullptr, profile) &&
+                            readPoints("_sweep_qpos", "_sweep_qrot", "_sweep_qscale", "_sweep_qflag", nullptr, "_sweep_qsize", path);
                 PyObject* pd = PyObject_GetAttrString(obj, "_sweep_pdefault");
                 PyObject* qd = PyObject_GetAttrString(obj, "_sweep_qdefault");
                 PyObject* qc = PyObject_GetAttrString(obj, "_sweep_qclosed");
@@ -1957,10 +1966,22 @@ void Interpreter::recordShape(
                 Py_XDECREF(pp);
                 PyErr_Clear();
                 shape->setPoint(pos, hasPos);
-                // (a node of an armature: the number its thickness is the point's scale times -- the viewport draws the ring of the point as a circle of that radius)
+                // (a node of an armature: the radius of its cross-section there, before its size -- the viewport draws a circle of that radius times the size round the point)
                 PyObject* lf = PyObject_GetAttrString(obj, "_armature_factor");
                 if (lf && PyFloat_Check(lf)) shape->setArmatureFactor(float(PyFloat_AsDouble(lf)));
                 Py_XDECREF(lf);
+                PyErr_Clear();
+                // (how big the armature is at this node: its own number in `sizes` -- a variable the viewport drags, or a plain number -- and not the scale of the point, which is how strongly the curve leaves it)
+                PyObject* sz = PyObject_GetAttrString(obj, "_armature_size");
+                PyObject* sv = PyObject_GetAttrString(obj, "_armature_size_value");
+                if (sz && PyObject_HasAttrString(sz, "ptr"))
+                {
+                    PyObject* sp = PyObject_GetAttrString(sz, "ptr");
+                    shape->setArmatureSize(sp && PyLong_Check(sp) ? static_cast<libfive::Tree::Id>(PyLong_AsVoidPtr(sp)) : nullptr, sv && PyFloat_Check(sv) ? float(PyFloat_AsDouble(sv)) : 1.0f);
+                    Py_XDECREF(sp);
+                }
+                Py_XDECREF(sz);
+                Py_XDECREF(sv);
                 PyErr_Clear();
             }
             Py_XDECREF(kind);

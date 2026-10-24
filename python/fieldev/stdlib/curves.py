@@ -119,7 +119,7 @@ class Control:
         self.rot = tuple(value_of(c) for c in self.rot_expr) if rotation is not None else (0.0, 0.0, 0.0)
         self.turned = any(abs(a) > 1e-12 for a in self.rot)
         # the scale of a point is ONE number: the mean of the three of its gizmo (they are kept equal by the gizmo of a point).  It is how strongly a spline
-        # leaves the point (1: Catmull-Rom; more: rounder; less: tighter), and how thick `path_extrude` makes what it sweeps there
+        # leaves the point (1: Catmull-Rom; more: rounder; less: tighter), and nothing else: how thick a sweep is there is `sizes` of the sweep, a number of its own
         scale = getattr(item, '_gizmo', None)
         self.scale_expr = None
         self.scale = 1.0

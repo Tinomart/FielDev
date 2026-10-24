@@ -1625,7 +1625,7 @@ void Tutorial::buildSteps()
         s.title = T("Corner, spline point or round corner");
         s.text = T("Double-click a point: a corner becomes a spline point (a round dot: the outline goes smoothly through it), the next double click a round corner (an exact arc: drag the arc "
                    "to set its radius), and one more a corner again. A selected point has a gizmo: press its dot to move it in the plane of the profile; the gold ring scales it.");
-        s.hint = T("The arrow points at a corner. The point says what it is: smooth=True, or radius=var(..). In a sweep along a line, the scale of a point is how thick the sweep is there. "
+        s.hint = T("The arrow points at a corner. The point says what it is: smooth=True, or radius=var(..). In a sweep along a line, the scale of a point is how strongly the line leaves it. "
                    "Or press Show me.");
         s.code = linesWith("smooth=|radius=|^\\w+ = point\\(");
         s.holes = holesOf(viewWidget);
@@ -1699,7 +1699,7 @@ void Tutorial::buildSteps()
         Step s;
         s.title = T("Sweep a shape along a line");
         s.text = T("A line can guide a shape: the shape is swept along it. Select profile (the circle) and route (the line) -- Ctrl+click the second -- then right-click one of them and "
-                   "choose Operations ▸ Extruding ▸ path_extrude. Then play: drag a point of the line and the tube bends; the gold ring of a point makes the tube thicker there.");
+                   "choose Operations ▸ Extruding ▸ path_extrude. Then play: drag a point of the line and the tube bends; the gold ring of a point sets how strongly the line leaves it.");
         s.hint = T("path_extrude(profile, route): the circle is the start of the tube, and the line runs through the middle of it. Or press Show me.");
         s.code = linesWith("^(profile|route|path_extrude_1) =");
         s.holes = both;

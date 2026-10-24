@@ -177,8 +177,10 @@ public:
         libfive::Tree pos[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
         libfive::Tree rot[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
         bool hasRot = false;
-        libfive::Tree scale = libfive::Tree::invalid();                 // how strongly a spline leaves it, and how thick a sweep is there (one number: see curves.Control)
+        libfive::Tree scale = libfive::Tree::invalid();                 // how strongly a spline leaves it (one number: see curves.Control)
         bool hasScale = false;
+        libfive::Tree size = libfive::Tree::invalid();                  // how thick a sweep is at a point of its path (1: the section as it is): a number of its own, not the scale
+        bool hasSize = false;
         libfive::Tree radius = libfive::Tree::invalid();                // the radius of a round corner (the scale of the point is in it); a hard corner or a spline point has none
         bool hasRadius = false;
         libfive::Tree::Id radiusVar = nullptr;                          // the one number the point itself gives for its radius (a var()), when it does: what the arc of the corner drags
@@ -227,7 +229,7 @@ public:
      *  as a whole, as it does for the points of a profile (View::groupGizmo).  They change nothing about how the model is drawn  */
     void setGroupPoints(std::vector<ControlPoint> points) { m_group_points = std::move(points); }
     bool hasGroupPoints() const { return !m_group_points.empty(); }
-    bool groupHas(const Shape* point) const;
+    bool groupHas(const Shape* point, bool byPlace = false) const;          // (`byPlace`: a point with no gizmo is one of them when it is where one of the group's points is -- the nodes of an armature that was written by hand)
     bool isCurve() const { return hasControls() && !m_controls_face; }
     bool isFace() const { return hasControls() && m_controls_face; }
     /*  A 2D shape (a flat one, or a profile): drawn over the 3D ones, whatever is in front of it, in a shade of its own, and picked before them  */
@@ -289,10 +291,15 @@ public:
      */
     void setPoint(QVector3D pos, bool hasPos) { m_isPoint = true; m_pointPos = pos; m_hasPointPos = hasPos; }
     bool isPoint() const { return m_isPoint; }
-    /*  A node of an armature (fieldev.stdlib.armature.armature): the number the armature's thickness there is the point's scale times (0: the point is no node).  The viewport draws the ring that
-     *  scales such a point as a circle of the armature's real radius round it  */
+    /*  A node of an armature (fieldev.stdlib.armature.armature): the radius of the armature's cross-section there, before its size (0: the point is no node).  The viewport draws a
+     *  circle of the armature's real radius round such a point: this times its size  */
     void setArmatureFactor(float f) { m_armatureFactor = f; }
     float armatureFactor() const { return m_armatureFactor; }
+    /*  ...and how big the armature is at that node: its own number in `sizes` -- the variable the viewport drags (null: a plain number, `size`) -- and not the scale of the point, which is how
+     *  strongly the curve leaves it  */
+    void setArmatureSize(libfive::Tree::Id var, float size) { m_armatureSizeVar = var; m_armatureSize = size; }
+    libfive::Tree::Id armatureSizeVar() const { return m_armatureSizeVar; }
+    float armatureSize() const;
     bool dotPosition(QVector3D& p) const;
 
     /*
@@ -958,6 +965,8 @@ protected:
     SymmetryDef m_symDef;
     bool m_isPoint = false;
     float m_armatureFactor = 0.0f;
+    libfive::Tree::Id m_armatureSizeVar = nullptr;
+    float m_armatureSize = 1.0f;
     bool m_hasPointPos = false;
     QVector3D m_pointPos;
     QString m_appLabel;

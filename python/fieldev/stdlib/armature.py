@@ -1,10 +1,10 @@
 '''
 Armatures: a character made of parts, each a path of nodes with a cross-section, and the skeleton that goes with them.
 
-    shoulder = point(18, 0, 138)                            # a node: a point, with the size of its gizmo (the gold ring) as how thick the armature is there
+    shoulder = point(18, 0, 138)                            # a node: a point (the scale of its gizmo is how strongly the curve leaves it)
     elbow = point(31, 0, 113)
     hand = point(37, 8, 92)
-    arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+    arm = armature([shoulder, elbow, hand], sizes=[1, 0.75, 0.58], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
     spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine", joints=["hips", "spine", "chest", "neck"])
     face = cut_face(arm)                                    # the cross-section of the arm, shown at its first node: its points are the profile's
     hero = character([spine, arm, ...], blend=4, symmetric="x")          # the body: the parts joined with a blend, and the left half as the mirror image
@@ -13,9 +13,9 @@ Armatures: a character made of parts, each a path of nodes with a cross-section,
 An ARMATURE is a path extruded: a cross-section swept along a smooth curve through its nodes (the curve is a Catmull-Rom spline through the nodes, so the armature bends smoothly), thicker or
 thinner at each node, and every number in it is an expression of the nodes, so that a node dragged in the viewport moves the armature with it at once.  The cross-section is a PROFILE:
 by default one that is made for the armature -- a square whose four corners are spline points, so that it is nearly round, with a radius of `radii` (1 by default) -- or any 2D shape of your
-own, `armature([...], profile=my_profile)`: a profile you made from points, a polygon, a rectangle.  The profile is the same for the whole armature, and a node's size (the gold ring of its gizmo)
-makes it bigger or smaller there (keep it near 1: a node's size is also how strongly the path leaves it, and a node many times the size of the profile swings the path out and back on
-itself -- make the profile that size instead); the profile is a model of its own, so a different one is swapped in by dropping it on the profile the armature uses in the model tree.  Where the profile
+own, `armature([...], profile=my_profile)`: a profile you made from points, a polygon, a rectangle.  The profile is the same for the whole armature, and the size of a node (`sizes`: the circle round the node, the real radius there)
+makes it bigger or smaller there (the scale of a node's gizmo, which shows when the point itself is selected, is not the thickness: it is how strongly the path leaves the node, and a node with a scale many times 1 swings the path out and back on
+itself); the profile is a model of its own, so a different one is swapped in by dropping it on the profile the armature uses in the model tree.  Where the profile
 is does not matter: the armature is swept from the first node.  `cut_face(armature)` shows the profile there, as a linked clone (`instance`) turned the way the armature leaves the node, with a dot
 for each of the profile's points: pull a dot, and the profile -- and so the whole armature -- changes with it.
 
@@ -51,12 +51,13 @@ class Armature:
     ''' What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
         sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in '''
 
-    def __init__(self, name, ctrls, joints, parent, sizes, profile=None, start=None):
+    def __init__(self, name, ctrls, joints, parent, sizes, profile=None, start=None, multipliers=None):
         self.name = name
         self.ctrls = ctrls
         self.joints = joints
         self.parent = parent
         self.sizes = sizes
+        self.multipliers = multipliers if multipliers is not None else [1.0] * len(ctrls)         # (how big the cross-section is at each node: see `sizes` of armature)
         self.profile = profile
         self.start = start
 
@@ -92,14 +93,6 @@ def _profile_radius(shape):
         return 1.0
 
 
-def _sized(place, size):
-    ''' A node given as a tuple of numbers, made a point with that size (the scale of its gizmo is how thick the armature is there) '''
-    from fieldev.stdlib.handles import gizmo
-    from fieldev.stdlib.points import point
-    xyz = tuple(place) + (0.0,) * (3 - len(place))
-    return gizmo(point(*xyz), scale=(size, size, size))
-
-
 def _placed_natively(placed, sweep, move):
     ''' `placed` is `sweep` moved by `move` (a new shape: its field).  A sweep that is drawn natively from the numbers of its points (path_extrude: `_sweep_*`) is placed natively as well, the way
         handles.gizmo places one: the viewport carries it by the numbers of the move, in a moment, and does not mesh the field of a sweep (thousands of terms: seconds at every node put down) '''
@@ -108,7 +101,7 @@ def _placed_natively(placed, sweep, move):
     from fieldev.stdlib.handles import _carry
     _carry(placed, sweep)
     for name in ('_sweep_ppos', '_sweep_prot', '_sweep_pflag', '_sweep_pscale', '_sweep_pradius', '_sweep_pdefault', '_sweep_qpos', '_sweep_qrot', '_sweep_qflag', '_sweep_qscale',
-                 '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist'):
+                 '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist', '_sweep_qsize'):
         setattr(placed, name, getattr(sweep, name))
     placed._sweep_free = getattr(sweep, '_sweep_free', False)
     for name in ('_sweep_round', '_sweep_offset', '_sweep_across', '_sweep_inner'):
@@ -123,13 +116,13 @@ _BLEND = 1.2
 
 
 def _thickness(one):
-    ''' How thick an armature is, as a number: the size of its cross-section times the mean scale of its nodes (a ball: its radius); None for what is not an armature (a feature model) '''
+    ''' How thick an armature is, as a number: the size of its cross-section times the mean size of its nodes (a ball: its radius); None for what is not an armature (a feature model) '''
     info = getattr(one, '_armature', None)
     if info is None:
         return None
     if info.profile is None:
         return C.value_of(Shape.wrap(info.sizes[0]))
-    mean = sum(max(c.scale, 1e-3) for c in info.ctrls) / len(info.ctrls)
+    mean = sum(max(C.value_of(Shape.wrap(m)), 1e-3) for m in info.multipliers) / len(info.multipliers)
     return _profile_radius(info.profile) * mean
 
 
@@ -144,15 +137,17 @@ def _joined(parts):
     return out
 
 
-def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0):
+def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizes=None):
     ''' A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
-            arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+            arm = armature([shoulder, elbow, hand], sizes=[1, 0.75, 0.58], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
 
-        points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a node's gizmo -- the gold ring, 1 for a tuple -- is
-                 how big the cross-section is there: the ring is drawn as a circle of the armature's real radius round the node
-        radii    the size of the cross-section the armature is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or, for nodes that are
-                 tuples of numbers, a list with one number for each node (a point has its own size, in its gizmo)
+        points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a point's gizmo is how strongly the curve leaves it (its influence,
+                 1 by default: it shows when that point is selected); how thick the armature is at a node is `sizes`, not the point's scale
+        radii    the size of the cross-section the armature is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or a list with one
+                 number for each node, the radius at that node
+        sizes    how big the cross-section is at each node, as a number of its own -- a list, one number (or var()) for each node, 1 the cross-section as it is -- on top of `radii`.  The circle round a
+                 node, drawn with the armature's real radius there, is what changes it (drag it, or Shift + wheel over the node)
         profile  the cross-section: any 2D shape (a profile made of points, a polygon, a rectangle).  None: a square with spline points, made for the armature.  It is swept from the first
                  node whatever place it is at; a different profile is dropped on this one in the model tree to swap it
         name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
@@ -166,30 +161,32 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more')
     if profile is not None and radii is not None:
-        raise ValueError('armature: radii is the size of the cross-section the armature makes for itself -- a profile of your own has its own size: change its points, or the size of the nodes '
-                         '(the gold ring of their gizmos)')
+        raise ValueError('armature: radii is the size of the cross-section the armature makes for itself -- a profile of your own has its own size: change its points, or `sizes`')
     n = len(points)
     number = 1.0
+    shares = [1.0] * n              # (each node's share of the size of the cross-section, where a radius is given for each)
     if isinstance(radii, (list, tuple)):
         if len(radii) != n:
             raise ValueError('armature: %d nodes but %d radii -- one for each node, or one number for all' % (n, len(radii)))
         given = []
-        for k, (p, r) in enumerate(zip(points, radii)):
+        for k, r in enumerate(radii):
             r = _radius(r, 'armature: radii[%d]' % k)
-            if not isinstance(p, (tuple, list)) or not isinstance(r, (int, float)) or isinstance(r, bool) or not r > 0:
-                raise ValueError('armature: radii[%d] -- a list of radii is for nodes that are tuples of numbers (plain numbers above 0); a node that is a point has its size in its own '
-                                 'gizmo (the gold ring): give radii as one number' % k)
+            if not isinstance(r, (int, float)) or isinstance(r, bool) or not r > 0:
+                raise ValueError('armature: radii[%d] is a plain number above 0 (the radius at that node), not %r' % (k, r))
             given.append(float(r))
-        # The size of a node is also how strongly the path leaves it (a node ten times as big as the profile swings the path out and back on itself), so the profile gets the mean size
-        # of the radii (the geometric mean) and each node the share of it that is its own: the thickness at a node is still exactly its radius
+        # The cross-section gets the mean size of the radii (the geometric mean) and each node the share of it that is its own: the thickness at a node is exactly its radius
         number = math.exp(sum(math.log(r) for r in given) / n)
-        points = [_sized(p, r / number) for p, r in zip(points, given)]
+        shares = [r / number for r in given]
     elif radii is not None:
         number = _radius(radii, 'armature: radii')
         if not isinstance(number, (int, float)) or isinstance(number, bool) or not number > 0:
-            raise ValueError('armature: radii is a number above 0 (the size of the cross-section), or a list of them for nodes that are tuples, not %r' % (radii,))
+            raise ValueError('armature: radii is a number above 0 (the size of the cross-section), or a list of them, one for each node, not %r' % (radii,))
+    # How thick the armature is at each node: its radius (`radii`) times its size (`sizes`, a number of its own -- not the scale of the point, which is the influence of the point on the curve)
+    from fieldev.stdlib.profile import _section_sizes
+    node_sizes = _section_sizes(sizes, n, 'armature')[0]
+    multipliers = [sh * sz for sh, sz in zip(shares, node_sizes)]
     ctrls = C.controls(list(points))
-    sizes = [number * ctl.scale_expr if ctl.scale_expr is not None else number for ctl in ctrls]
+    thickness = [number * m for m in multipliers]
     label = str(name) if name else 'armature'
     if joints is None:
         joints = ['%s_%d' % (label, k) for k in range(n)]
@@ -198,15 +195,17 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
     if n == 1 and profile is not None and radii is None:
         # (a ball with a cross-section of its own is as big as that cross-section is, so that the cross-section can be shown at it and a second node swept from it grows from the same size)
         number = _profile_radius(profile)
-        sizes = [number * ctl.scale_expr if ctl.scale_expr is not None else number for ctl in ctrls]
+        thickness = [number * m for m in multipliers]
     base, start = None, None
     if n == 1:
         base = profile
-        out = round_cone(ctrls[0].expr, ctrls[0].expr, sizes[0], sizes[0])
-        for ctl in ctrls:
+        out = round_cone(ctrls[0].expr, ctrls[0].expr, thickness[0], thickness[0])
+        for k, ctl in enumerate(ctrls):
             if isinstance(ctl.item, Shape):
                 try:
-                    ctl.item._armature_factor = float(number)
+                    ctl.item._armature_factor = float(number * shares[k])
+                    ctl.item._armature_size = node_sizes[k]         # (the number the circle round the node is bound to: the viewport drags it)
+                    ctl.item._armature_size_value = float(C.value_of(node_sizes[k]))
                 except AttributeError:
                     pass
     else:
@@ -217,7 +216,7 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
         # circle -- in the field and for the viewport by the same law)
         rounds = (ctrls[0].flag != 0, ctrls[-1].flag != 0)
-        out = path_extrude(base, way, twist, ends=rounds, across=True)
+        out = path_extrude(base, way, twist, ends=rounds, across=True, sizes=multipliers)
         core = out
         # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
         # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)
@@ -233,21 +232,23 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
                     pass
         if len(way.vertices) > 1:
             start = C.unit(C.sub(way.vertices[1], way.vertices[0]))
-        # (the viewport draws the ring of a selected node as a circle of the armature's real radius there: the node's scale times the size of the cross-section)
+        # (the viewport draws the ring of every node of a selected armature as a circle of the armature's real radius there: the node's size times the size of the cross-section)
         factor = _profile_radius(base)
         inner = getattr(core, '_sweep_inner', 0.0)
         if getattr(core, '_sweep_offset', False) and inner > 1e-9:
             factor = inner                  # (an offset armature is as thick as the widest circle of its cross-section: that is the ring)
-        for ctl in ctrls:
+        for k, ctl in enumerate(ctrls):
             if isinstance(ctl.item, Shape):
                 try:
-                    ctl.item._armature_factor = float(factor)
+                    ctl.item._armature_factor = float(factor * shares[k])
+                    ctl.item._armature_size = node_sizes[k]
+                    ctl.item._armature_size_value = float(C.value_of(node_sizes[k]))
                 except AttributeError:
                     pass
     # the box the armature fills, for the render region and the export: its nodes, the thickness of the cross-section there (the corners of the square reach a little beyond its radius)
     # and the bend of the curve between them.  A box that holds the armature, not its exact extent
     ref = _profile_radius(base) if base is not None else number
-    reach = 1.3 * ref * max([1.0] + [ctl.scale for ctl in ctrls])
+    reach = 1.3 * ref * max([1.0] + [C.value_of(Shape.wrap(m)) for m in multipliers] + [ctl.scale for ctl in ctrls])
     lo = [min(ctl.pos[c] for ctl in ctrls) for c in range(3)]
     hi = [max(ctl.pos[c] for ctl in ctrls) for c in range(3)]
     bend = 0.15 * max(hi[c] - lo[c] for c in range(3))
@@ -257,11 +258,11 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # (a sweep that is not drawn natively from its points -- a profile that is not made of points -- is meshed from its field, which is slow to clear empty space of: over the whole region
         # of the scene it takes seconds at every node put down, so it is meshed over a cube of its own)
         from fieldev.stdlib.custom_resolution import render_hint_for
-        hint = render_hint_for(out._bounds[0], out._bounds[1], 2.0 * ref * max(min(ctl.scale for ctl in ctrls), 1e-3))
+        hint = render_hint_for(out._bounds[0], out._bounds[1], 2.0 * ref * max(min(C.value_of(Shape.wrap(m)) for m in multipliers), 1e-3))
         if hint is not None:
             out._render_hint = hint
     out._group_pos = [ctl.expr for ctl in ctrls]        # (the points it is made of: the viewport shares their gizmos when the armature is selected as a whole, as it does for a profile's)
-    out._armature = Armature(label, ctrls, list(joints), None if parent is None else str(parent), sizes, base, start)
+    out._armature = Armature(label, ctrls, list(joints), None if parent is None else str(parent), thickness, base, start, multipliers)
     out._no_gizmo = True                    # (no gizmo() line with numbers of its own: its nodes have them, and the viewport shares them -- View::groupGizmo -- to move, turn and scale the armature)
     out._outline_gizmo = True               # (the model tree's gizmo button gives it a line without numbers, `x = gizmo(x, mode=...)`: when that shared gizmo is shown, off until said; the armature itself is returned)
     return out

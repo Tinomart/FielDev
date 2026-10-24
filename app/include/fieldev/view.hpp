@@ -350,6 +350,8 @@ signals:
     void placementFinished(QString name, QList<QVector3D> points, bool smooth);
     /*  A click of the armature mode: a node at `at` after the node `anchor` (empty: the first of a new armature); `scale` is how large things are there  */
     void armatureNodeRequested(QString anchor, QVector3D at, double scale, double factor);
+    /*  The sizes of the armature this node belongs to are to be written into its call as var()s (the circle round a node and the wheel over it change them): the variable of the node  */
+    void armatureSizesRequested(QString node);
     void armaturePlacingChanged(bool on);
 
     /*
@@ -622,6 +624,9 @@ protected:
     bool armatureAnchorPosition(QVector3D& p) const;
     bool armatureAnchorRadius(double& world) const;                 // (how thick the armature is at the node the next one follows: the size of the next node by default)
     double armatureRadiusWorld(const Shape* node) const;           // (the radius of the ring of a node of an armature, in model units)
+    double armatureRingPx(const Shape* s) const;                    // (the radius on the screen of the circle round a node of an armature: how thick the armature is there)
+    bool beginSizeDrag(Shape* node, QPoint pos);                    // (a press on that circle: the size of the node follows the cursor; false: nothing to do with the press)
+    bool sizeByWheel(float factor, Shape* node);                    // (Shift + wheel over a node: its size)
     Shape* armatureRingAt(QPoint pos) const;                        // (the node of a selected armature whose ring is under the cursor)
     void placeArmatureNode(QPoint pos);
     void updateArmatureCursor(QPoint pos);
@@ -1038,7 +1043,7 @@ protected:
     float gizmo_scale0[3] = {1, 1, 1}; // the scale numbers when a scale drag began
     libfive::Tree::Id gizmo_scale_id[3] = {nullptr, nullptr, nullptr};
     float gizmoLength(const QVector3D& pivot) const;
-    /*  The radius on the screen of the ring that scales a point: the same for every point -- except a node of an armature, whose ring is a circle of the armature's real radius there  */
+    /*  The radius on the screen of the ring that scales a point: the same for every point  */
     double ringPx(const Shape* s) const;
     GizmoGrip gizmoAt(QPoint pos) const;
     /*  Shift held: the move arrows are replaced by flat squares (a drag moves along the plane of the square) and the scale knobs all scale together  */
@@ -1078,6 +1083,8 @@ protected:
     float m_wheelPending = 1.0f;
     int m_wheelPendingTries = 0;
     QTimer m_wheelPendingTimer;
+    bool m_sizeDrag = false;                // (the ring being dragged is the size of an armature's node, not the scale of its point)
+    QString m_wheelNode;                    // (the node whose size the notches that wait are for -- its variable -- while the sizes of its armature are written)
     bool m_shiftSeen = false;            // (what the last key event said, to redraw the gizmo when it changes)
     bool m_shiftForced = false;          // (the automation holds Shift: synthetic events do not change the keyboard)
     /*  The square, on the screen, of the plane whose normal is the axis `normal`, at the gizmo's pivot (axes `normal`+1 and `normal`+2 span it)  */

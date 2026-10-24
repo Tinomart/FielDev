@@ -168,7 +168,9 @@ def _armature_info(owner, anchor):
             coords.append(tuple(C.value_of(v) for v in xyz))
         half = 0.5 * max(max(c[i] for c in coords) - min(c[i] for c in coords) for i in range(3)) if coords else None
         node = runner.last_globals.get(anchor)
-        scale = next((float(c.scale) for c in info.ctrls if c.item is node), 1.0)
+        from fieldev.shape import Shape
+        k = next((i for i, c in enumerate(info.ctrls) if c.item is node), None)
+        scale = float(C.value_of(Shape.wrap(info.multipliers[k]))) if k is not None else 1.0         # (its size: how thick the armature is there)
         return (half if half and half > 1e-9 else None), scale
     except Exception:
         return None, 1.0
@@ -204,7 +206,8 @@ def _armature_node(req):
             k += 1
         new = '%s_p%d' % (owner, k)
         # (the new node is as thick as the one before it; the one before it, once it is in the middle, is a corner: only the ends of an armature are spline points)
-        block = _point_block(new, x, y, z, _num_text(_armature_info(owner, anchor)[1] * factor))
+        node_size = _num_text(_armature_info(owner, anchor)[1] * factor)
+        block = _point_block(new, x, y, z)
         edits = [[host.lineno - 1, 0, host.lineno - 1, 0, ''.join(b + '\n' for b in block)]]
         if len(nodes.elts) >= 2:
             before = next((a for a in tree.body if isinstance(a, ast.Assign) and len(a.targets) == 1 and isinstance(a.targets[0], ast.Name) and a.targets[0].id == anchor
@@ -215,6 +218,16 @@ def _armature_node(req):
         last = nodes.elts[-1]
         row, col = last.end_lineno - 1, _char_col(lines[last.end_lineno - 1], last.end_col_offset)
         edits.append([row, col, row, col, ', ' + new])
+        # (how thick the armature is at the new node is its own number, in `sizes`: a var() the viewport drags; an armature without `sizes` gets them written out, 1 for each node it has)
+        sizes = next((kw.value for kw in call.keywords if kw.arg == 'sizes'), None)
+        if isinstance(sizes, ast.List) and sizes.elts:
+            end = sizes.elts[-1]
+            row, col = end.end_lineno - 1, _char_col(lines[end.end_lineno - 1], end.end_col_offset)
+            edits.append([row, col, row, col, ', var(%s)' % node_size])
+        elif sizes is None:
+            tail = max([call.args[-1]] + [kw.value for kw in call.keywords], key=lambda n: (n.end_lineno, n.end_col_offset))
+            row, col = tail.end_lineno - 1, _char_col(lines[tail.end_lineno - 1], tail.end_col_offset)
+            edits.append([row, col, row, col, ', sizes=[%s]' % ', '.join(['var(1)'] * len(nodes.elts) + ['var(%s)' % node_size])])
         joints = next((kw.value for kw in call.keywords if kw.arg == 'joints'), None)
         if isinstance(joints, ast.List) and joints.elts:
             # (the names of the joints are written out: the new node gets one, named as a joint is by default)
@@ -236,7 +249,7 @@ def _armature_node(req):
         n += 1
     var = '%s_%d' % (stem, n)
     half, node_size = _armature_info(owner, anchor)
-    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'), half, node_size * factor)
+    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'), half, node_size * factor, node_size)
     end = host
     for stmt in tree.body[tree.body.index(host) + 1:]:
         shows = isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name) and stmt.value.id in (owner, owner + '_face')
@@ -250,6 +263,36 @@ def _armature_node(req):
     return json.dumps({'edits': [[row, col, row, col, '\n\n' + text]], 'label': 'New armature from %s' % anchor, 'line': -1, 'name': var + '_p1', 'armature': var})
 
 
+def _armature_sizes(req):
+    """ The sizes of an armature made draggable: `req['node']` is a node of it.  An armature without `sizes` gets `sizes=[var(1), ...]`, one for each node; one that has them written as plain
+        numbers gets a var() round each.  The circle round a node and the wheel over it change a var(), which is written back into the script when the drag ends """
+    source, anchor = req['source'], req['node']
+    tree = ast.parse(source)
+    lines = source.split('\n')
+    for stmt in tree.body:
+        call = stmt.value if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) else None
+        if not (_call_name(call) == 'armature' and call.args and isinstance(call.args[0], ast.List)
+                and any(isinstance(e, ast.Name) and e.id == anchor for e in call.args[0].elts)):
+            continue
+        owner, count = stmt.targets[0].id, len(call.args[0].elts)
+        sizes = next((kw.value for kw in call.keywords if kw.arg == 'sizes'), None)
+        label = 'Make the sizes of %s draggable' % owner
+        if sizes is None:
+            tail = max([call.args[-1]] + [kw.value for kw in call.keywords], key=lambda n: (n.end_lineno, n.end_col_offset))
+            row, col = tail.end_lineno - 1, _char_col(lines[tail.end_lineno - 1], tail.end_col_offset)
+            return json.dumps({'edits': [[row, col, row, col, ', sizes=[%s]' % ', '.join(['var(1)'] * count)]], 'label': label, 'line': -1, 'name': ''})
+        if not isinstance(sizes, ast.List):
+            raise ValueError('the sizes of %s are not written as a list: write sizes=[var(1), ...] in its call' % owner)
+        edits = []
+        for e in sizes.elts:
+            number = _number_of(e)
+            if number is None or e.lineno != e.end_lineno:
+                continue
+            edits.append([e.lineno - 1, _char_col(lines[e.lineno - 1], e.col_offset), e.end_lineno - 1, _char_col(lines[e.end_lineno - 1], e.end_col_offset), 'var(%s)' % _num_text(number)])
+        return json.dumps({'edits': edits, 'label': label, 'line': -1, 'name': ''})
+    raise ValueError('%s is not a node of an armature' % anchor)
+
+
 def edit(arg):
     ''' `arg` is JSON {op: 'insert' | 'toggle' | 'snap', source, line (1-based, the line that displays the model), x, y, z (for insert: where), call (for snap)} '''
     from fieldev import runner
@@ -259,6 +302,8 @@ def edit(arg):
         return _snap(req)
     if req['op'] == 'armature':
         return _armature_node(req)
+    if req['op'] == 'armature_sizes':
+        return _armature_sizes(req)
     source, line, op = req['source'], int(req['line']), req['op']
     tree = ast.parse(source)
     lines = source.split('\n')

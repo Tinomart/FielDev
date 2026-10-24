@@ -15,7 +15,7 @@
 # Things to try:
 #   * Press a dot of the blue curve of a leg and drag it: the leg bends, and so do the others.  Do it on a leg that is an image: it is the original that changes, the others
 #     follow it.
-#   * Select a point of the spline: its gold ring is how THICK the leg is there (the ankle is 0.65, the knee 1.2); its rings turn the way the curve goes.
+#   * Select a point of the spline: its gold ring is how strongly the curve leaves it and its rings turn the way the curve goes.  How THICK the leg is there is `sizes` of the sweep (the ankle is 0.65, the knee 1.2).
 #   * Double-click a point of the profile (its dot, on any leg): a corner or a spline point.  Press an edge of the profile's outline, on any leg, and drag to pull a point out
 #     of it: a flatter or a rounder leg.  The point is put on `leg_profile`, and every leg shows it while you drag.
 #   * Select `mirror` and drag its gizmo (the arrows, the rings): the copies, and with them all the legs, move and turn.  Select `leg_images` and drag its gizmo: the leg moves
@@ -54,8 +54,8 @@ mirror
 top = cylinder(40, 3, (0, 0, 34.5))
 top
 
-# One leg.  Its path is a spline of five points, drawn with the symmetry off: the leg is swept along it, and the images of the leg bring it along.  The scale of a point
-# (the gold ring) is how thick the leg is there.
+# One leg.  Its path is a spline of five points, drawn with the symmetry off: the leg is swept along it, and the images of the leg bring it along.  How thick the leg is at a point is
+# `sizes` of the sweep: a number for each point of the path (change it in the script).
 leg_path_p1 = point(14.9, 30.6, 0)
 leg_path_p1 = gizmo(
     leg_path_p1,
@@ -69,7 +69,7 @@ leg_path_p2 = gizmo(
     leg_path_p2,
     move=(var(0), var(0), var(0)),
     rotate=(var(0), var(0), var(0)),
-    scale=(var(0.65), var(0.65), var(0.65)),
+    scale=(var(1), var(1), var(1)),
 )
 leg_path_p2
 leg_path_p3 = point(17.9, 22.9, 15)
@@ -77,7 +77,7 @@ leg_path_p3 = gizmo(
     leg_path_p3,
     move=(var(0), var(0), var(0)),
     rotate=(var(0), var(0), var(0)),
-    scale=(var(0.9), var(0.9), var(0.9)),
+    scale=(var(1), var(1), var(1)),
 )
 leg_path_p3
 leg_path_p4 = point(17.4, 18, 27)
@@ -85,7 +85,7 @@ leg_path_p4 = gizmo(
     leg_path_p4,
     move=(var(0), var(0), var(0)),
     rotate=(var(0), var(0), var(0)),
-    scale=(var(1.2), var(1.2), var(1.2)),
+    scale=(var(1), var(1), var(1)),
 )
 leg_path_p4
 leg_path_p5 = point(14.3, 12.5, 35.5)
@@ -93,7 +93,7 @@ leg_path_p5 = gizmo(
     leg_path_p5,
     move=(var(0), var(0), var(0)),
     rotate=(var(0), var(0), var(0)),
-    scale=(var(1.3), var(1.3), var(1.3)),
+    scale=(var(1), var(1), var(1)),
 )
 leg_path_p5
 leg_path = spline(
@@ -147,6 +147,7 @@ leg = path_extrude(
     leg_profile,
     leg_path,
     twist=0,
+    sizes=[var(1), var(0.65), var(0.9), var(1.2), var(1.3)],
 )
 leg = gizmo(
     leg,

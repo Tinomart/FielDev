@@ -348,6 +348,7 @@ def _sweep_image(out, shape, mn, cn):
     out._sweep_pdefault = shape._sweep_pdefault
     out._sweep_qpos = [_map_place(p, mn, cn) for p in shape._sweep_qpos]
     out._sweep_qrot, out._sweep_qflag, out._sweep_qscale = shape._sweep_qrot, shape._sweep_qflag, shape._sweep_qscale
+    out._sweep_qsize = shape._sweep_qsize
     out._sweep_qdefault, out._sweep_qclosed = shape._sweep_qdefault, shape._sweep_qclosed
     out._sweep_twist = Shape.wrap(shape._sweep_twist) * (-1.0 if improper else 1.0)
     out._sweep_free = False                      # (its outline is given in space: the plane is the one its points make)
