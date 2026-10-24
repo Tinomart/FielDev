@@ -2777,6 +2777,23 @@ void View::undoPlacedPoint()
     m_overlay->update();
 }
 
+bool View::event(QEvent* event)
+{
+    // Esc is the window's shortcut for "cancel render"; where the viewport has a mode of its own open -- the armature mode, a drawing on the work plane that has points -- it is the viewport's key
+    // (it goes back a step): accepting the override of the shortcut gives it to keyPressEvent below
+    if (event->type() == QEvent::ShortcutOverride)
+    {
+        const auto* key = static_cast<QKeyEvent*>(event);
+        if (key->key() == Qt::Key_Escape && !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
+            (m_arm.on || (m_wp.open && m_wp.exists && !m_wpPlaced.isEmpty())))
+        {
+            event->accept();
+            return true;
+        }
+    }
+    return QOpenGLWidget::event(event);
+}
+
 void View::keyPressEvent(QKeyEvent* event)
 {
     if (m_arm.on && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
@@ -3425,6 +3442,22 @@ void View::fillPythonMenu(QMenu* menu, const QVector3D& point, double scale, int
 // pictures to trace them over.  An armature is a tube along its nodes (`armature(...)` of the library); the section gives its own entries only, the rest of the menu does not repeat them
 void View::fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, double scale, int atLine)
 {
+    // The character is the whole of this section -- the body the armatures make, and its skeleton -- so it opens the section, with its own icon: the entry is the `character` operation of the library,
+    // made for what is selected
+    {
+        QString doc;
+        for (const auto v : m_catalog["operations"].toArray())
+            if (v.toObject()["name"].toString() == "character") doc = v.toObject()["doc"].toString();
+        const int generation = m_scene ? m_scene->generation() : -1;
+        auto newCharacter = menu->addAction(TypeIcons::icon("character"), T("New character"), this,
+                                            [=]{ emit(createRequested("operation", "character", point, scale, line, generation)); });
+        newCharacter->setToolTip(doc);
+        QFont bold = newCharacter->font();
+        bold.setBold(true);
+        newCharacter->setFont(bold);
+        if (m_scene && !m_scene->entryAllowed("operation", "character", line)) newCharacter->setEnabled(false);
+        menu->addSeparator();
+    }
     auto newArmature = menu->addAction(TypeIcons::icon("armature"), T("New armature"), this, [=]{ startArmaturePlacing(); });
     newArmature->setToolTip(T("Put down the nodes of an armature one click after another: each click writes its node into the script at once, in the plane through the node before it "
                               "that faces the camera (turn the view to put the next one in depth).  Click a node to go on from it -- from a node in the middle the armature "
@@ -3747,6 +3780,7 @@ void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double 
         // (the group of the Character section is in that section: the others are in the Operations menu)
         const bool character = v.toObject()["group"].toString() == "Character";
         if (onlyGroup.isEmpty() ? character : v.toObject()["group"].toString() != onlyGroup) continue;
+        if (onlyGroup == "Character" && v.toObject()["name"].toString() == "character") continue;      // (the character opens the section: see fillCharacterMenu)
         ops.append(v);
     }
     if (ops.isEmpty())

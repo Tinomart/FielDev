@@ -585,6 +585,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    bool event(QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
 
     /*  A right-click (not a pan) on a shape, or on its row in the model tree or a line of the text editor (`onSurface` false: no place on the surface was

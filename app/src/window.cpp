@@ -3357,7 +3357,8 @@ bool Window::onSave(bool)
 
 void Window::onCancelRender(bool)
 {
-    view->cancelShapes();
+    // (only a render that is still running: with the scene drawn, Esc must not empty the viewport -- cancelShapes() deletes every shape)
+    if (view->isRendering()) view->cancelShapes();
 }
 
 void Window::onAutosave()

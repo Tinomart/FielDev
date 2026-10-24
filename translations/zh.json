@@ -626,6 +626,7 @@
  "Nice. Every node is a point in the script, and the armature is the tube through them.": "很好。每个节点都是脚本中的一个点，骨架就是穿过它们的管子。",
  "Characters": "角色",
  "New armature": "新建骨架",
+ "New character": "新建角色",
  "Branch from a node": "从节点分支",
  "Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a new armature branches off it: that is how an arm grows out of a body.": "点击一个节点即可从它继续。点击骨架中间某个节点旁边的空白处，就会从那里分出一个新骨架：手臂就是这样从身体上长出来的。",
  "A right click goes back a step: out of the branch, then out of placing. Or press Show me.": "右键单击后退一步：先退出分支，再退出放置。或按“演示”。",

@@ -93,7 +93,7 @@ work plane, which is for 2D drawing only:
    leaves the mode. `Ctrl+Z` takes the last node back.
 3. **Click a node** of an armature to go on from it: the next click puts a node after it. From a node in the middle the armature **branches**: a new `armature(...)` that begins on that same
    point (the arm on the chest), as thick there as the armature it grows from. The menu of a node has **Add nodes from here** for the same.
-4. **character** (right-click an armature, or select several) joins them with a blend, `symmetric="x"` adds the mirror image, and **skeleton_of** makes the joints for the export.
+4. **New character** -- the first entry of the section, with the character icon (select the armatures, or right-click one) -- joins them with a blend, `symmetric="x"` adds the mirror image, and **skeleton_of** makes the joints for the export. In the model tree the character holds its armatures, and each armature holds its points.
 
 ## Features: feature models
 

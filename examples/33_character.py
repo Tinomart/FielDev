@@ -1,13 +1,14 @@
-# A character from points: armatures that taper between joints, joined into one body, with the other half made by a mirror.
+# A character: armatures that taper between joints, joined into one body, with the other half made by a mirror.
 #
-#   chain([shoulder, elbow, hand], radii=[6, 4.5, 3.5])      a round cone between each two points
+#   arm = armature([shoulder, elbow, hand], radii=6)          a tube through the points, as thick at each as 6 times its size
+#   hero = character([spine, head, arm, leg, foot], blend=4, symmetric="x")
 #
-# The RADIUS at a joint is the SIZE of its point -- the scale of its gizmo -- times the number in radii.  Things to try, with the viewport focused:
+# The radius at a joint is `radii` times the SIZE of its point -- the scale of its gizmo.  Things to try, with the viewport focused:
 #   * Press a point (the shoulder, the elbow, the hand) and drag it: the arm follows, and so does the arm on the other side.
 #   * Select the elbow: the gold ring round it is its size.  Drag it and the arm is thicker or thinner there.
-#   * The body is modelled once, on the right of x = 0; symmetric_x() makes the left half.  chain() takes points or tuples of numbers: the spine, the
+#   * The body is modelled once, on the right of x = 0; symmetric="x" makes the left half.  An armature takes points or tuples of numbers: the spine, the
 #     head, the leg and the foot are tuples -- nothing to drag -- the arm is made of points.
-#   * export_mesh(character, "character.glb", symmetric="x") would write it as a mesh that is exactly symmetric (see example 32).
+#   * export_mesh(hero, "character.glb") would write it as a mesh (see example 32).
 #
 # The script also checks the fields it makes and prints a line that starts with ok or FAIL for each (in the output pane).
 from fieldev import *
@@ -16,7 +17,7 @@ view.set_bounds((-70, -40, -12), (70, 40, 185))
 view.set_resolution(1)
 view.set_quality(8)
 
-# The arm: three points, each a model of its own.  The gizmo of the elbow has a scale of 1: its ring is how thick the arm is there.
+# The arm: three points, each a model of its own.  The radius there is 6 times the size of the point: the elbow is 0.75 of that (4.5) and the hand 0.58 (3.5), as their gizmos say.
 shoulder = point(18, 0, 138)
 shoulder
 elbow = point(31, 0, 113)
@@ -24,21 +25,28 @@ elbow = gizmo(
     elbow,
     move=(var(0), var(0), var(0)),
     rotate=(var(0), var(0), var(0)),
-    scale=(var(1), var(1), var(1)),
+    scale=(var(0.75), var(0.75), var(0.75)),
 )
 elbow
 hand = point(37, 8, 92)
+hand = gizmo(
+    hand,
+    move=(var(0), var(0), var(0)),
+    rotate=(var(0), var(0), var(0)),
+    scale=(var(0.58), var(0.58), var(0.58)),
+)
 hand
 
-# The body: spine (hips, waist, chest, neck), a ball for the head, the arm, the leg and the foot, blended where they meet (4 mm); then the other half
-character = symmetric_x(union_all([
-    chain([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5]),
-    chain([(0, 2, 163)], radii=11),
-    chain([shoulder, elbow, hand], radii=[6, 4.5, 3.5]),
-    chain([(9, 0, 88), (11, 0, 48), (11, 0, 9)], radii=[8, 5.5, 4]),
-    chain([(11, 0, 9), (11, 14, 4)], radii=[4.5, 3]),
-], blend=4))
-character
+# The parts, each an armature -- a tube along its nodes.  The tuples are the nodes of the spine, the head, the leg and the foot; a list of radii says how thick each is
+arm = armature([shoulder, elbow, hand], radii=6, name="arm")
+spine = armature([(0, 0, 92), (0, 0, 106), (0, 0, 128), (0, 0, 147)], radii=[13, 11, 15, 5], name="spine")
+head = armature([(0, 2, 159), (0, 2, 167)], radii=11, name="head")
+leg = armature([(9, 0, 88), (11, 0, 48), (11, 0, 9)], radii=[8, 5.5, 4], name="leg")
+foot = armature([(11, 0, 9), (11, 14, 4)], radii=[4.5, 3], name="foot")
+
+# The character: the armatures joined as one body, blended where they meet (4 mm), the other half a mirror image
+hero = character([spine, head, arm, leg, foot], blend=4, symmetric="x")
+hero
 
 
 failed = []
@@ -80,9 +88,9 @@ except ValueError as e:
 # the character: a body where the armatures are, nothing where they are not, the same on both sides
 inside = ((0, 0, 120), (0, 2, 163), (30, 0, 112), (-30, 0, 112), (11, 0, 30), (-11, 0, 30), (11, 10, 5))
 outside = ((0, 0, 190), (60, 0, 112), (-60, 0, 112), (0, 30, 100), (25, 0, 60))
-check("character: inside the body, the arms, the head, the legs and the feet", all(at(character, *p) < 0 for p in inside))
-check("character: outside between the arms and the legs, and beyond", all(at(character, *p) > 0 for p in outside))
-check("character: the left is the mirror of the right", all(abs(at(character, x, y, z) - at(character, -x, y, z)) < 1e-6 for x, y, z in ((25, 5, 100), (33, 4, 105), (14, 3, 60), (8, 0, 20))))
+check("character: inside the body, the arms, the head, the legs and the feet", all(at(hero, *p) < 0 for p in inside))
+check("character: outside between the arms and the legs, and beyond", all(at(hero, *p) > 0 for p in outside))
+check("character: the left is the mirror of the right", all(abs(at(hero, x, y, z) - at(hero, -x, y, z)) < 1e-6 for x, y, z in ((25, 5, 100), (33, 4, 105), (14, 3, 60), (8, 0, 20))))
 
 print("")
 print("%d checks failed: %s" % (len(failed), ", ".join(failed)) if failed else "all checks passed")

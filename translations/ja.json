@@ -626,6 +626,7 @@
  "Nice. Every node is a point in the script, and the armature is the tube through them.": "いいですね。どのノードもスクリプト内の点で、アーマチュアはそれらを通るチューブです。",
  "Characters": "キャラクター",
  "New armature": "新しいアーマチュア",
+ "New character": "新しいキャラクター",
  "Branch from a node": "ノードから枝分かれ",
  "Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a new armature branches off it: that is how an arm grows out of a body.": "ノードをクリックすると、そこから続けられます。アーマチュアの途中のノードの隣の何もない場所をクリックすると、そこから新しいアーマチュアが枝分かれします。腕が体から生えるのはこの仕組みです。",
  "A right click goes back a step: out of the branch, then out of placing. Or press Show me.": "右クリックで一段階戻ります: 枝から出て、次に配置から出ます。または「実演」を押してください。",
