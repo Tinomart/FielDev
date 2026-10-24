@@ -866,14 +866,58 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
         const double a1 = (closed || i + 1 < m) ? angleAt(i1) : a0;
         return a0 * (1 - t) + a1 * t;
     };
-    auto sizeAt = [&](int j) {
-        const int i = owners[size_t(j)].first;
-        const double t = owners[size_t(j)].second;
-        const double s0 = in.path[size_t(i)].scale;
-        const int i1 = (i + 1) % m;
-        const double s1 = (closed || i + 1 < m) ? in.path[size_t(i1)].scale : s0;
-        return std::max(s0 * (1 - t) + s1 * t, 1e-3);
-    };
+    // The size of a point is how thick the profile is there; between the points it runs along a smooth curve through the sizes -- a monotone cubic (Fritsch and Butland), so that it never goes
+    // past them, a point thicker than both its neighbours is the top of a bulge, and the thickness changes direction at no point -- in the LENGTH of the path between the points, not in the
+    // parameter of the spline, which runs fast where a point is big and left a step in the thickness where the sizes differ (a straight line between the sizes turned at every point: a ring on the
+    // surface round a body of points of different sizes).  Two points, or sizes that are all alike: the straight line.  _smooth_sizes and _size_slopes of profile.py do the same, so that the
+    // viewport draws what the field is
+    const size_t stretches = size_t(closed ? m : m - 1);
+    std::vector<double> vertexSize(size_t(n), 1.0);
+    {
+        std::vector<double> arc(size_t(n) + 1, 0.0);
+        for (int k = 0; k < (closed ? n : n - 1); ++k) arc[size_t(k) + 1] = arc[size_t(k)] + (V[size_t((k + 1) % n)] - V[size_t(k)]).norm();
+        std::vector<int> at(size_t(m), -1);
+        for (int j = 0; j < n; ++j)
+            if (owners[size_t(j)].second == 0.0 && at[size_t(owners[size_t(j)].first)] < 0) at[size_t(owners[size_t(j)].first)] = j;
+        std::vector<double> start(stretches, 0.0), reach(stretches, 1.0);
+        std::vector<char> byArc(stretches, 0);
+        for (size_t i = 0; i < stretches; ++i)
+        {
+            const int a = at[i];
+            const int b = int(i) + 1 < m ? at[i + 1] : (closed ? n : -1);
+            if (a < 0 || b < 0 || b <= a) continue;            // (a point that is no vertex of the path: the parameter of the spline stands for the length)
+            start[i] = arc[size_t(a)];
+            reach[i] = std::max(arc[size_t(b)] - arc[size_t(a)], 1e-9);
+            byArc[i] = 1;
+        }
+        std::vector<double> secant(stretches, 0.0), slope(size_t(m), 0.0);
+        for (size_t i = 0; i < stretches; ++i) secant[i] = (in.path[size_t((i + 1) % size_t(m))].scale - in.path[i].scale) / reach[i];
+        for (int i = 0; i < m; ++i)
+        {
+            if (!closed && (i == 0 || i == m - 1))
+            {
+                slope[size_t(i)] = secant.empty() ? 0.0 : (i == 0 ? secant.front() : secant.back());
+                continue;
+            }
+            const size_t before = size_t((i + int(stretches) - 1) % int(stretches)), after = size_t(i) % stretches;
+            const double a = secant[before], b = secant[after];
+            if (a * b <= 0.0) continue;
+            const double h0 = reach[before], h1 = reach[after];
+            const double w0 = 2.0 * h1 + h0, w1 = h1 + 2.0 * h0;
+            slope[size_t(i)] = (w0 + w1) / (w0 / a + w1 / b);
+        }
+        for (int j = 0; j < n; ++j)
+        {
+            const int i = owners[size_t(j)].first;
+            if (!(closed || i + 1 < m)) { vertexSize[size_t(j)] = in.path[size_t(i)].scale; continue; }
+            const int i1 = (i + 1) % m;
+            const double u = byArc[size_t(i)] ? std::min(std::max((arc[size_t(j)] - start[size_t(i)]) / reach[size_t(i)], 0.0), 1.0) : owners[size_t(j)].second;
+            const double h = reach[size_t(i)], u2 = u * u, u3 = u2 * u;
+            vertexSize[size_t(j)] = (2 * u3 - 3 * u2 + 1) * in.path[size_t(i)].scale + (u3 - 2 * u2 + u) * h * slope[size_t(i)]
+                                    + (3 * u2 - 2 * u3) * in.path[size_t(i1)].scale + (u3 - u2) * h * slope[size_t(i1)];
+        }
+    }
+    auto sizeAt = [&](int j) { return std::max(vertexSize[size_t(j)], 1e-3); };
     const double total = in.twist * M_PI / 180.0;
 
     auto out = std::make_unique<libfive::Mesh>();

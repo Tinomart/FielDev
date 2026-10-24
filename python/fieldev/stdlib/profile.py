@@ -428,6 +428,125 @@ def _inscribed(points):
     return _inscribed_of(tuple((round(float(x), 9), round(float(y), 9)) for x, y in points))
 
 
+def _edt_squared(f):
+    ''' The squared distance of every cell of a row to the nearest cell where `f` is 0 (`f` is a huge number at the others): the pass along one axis of the exact distance transform of
+        Felzenszwalb and Huttenlocher '''
+    n = len(f)
+    inf = 1e30
+    d = [0.0] * n
+    v = [0] * n
+    z = [0.0] * (n + 1)
+    k = 0
+    z[0], z[1] = -inf, inf
+    for q in range(1, n):
+        p = v[k]
+        s = ((f[q] + q * q) - (f[p] + p * p)) / (2.0 * q - 2.0 * p)
+        while s <= z[k]:
+            k -= 1
+            p = v[k]
+            s = ((f[q] + q * q) - (f[p] + p * p)) / (2.0 * q - 2.0 * p)
+        k += 1
+        v[k] = q
+        z[k] = s
+        z[k + 1] = inf
+    k = 0
+    for q in range(n):
+        while z[k + 1] < q:
+            k += 1
+        d[q] = (q - v[k]) ** 2 + f[v[k]]
+    return d
+
+
+def _widest_circle(shape, cells=160):
+    ''' The radius of the widest circle a 2D shape holds, found from its own field: for a shape that has no outline of numbers to give (a ring, a difference of shapes), which an
+        offset is measured by.  The field is sampled in the plane z = 0 on a grid over its box, and the distance of every cell inside it to the nearest cell outside it is worked out
+        exactly: the radius is right to about a cell (a fiftieth of the box).  None where it cannot be found '''
+    try:
+        from fieldev.stdlib.fields import evaluate
+        (x0, y0, _z0), (x1, y1, _z1) = shape._bounds
+        side = max(x1 - x0, y1 - y0)
+        if not (side > 0.0 and math.isfinite(side)):
+            return None
+        pad = 0.04 * side
+        lo_x, lo_y = 0.5 * (x0 + x1) - 0.5 * side - pad, 0.5 * (y0 + y1) - 0.5 * side - pad
+        h = (side + 2.0 * pad) / (cells - 1)
+        values = evaluate(shape, [(lo_x + i * h, lo_y + j * h, 0.0) for j in range(cells) for i in range(cells)])
+    except Exception:
+        return None
+    big = 1e12
+    columns = [_edt_squared([big if values[j * cells + i] <= 0.0 else 0.0 for j in range(cells)]) for i in range(cells)]
+    best = 0.0
+    for j in range(cells):
+        best = max(best, max(_edt_squared([columns[i][j] for i in range(cells)])))
+    if not best > 0.0 or best >= big:
+        return None
+    return (math.sqrt(best) - 0.5) * h
+
+
+def _size_slopes(sizes, reach, closed):
+    ''' How fast the size changes AT each point of a path, per unit of length: for a size that runs through the sizes of the points as a smooth curve that never goes past them
+        (a monotone cubic, Fritsch and Butland): the slope of a stretch where the sizes before and after the point change the same way, zero where the point is the top or the bottom of
+        a bulge, and -- at the ends of an open path -- the slope of the stretch there.  Two points: the straight line between them '''
+    m = len(sizes)
+    stretches = [(sizes[(i + 1) % m] - sizes[i]) / reach[i] for i in range(len(reach))]
+    out = []
+    for i in range(m):
+        if not closed and i == 0:
+            out.append(stretches[0] if stretches else 0.0)
+        elif not closed and i == m - 1:
+            out.append(stretches[-1] if stretches else 0.0)
+        else:
+            before, after = (i - 1) % len(reach), i % len(reach)
+            a, b = stretches[before], stretches[after]
+            if a * b <= 0.0:
+                out.append(0.0)
+            else:
+                h0, h1 = reach[before], reach[after]
+                w0, w1 = 2.0 * h1 + h0, h1 + 2.0 * h0
+                out.append((w0 + w1) / (w0 / a + w1 / b))
+    return out
+
+
+def _smooth_sizes(V, owners, sizes, closed):
+    ''' The size of the section at every vertex of a path (a list).  The size of a point is how thick the profile is there; between two points it runs along a smooth curve through the sizes -- a
+        monotone cubic (Fritsch and Butland: it never goes past the sizes, a point thicker than both its neighbours is the top of a bulge, and the thickness changes direction at no point) -- in the
+        LENGTH of the path between the points, not in the parameter of the spline, which runs fast where a point is big and left a step in the thickness where the sizes differ.  Two points, or sizes
+        that are all alike: the straight line.  The viewport does the same (`Shape::sweepMesh`) '''
+    n, m = len(V), len(sizes)
+    arc = [0.0]
+    for k in range(n if closed else n - 1):
+        arc.append(arc[-1] + math.dist(V[k], V[(k + 1) % n]))
+    at = {}
+    for j, (i, t) in enumerate(owners):
+        if t == 0.0 and i not in at:
+            at[i] = j
+    start, reach, by_arc = [], [], []
+    for i in range(m if closed else m - 1):
+        a = at.get(i)
+        b = at.get(i + 1) if i + 1 < m else (n if closed else None)
+        if a is None or b is None or b <= a:
+            start.append(0.0)
+            reach.append(1.0)
+            by_arc.append(False)            # (a point that is no vertex of the path: the parameter of the spline stands for the length)
+        else:
+            start.append(arc[a])
+            reach.append(max(arc[b] - arc[a], 1e-9))
+            by_arc.append(True)
+    slopes = _size_slopes(sizes, reach, closed)
+    out = []
+    for j, (i, t) in enumerate(owners):
+        if not (closed or i + 1 < m):
+            out.append(sizes[i])
+            continue
+        i1 = (i + 1) % m
+        u = min(max((arc[j] - start[i]) / reach[i], 0.0), 1.0) if by_arc[i] else t
+        h = reach[i]
+        u2 = u * u
+        u3 = u2 * u
+        out.append((2 * u3 - 3 * u2 + 1) * sizes[i] + (u3 - 2 * u2 + u) * h * slopes[i] + (3 * u2 - 2 * u3) * sizes[i1] + (u3 - u2) * h * slopes[i1])
+    return out
+
+
 def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False):
     ''' A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
         along `path`, turning with it, without twisting about it unless the points of the curve say so.
@@ -437,7 +556,8 @@ def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False
         or a rectangle is such a shape as a profile is.  The path is DRAWN where the sweep goes -- through the middle of its cross-section, from the middle of the shape, its
         points with it -- whatever its own numbers say; only its shape matters, and the first point of it is the middle of the shape:
         the ROTATION of a point (its gizmo's rotate numbers) twists the profile about the curve there, and the twist runs between the points as a
-        smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The ends are cut square.  A curve with corners is swept
+        smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The thickness of a point (the scale of its gizmo) runs between the points as a smooth curve through the sizes, along the length of the path -- a monotone cubic: it never
+        goes past them and changes direction at no point -- not as a straight line that turns at every point and shows as a ring round the body.  The ends are cut square.  A curve with corners is swept
         with mitered joints.  `path_extrude(circle(2), spline([a, b, c]))` is a bent tube; `extrude` is the straight case.  `path` may be a list of points:
         the spline through them.
         ends     (round at the start, round at the end): an end that is True is a DOME instead of the flat face of the profile -- past the end of the path the profile shrinks along a
@@ -447,7 +567,10 @@ def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False
         sizing   what the thickness of a point (its scale) does to the section: 'scale' (the default) multiplies the whole section about the middle of its box; 'offset' moves its outline in or out by
                  (scale - 1) times the radius of the widest circle the section holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is
                  exactly the scale -- and the round ends close along the same offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm
-                 thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it
+                 thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it.  A section that has no outline of numbers (a ring, a difference of shapes) is measured from its field: the widest circle is found on a grid,
+                 right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not inside a thicker one; 'offset' keeps the
+                 thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none at about 2.5; a ring of outer radius 2 and
+                 hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
         across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
                  in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle '''
     ends = (False, False) if ends is None else (bool(ends[0]), bool(ends[1]))
@@ -599,15 +722,13 @@ def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False
         return a0 * (1 - t) + a1 * t
 
     total = math.radians(C.value_of(twist))
-    # the scale of a point is how thick the profile is there; between the points it runs along the line, as the twist does
+    # the scale of a point is how thick the profile is there; between the points it runs along a smooth curve through the sizes in the length of the path (`_smooth_sizes`): a straight line
+    # between the sizes turned at every point, a ring on the surface round a body of points of different sizes.  The viewport does the same (Shape::sweepMesh)
     sizes = [c.scale for c in ctrls]
+    vertex_size = _smooth_sizes(V, owners, sizes, closed)
 
     def size_at(j):
-        i, t = owners[j]
-        s0 = sizes[i]
-        i1 = (i + 1) % len(ctrls)
-        s1 = sizes[i1] if (closed or i + 1 < len(ctrls)) else s0
-        return max(s0 * (1 - t) + s1 * t, 1e-3)
+        return max(vertex_size[j], 1e-3)
 
     # The profile as the rings of the sweep have it: the outline of a profile, from the middle of it (the extent of the rings is the box of the sweep)
     if isinstance(profile, Profile) and getattr(profile, '_ctrl_pos', None) and getattr(path, '_ctrl_pos', None) and getattr(profile, 'plane', None) is not None:
@@ -627,7 +748,26 @@ def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False
         except Exception:
             box_ring = None
     # The radius of the widest circle the section holds: what an offset is measured by (`sizing='offset'`), and how far a round end reaches in
-    inner = _inscribed(ring or box_ring)[0] if (ring or box_ring) else 0.0
+    inner_ring = ring or box_ring
+    inner_given = None
+    if sizing == 'offset' and not ring and not isinstance(profile, (Profile, SurfaceProfile)):
+        # (an offset is measured by the widest circle the outline of the section holds: a shape with no outline of numbers of its own -- a ring, a difference of shapes, a shape of a field --
+        # is measured from its field (`_widest_circle`): the circle of its box is not in it, and a ring came out as a disc.  A primitive that has points of its own is measured by those)
+        measured = None
+        make_ring = getattr(profile, '_ring_points', None)
+        if make_ring is not None:
+            try:
+                measured = [(C.value_of(Shape.wrap(x)), C.value_of(Shape.wrap(y))) for x, y in make_ring()]
+            except Exception:
+                measured = None
+        if measured and all(math.isfinite(v) for xy in measured for v in xy):
+            inner_ring = measured
+        else:
+            inner_given = _widest_circle(profile)
+            if inner_given is None:
+                raise ValueError("path_extrude: sizing='offset' could not measure the widest circle of this section (it has no outline of numbers and no box to sample its field in): "
+                                 "use sizing='scale', which needs no measure")
+    inner = inner_given if inner_given is not None else (_inscribed(inner_ring)[0] if inner_ring else 0.0)
     grow = inner if (sizing == 'offset' and inner > 1e-9) else None
     lo = [1e300] * 3
     hi = [-1e300] * 3

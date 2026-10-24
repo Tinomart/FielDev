@@ -1442,20 +1442,23 @@ when it is oblique; a shape whose plane holds the direction of the curve is turn
 or a rectangle is such a shape as a profile is.  The path is DRAWN where the sweep goes -- through the middle of its cross-section, from the middle of the shape, its
 points with it -- whatever its own numbers say; only its shape matters, and the first point of it is the middle of the shape:
 the ROTATION of a point (its gizmo's rotate numbers) twists the profile about the curve there, and the twist runs between the points as a
-smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The ends are cut square.  A curve with corners is swept
+smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The thickness of a point (the scale of its gizmo) runs between the points as a smooth curve through the sizes, along the length of the path -- a monotone cubic: it never
+goes past them and changes direction at no point -- not as a straight line that turns at every point and shows as a ring round the body.  The ends are cut square.  A curve with corners is swept
 with mitered joints.  `path_extrude(circle(2), spline([a, b, c]))` is a bent tube; `extrude` is the straight case.  `path` may be a list of points:
-the spline through them
-
-ends     (round at the start, round at the end): an end that is True is a DOME instead of the flat face of the profile -- past the end of the path the profile shrinks along a quarter of a circle
-         (its size at a distance d from the end is the size there times sqrt(1 - (d / reach)^2), `reach` as long as the profile is wide), so that the end is the profile's own shape closing, as
-         long as the middle of its box is inside it or the shape can be seen from there (round, convex and star-like sections: a plus, a triangle; not a U or an L, whose notch the dome
-         covers).  The viewport builds the same dome from rings
-sizing   what the thickness of a point (its scale) does to the section: 'scale' (the default) multiplies the whole section about the middle of its box; 'offset' moves its outline in or out
-         by (scale - 1) times the radius of the widest circle the section holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is
+the spline through them.
+ends     (round at the start, round at the end): an end that is True is a DOME instead of the flat face of the profile -- past the end of the path the profile shrinks along a
+         quarter of a circle (its size at a distance d from the end is the size there times sqrt(1 - (d / reach)^2), `reach` as long as the profile is wide), so that the end is the
+         profile's own shape closing, as long as the middle of its box is inside it or the shape can be seen from there (round, convex and star-like sections: a plus, a triangle; not a U or an L,
+         whose notch the dome covers).  The viewport builds the same dome from rings (Shape::sweepMesh).
+sizing   what the thickness of a point (its scale) does to the section: 'scale' (the default) multiplies the whole section about the middle of its box; 'offset' moves its outline in or out by
+         (scale - 1) times the radius of the widest circle the section holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is
          exactly the scale -- and the round ends close along the same offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm
-         thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it
-across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays in its
-         own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle
+         thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it.  A section that has no outline of numbers (a ring, a difference of shapes) is measured from its field: the widest circle is found on a grid,
+         right to about a fiftieth of its box.  What each does with a notch or a hole: 'scale' keeps the shape at every size, but a thinner section is not inside a thicker one; 'offset' keeps the
+         thinner inside the thicker, and so narrows a notch or a hole as the size grows -- a U with a notch 1 wide has one 0.35 wide at size 2 and none at about 2.5; a ring of outer radius 2 and
+         hole radius 1.2 has a hole of radius 0.8 at size 2, 0.4 at size 3, and none at about 4
+across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
+         in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle
 
 ### `profile(source, smooth=False, radius=0)`
 
@@ -1553,7 +1556,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
 sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in
 
-### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizing="scale")`
+### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizing='scale')`
 
 A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
@@ -1571,10 +1574,10 @@ twist    degrees: the whole cross-section turned about the path
 sizing   what the size of a node does to the cross-section there: "scale" (the default) multiplies the whole of it about its middle; "offset" moves its outline in or out by (size - 1) times
          the radius of the widest circle it holds, so that a thinner cross-section of any shape stays inside a thicker one (see `path_extrude`)
 
-The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the last) and
-flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it
+The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
+last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it
 
-### `character(armatures, blend="auto", symmetric=None)`
+### `character(armatures, blend='auto', symmetric=None)`
 
 The body made of armatures and feature models: joined as one with a smooth blend where they meet, and, with `symmetric` "x", "y" or "z", the other half as the mirror
 image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both)
@@ -3008,6 +3011,14 @@ resolution  samples per mm (a number above 0); 2 draws features of half a millim
 bounds      ((x0, y0, z0), (x1, y1, z1)) of the body, if its extent cannot be found
 
 Returns the body itself in every other way; only the way it is meshed for the viewport is changed.
+
+### `render_hint_for(lo, hi, thin, per_thin=3.0, most=192, pad=0.25)`
+
+The render hint (see Shape.setRenderHint) of a body that fills the box lo..hi and is `thin` across at its thinnest: the viewport meshes it over a cube of its own, at a resolution
+that puts `per_thin` samples across `thin`, however large the scene's region is.  For a field whose empty space the mesher cannot clear quickly (a sweep along a spline, the
+distance to a mesh) the cost grows with the region it meshes, not with the body: a three-node armature took 23 s over a region of +-10 mm and 1.7 s over its own box.  The cube is
+the box widened by `pad` of its size, so that a node dragged a little stays inside it (the script runs again, and the cube with it, when it is let go); at most `most` samples a side.
+None when the box has no size
 
 ## FielDev apps: the inputs of a script
 
