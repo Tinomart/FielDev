@@ -596,7 +596,7 @@ void FieldView::paintEvent(QPaintEvent*)
         {
             const QString txt = QString("d = %1").arg(d, 0, 'g', 4);
             const QRect box(r.left() + 4, r.top() + 4, p.fontMetrics().horizontalAdvance(txt) + 10, 16);
-            p.fillRect(box, QColor(31, 138, 143, 220));
+            p.fillRect(box, QColor(72, 116, 118, 220));
             p.setPen(kText);
             p.drawText(box, Qt::AlignCenter, txt);
         }
@@ -701,7 +701,7 @@ SectionPanel::SectionPanel(QWidget* parent)
     setObjectName("SectionPanel");
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet(
-        "#SectionPanel { background: rgba(31, 138, 143, 222);"
+        "#SectionPanel { background: rgba(72, 116, 118, 222);"
         "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
         "QLabel { color: #93a1a1; font-size: 8pt; }"
         "QLabel#SectionInfo { color: #eee8d5; }"
@@ -1110,7 +1110,7 @@ FieldPanel::FieldPanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     // (the same look as the section card)
     setStyleSheet(
-        "#FieldPanel { background: rgba(31, 138, 143, 222);"
+        "#FieldPanel { background: rgba(72, 116, 118, 222);"
         "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
         "QLabel { color: #93a1a1; font-size: 8pt; }"
         "QLabel#FieldInfo { color: #eee8d5; }"

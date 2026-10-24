@@ -1489,7 +1489,7 @@ ScenePanel::ScenePanel(QWidget* parent)
     setObjectName("ScenePanel");
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet(
-        "#ScenePanel { background: rgba(31, 138, 143, 222);"
+        "#ScenePanel { background: rgba(72, 116, 118, 222);"
         "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
         "QTreeWidget { background: transparent; color: #eee8d5; border: none;"
         "  outline: none; font-size: 8.5pt; }"

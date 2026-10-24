@@ -253,7 +253,7 @@ SymmetryPanel::SymmetryPanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     // (the look of the work plane's card)
     setStyleSheet(
-        "#SymmetryPanel { background: rgba(31, 138, 143, 222);"
+        "#SymmetryPanel { background: rgba(72, 116, 118, 222);"
         "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
         "QLabel { color: #93a1a1; font-size: 8pt; }"
         "QLabel#SymmetryInfo { color: #eee8d5; }"

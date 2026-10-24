@@ -950,7 +950,7 @@ void View::paintOverlay(QPainter& painter)
         const QRectF box(section_readout_pos + QPointF(14, 10),
                          QSizeF(fm.horizontalAdvance(section_readout) + 12, fm.height() + 6));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(31, 138, 143, 215));
+        painter.setBrush(QColor(72, 116, 118, 215));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, section_readout);
@@ -987,7 +987,7 @@ void View::paintOverlay(QPainter& painter)
         const QRectF box(probe_pos + QPointF(16, 12),
                          QSizeF(fm.horizontalAdvance(text) + 14, fm.height() + 8));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(31, 138, 143, 225));
+        painter.setBrush(QColor(72, 116, 118, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, text);
@@ -1217,7 +1217,7 @@ void View::drawLegends(QPainter& painter)
         const int boxW = textW + 20, boxH = fm.height() + 20 + rowH * cats.size();
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(31, 138, 143, 200));
+        painter.setBrush(QColor(72, 116, 118, 200));
         painter.drawRoundedRect(box, 6, 6);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(QRect(box.left() + 10, box.top() + 6, boxW - 20, fm.height()),
@@ -1252,7 +1252,7 @@ void View::drawLegends(QPainter& painter)
         const int boxW = textW + 20, boxH = fm.height() + 20 + rowH * int(materialRows.size());
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(31, 138, 143, 200));
+        painter.setBrush(QColor(72, 116, 118, 200));
         painter.drawRoundedRect(box, 6, 6);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(QRect(box.left() + 10, box.top() + 6, boxW - 20, fm.height()), Qt::AlignLeft | Qt::AlignVCenter, materialsTitle);
@@ -1287,7 +1287,7 @@ void View::drawLegends(QPainter& painter)
         const int boxH = barH + fm.height() * 2 + 18;
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(31, 138, 143, 200));
+        painter.setBrush(QColor(72, 116, 118, 200));
         painter.drawRoundedRect(box, 6, 6);
 
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -5925,7 +5925,7 @@ void View::drawFieldIcons(QPainter& painter)
             painter.drawEllipse(q, 19, 19);
         }
         painter.setPen(QPen(hot ? QColor(Qt::white) : QColor(0xee, 0xe8, 0xd5), 1.5));
-        painter.setBrush(QColor(31, 138, 143, 235));
+        painter.setBrush(QColor(72, 116, 118, 235));
         painter.drawEllipse(q, 13, 13);
         icon.paint(&painter, QRect(int(std::lround(q.x())) - 9, int(std::lround(q.y())) - 9, 18, 18));
         // the name, over the icon
@@ -5935,7 +5935,7 @@ void View::drawFieldIcons(QPainter& painter)
         box.moveLeft(std::max(2.0, std::min(double(width()) - sz.width() - 2, box.left())));
         box.moveTop(std::max(2.0, box.top()));
         painter.setPen(QPen(green, 1.5));
-        painter.setBrush(QColor(31, 138, 143, 225));
+        painter.setBrush(QColor(72, 116, 118, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, text);
@@ -6900,7 +6900,7 @@ void View::drawHints(QPainter& painter)
     if (box.right() > width() - 4) box.moveRight(width() - 4);
     if (box.bottom() > height() - 4) box.moveBottom(mouse.pos.y() - 8);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(31, 138, 143, 225));
+    painter.setBrush(QColor(72, 116, 118, 225));
     painter.drawRoundedRect(box, 4, 4);
     painter.setPen(QColor(0xee, 0xe8, 0xd5));
     painter.drawText(box, Qt::AlignCenter, text);
@@ -7027,7 +7027,7 @@ void View::drawNameLabels(QPainter& painter)
         box.moveTop(std::max(2.0, box.top()));
         if (box.bottom() < 0 || box.top() > height()) continue;
         painter.setPen(QPen(s->isSelected() ? QColor(Qt::white) : QColor(0x93, 0xa1, 0xa1), 1.5));
-        painter.setBrush(QColor(31, 138, 143, 225));
+        painter.setBrush(QColor(72, 116, 118, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, s->appLabel());
@@ -7186,7 +7186,7 @@ void View::drawGizmo(QPainter& painter)
                     const QPointF at = scaling ? p0 + QPointF(0.7071, -0.7071) * radius : toScreen(groupCenter + (0.62f * L) * u);
                     const QRectF box(at + QPointF(8, -8 - fm.height()), QSizeF(fm.horizontalAdvance(text) + 10, fm.height() + 4));
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(QColor(31, 138, 143, 225));
+                    painter.setBrush(QColor(72, 116, 118, 225));
                     painter.drawRoundedRect(box, 4, 4);
                     painter.setPen(QColor(0xee, 0xe8, 0xd5));
                     painter.drawText(box, Qt::AlignCenter, text);
@@ -7319,7 +7319,7 @@ void View::drawGizmo(QPainter& painter)
                     const QPointF at = p0 + QPointF(0.7071, -0.7071) * radius;
                     const QRectF box(at + QPointF(8, -8 - fm.height()), QSizeF(fm.horizontalAdvance(text) + 10, fm.height() + 4));
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(QColor(31, 138, 143, 225));
+                    painter.setBrush(QColor(72, 116, 118, 225));
                     painter.drawRoundedRect(box, 4, 4);
                     painter.setPen(QColor(0xee, 0xe8, 0xd5));
                     painter.drawText(box, Qt::AlignCenter, text);

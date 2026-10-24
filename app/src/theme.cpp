@@ -82,7 +82,7 @@ void Theme::apply(QApplication& app)
         "QMenu::item:selected { background: rgba(255, 176, 128, 235); color: #2b1d16; }"
         "QMenu::item:disabled { color: #586e75; }"
         "QMenu::separator { height: 1px; background: rgba(147, 161, 161, 70); margin: 4px 10px; }"
-        "QStatusBar { background: #1f8a8f; color: #93a1a1; border-top: 1px solid rgba(147, 161, 161, 70); }"
+        "QStatusBar { background: #1f8a8f; color: #eee8d5; border-top: 1px solid rgba(147, 161, 161, 70); }"
         "QStatusBar::item { border: none; }"
         "QSplitter::handle { background: %2; }"
         "QSplitter::handle:horizontal { width: 1px; }"

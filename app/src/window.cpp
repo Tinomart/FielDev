@@ -1520,12 +1520,12 @@ Window::Window(Arguments args)
 
     {   // Status bar: render state on the left, region / resolution on the right
         auto region = new QLabel;
-        region->setStyleSheet("color: palette(mid); padding-right: 6px;");
+        region->setStyleSheet("color: rgba(238, 232, 213, 210); padding-right: 6px;");
         statusBar()->addPermanentWidget(region);
         {   // Where the keyboard is: a frame round the pane that has it, and a word in the status bar -- the viewport's single keys (W, E, D, R ...) are letters in the script editor
             auto keys = new QLabel;
             keys->setObjectName("KeysLabel");
-            keys->setStyleSheet("color: palette(mid); padding-right: 14px;");
+            keys->setStyleSheet("color: rgba(238, 232, 213, 210); padding-right: 14px;");
             statusBar()->insertPermanentWidget(0, keys);
             auto cue = new FocusCue(this);
             cue->addPane(editor, "editor");

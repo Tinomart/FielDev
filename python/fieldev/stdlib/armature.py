@@ -270,16 +270,16 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
 
 
 def _euler(R):
-    ''' The angles (degrees; x, then y, then z: R = Rz * Ry * Rx) of a turn '''
-    sy = -R[2][0]
-    sy = max(-1.0, min(1.0, sy))
+    ''' The angles (degrees; x, then y, then z) a gizmo turns by to make the turn R: the inverse of the gizmo's own matrices -- Rz * Ry * Rx, with Rx and Rz the right-hand turns and the library's Ry
+        the opposite one about y -- the same as the viewport's gizmoEuler, so that what the viewport draws and what the library evaluates are the one turn '''
+    sy = max(-1.0, min(1.0, R[2][0]))
     beta = math.asin(sy)
     if abs(sy) < 1.0 - 1e-9:
         alpha = math.atan2(R[2][1], R[2][2])
         gamma = math.atan2(R[1][0], R[0][0])
     else:
         alpha = 0.0
-        gamma = math.atan2(-R[0][1], R[1][1])
+        gamma = math.atan2(-R[0][1] * sy, R[1][1])
     return tuple(math.degrees(a) for a in (alpha, beta, gamma))
 
 
@@ -335,9 +335,9 @@ def cut_face(one, node=0):
     middle = tuple(0.5 * (min(q[i] for q in places) + max(q[i] for q in places)) for i in range(3))
     node0 = tuple(info.ctrls[0].pos)
     move = tuple(node0[i] - middle[i] for i in range(3))
-    # (a gizmo turns a shape by rotate_x, then rotate_y, then rotate_z of the library, each of which turns the shape the other way about its axis from the right-hand rule: the angles that make the
-    # turn R are the negatives of the angles R is made of.  A probe of the clone showed it turned the wrong way about -- tilted the opposite way to the path -- before this)
-    return gizmo(instance(base), move=move, rotate=tuple(-a for a in _euler(R)))
+    # (the angles of a gizmo are the ones the viewport itself writes for a turn -- Shape::gizmoRotation and gizmoEuler of the app: x, then y, then z, the x and z turns right-handed and the y turn the other way.  The
+    # first version of this negated all three, which is right for a turn about y alone and wrong for an armature that leans in two directions: its face was tilted against the path, as a probe of such an armature showed)
+    return gizmo(instance(base), move=move, rotate=_euler(R))
 
 
 def _own_region(body):
