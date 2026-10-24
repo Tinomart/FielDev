@@ -50,19 +50,22 @@ HINTS = {
 
 # A profile or a curve made from the menu: its points are made with it (each a model of its own, drawn as a dot, with the gizmo that moves and
 # rotates it), in the horizontal plane at the place of the click
-def _gizmoed_point(name, x, y, z, shown=True):
+def _gizmoed_point(name, x, y, z, shown=True, corner=False, size=None):
     ''' The statements of a point that is a model of its own, with its gizmo (so that it can be dragged).  `shown` False: the line that shows the point where it is is left out
-        (the points of the profile of an armature are shown by the clone of it at the armature's first node, not at the origin) '''
-    return ('%s = point(%s, %s, %s)\n%s = gizmo(\n    %s,\n    move=(var(0), var(0), var(0)),\n    rotate=(var(0), var(0), var(0)),\n'
-            '    scale=(var(1), var(1), var(1)),\n)\n%s' % (name, x, y, z, name, name, ('%s\n' % name) if shown else ''))
+        (the points of the profile of an armature are shown by the clone of it at the armature's first node, not at the origin).  `corner`: the point says `smooth=False` (a node in the middle of
+        an armature is a corner: only its ends are spline points); `size`: the text of its scale (1 when not given) '''
+    scale = '1' if size is None else size
+    return ('%s = point(%s, %s, %s%s)\n%s = gizmo(\n    %s,\n    move=(var(0), var(0), var(0)),\n    rotate=(var(0), var(0), var(0)),\n'
+            '    scale=(var(%s), var(%s), var(%s)),\n)\n%s' % (name, x, y, z, ', smooth=False' if corner else '', name, name, scale, scale, scale,
+                                                                  ('%s\n' % name) if shown else ''))
 
 
-def _points(*places, base='{var}', shown=True):
+def _points(*places, base='{var}', shown=True, corners=(), size=None):
     ''' The points a profile or a line made from the menu is made of: each a model of its own, with its gizmo (so that it can be dragged, and the face or the line
-        with all of them), written above the call.  `places` are the (x, y, z) texts of the template '''
+        with all of them), written above the call.  `places` are the (x, y, z) texts of the template; `corners` the numbers (from 0) of the points that are corners; `size` the text of their scale '''
     out = []
     for k, (x, y, z) in enumerate(places, 1):
-        out.append(_gizmoed_point('%s_p%d' % (base, k), x, y, z, shown))
+        out.append(_gizmoed_point('%s_p%d' % (base, k), x, y, z, shown, (k - 1) in corners, size))
     return ''.join(out), ', '.join('%s_p%d' % (base, k) for k in range(1, len(places) + 1))
 
 
@@ -689,27 +692,30 @@ def _placed_template(name, r):
     return _stroke_text(name, places, r.get('smooth'), r)
 
 
-def _armature_text(places, scale=None, first=None):
+def _armature_text(places, scale=None, first=None, half=None, size=None):
     ''' An armature put down in the viewport, node after node: the nodes, each a model of its own with its gizmo (so that it can be dragged, and its size is how thick the armature is
-        there), and the call through them.  The thickness is a sixth of the longest stretch between two nodes, a round number: an armature of a drawing is about that thick '''
+        there), and the call through them.  The thickness is a sixth of the longest stretch between two nodes, a round number: an armature of a drawing is about that thick.  The first and the
+        last node are spline points (round ends), every one in the middle is a corner.  `half`: the half width of the cross-section, when it is to be as wide as one that is there (a branch is as
+        thick as the armature it grows from); `size`: the scale of the nodes (a branch's new node is as big as the node it begins at) '''
     pts = [tuple(float(c) for c in p) for p in places]
     # (one node has no stretch to measure: the size of the place it is put at, a fifth of it)
     reach = max((math.dist(a, b) for a, b in zip(pts, pts[1:])), default=(scale or 10.0) * 1.2)
-    points, listing = _points(*places)
+    points, listing = _points(*places, corners=set(range(1, len(places) - 1)), size=None if size is None else _num(size))
     # (the cross-section of the armature: the square with spline points, whose radius is a sixth of the longest stretch, written above it as a profile of its own, and its clone under the armature)
     q = _nice(reach / 6.0)
-    plus, minus = _num(0.75 * q), _num(-0.75 * q)
+    width = half if half else 0.75 * q
+    plus, minus = _num(width), _num(-width)
     cut_points, cut_list = _points((plus, plus, '0'), (minus, plus, '0'), (minus, minus, '0'), (plus, minus, '0'), base='{var}_cut', shown=False)
     if first:
         listing = '%s, %s' % (first, listing)           # (a branch: it begins at a node that is there already)
     return points + cut_points + '{var}_cut = profile([%s], smooth=True)\n' % cut_list + '#@@#\n' + 'armature([%s], profile={var}_cut, name="{var}")' % listing + _FACE
 
 
-def armature_branch(var, anchor, place, scale=None):
+def armature_branch(var, anchor, place, scale=None, half=None, size=None):
     ''' An armature that begins at a node of another one, as the viewport puts it down when a node in the middle of an armature is picked and the next one is placed: the statements of a
         new armature `var` -- the node at `place` (the texts of x, y, z), its cross-section and the call through `anchor` (the variable of the node it begins at) and the new node, with the
-        line that shows it and its cut face -- as they are written in the script '''
-    prelude, rest = _armature_text([place], scale, anchor).split('#@@#\n')
+        line that shows it and its cut face -- as they are written in the script.  `half` and `size` make it as thick as the armature it grows from (see _armature_text) '''
+    prelude, rest = _armature_text([place], scale, anchor, half, size).split('#@@#\n')
     call, face = rest.split('\n#@@@#\n')
     return (prelude + '{var} = ' + call + '\n{var}\n' + face).replace('{var}', var)
 

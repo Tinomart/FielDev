@@ -111,8 +111,9 @@ def _placed_natively(placed, sweep, move):
                  '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist'):
         setattr(placed, name, getattr(sweep, name))
     placed._sweep_free = getattr(sweep, '_sweep_free', False)
-    if getattr(sweep, '_sweep_round', None) is not None:
-        placed._sweep_round = sweep._sweep_round
+    for name in ('_sweep_round', '_sweep_offset', '_sweep_across', '_sweep_inner'):
+        if getattr(sweep, name, None) is not None:
+            setattr(placed, name, getattr(sweep, name))
     placed._sweep_guard = list(getattr(sweep, '_sweep_guard', []))
     placed._sweep_place = ((0.0, 0.0, 0.0), tuple(Shape.wrap(x) for x in move), (Shape.wrap(0.0),) * 3, (Shape.wrap(1.0),) * 3)
 
@@ -143,7 +144,7 @@ def _joined(parts):
     return out
 
 
-def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0):
+def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizing="scale"):
     ''' A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
             arm = armature([shoulder, elbow, hand], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
@@ -157,10 +158,15 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
         parent   the name of the joint this armature hangs from, when its first node is not on a node of another armature
         twist    degrees: the whole cross-section turned about the path
+        sizing   what the size of a node does to the cross-section there: "scale" (the default) multiplies the whole of it about its middle; "offset" moves its outline in or out by (size - 1) times
+                 the radius of the widest circle it holds, so that a thinner cross-section of any shape stays inside a thicker one (see `path_extrude`)
 
-        The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`) and flat at a corner '''
+        The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
+        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more')
+    if sizing not in ("scale", "offset"):
+        raise ValueError('armature: sizing is "scale" or "offset", not %r' % (sizing,))
     if profile is not None and radii is not None:
         raise ValueError('armature: radii is the size of the cross-section the armature makes for itself -- a profile of your own has its own size: change its points, or the size of the nodes '
                          '(the gold ring of their gizmos)')
@@ -213,7 +219,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
         # circle -- in the field and for the viewport by the same law)
         rounds = (ctrls[0].flag != 0, ctrls[-1].flag != 0)
-        out = path_extrude(base, way, twist, ends=rounds)
+        out = path_extrude(base, way, twist, ends=rounds, sizing=sizing, across=True)
+        core = out
         # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
         # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)
         shift = getattr(way, '_weld_shift', None)
@@ -230,6 +237,9 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
             start = C.unit(C.sub(way.vertices[1], way.vertices[0]))
         # (the viewport draws the ring of a selected node as a circle of the armature's real radius there: the node's scale times the size of the cross-section)
         factor = _profile_radius(base)
+        inner = getattr(core, '_sweep_inner', 0.0)
+        if getattr(core, '_sweep_offset', False) and inner > 1e-9:
+            factor = inner                  # (an offset armature is as thick as the widest circle of its cross-section: that is the ring)
         for ctl in ctrls:
             if isinstance(ctl.item, Shape):
                 try:
@@ -299,9 +309,11 @@ def cut_face(one, node=0):
     bu, bv = (tuple(plane[1]), tuple(plane[2])) if plane is not None else ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
     normal = C.unit(C.cross(bu, bv))
     t0 = info.start if info.start is not None else normal
-    # the frame the sweep starts in -- see path_extrude: the profile as it is when the path leaves across it, else turned across the path
-    if abs(C.dot(normal, t0)) >= 0.1:
-        u0, w0 = bu, bv
+    # the frame the sweep starts in -- see path_extrude: the profile turned the least that puts it across the path, and when its plane holds the path, turned across it
+    from fieldev.stdlib.profile import _across_frame
+    turned_first = _across_frame(bu, bv, t0)
+    if turned_first is not None:
+        u0, w0 = turned_first
     else:
         first = None
         for across in (bu, bv):
@@ -323,7 +335,9 @@ def cut_face(one, node=0):
     middle = tuple(0.5 * (min(q[i] for q in places) + max(q[i] for q in places)) for i in range(3))
     node0 = tuple(info.ctrls[0].pos)
     move = tuple(node0[i] - middle[i] for i in range(3))
-    return gizmo(instance(base), move=move, rotate=_euler(R))
+    # (a gizmo turns a shape by rotate_x, then rotate_y, then rotate_z of the library, each of which turns the shape the other way about its axis from the right-hand rule: the angles that make the
+    # turn R are the negatives of the angles R is made of.  A probe of the clone showed it turned the wrong way about -- tilted the opposite way to the path -- before this)
+    return gizmo(instance(base), move=move, rotate=tuple(-a for a in _euler(R)))
 
 
 def _own_region(body):

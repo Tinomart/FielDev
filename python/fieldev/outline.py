@@ -1386,6 +1386,8 @@ def outline_json(arg):
         ''' the names a row reads, except the ones it holds by reference (`# shadow:`) or takes a property of: neither makes the model a child '''
         if is_block:
             return set(row.get('reads', ()))
+        if row.get('callee') == 'cut_face':
+            return set()                # (the cross-section shown at an armature is part of the armature: it is the armature's child, it does not own it -- see below)
         return set(d for d in row.get('deps', []) if d not in row.get('shadows', ()) and d != row.get('attribute_of'))
 
     for index, (uline, user, user_block) in enumerate(rows):
@@ -1414,6 +1416,14 @@ def outline_json(arg):
             group.append((row, False))
             group_keys.add(row_key(row, False))
             j -= 1
+    # The cross-section shown at the first node of an armature (`x_face = cut_face(x)`) is a part of the armature: its row is the armature's CHILD -- it is hidden, isolated, copied and deleted with the
+    # armature, and is there to be replaced on it.  (It reads the armature, so by the rule above it would hold the armature, which is the other way round)
+    armatures = {it['var']: it for it in items if 'var' in it and it.get('callee') == 'armature'}
+    for it in items:
+        if it.get('callee') == 'cut_face' and 'var' in it and 'owner' not in it:
+            host = next((armatures[d] for d in it.get('deps', []) if d in armatures and armatures[d]['line'] < it['line']), None)
+            if host is not None:
+                it['owner'] = A._key_of(host)
     last_of = {}
     for it in items:
         if 'var' in it:

@@ -127,14 +127,14 @@ QString sizeText(qint64 n)
     return QString("%1 MB").arg(n / 1024.0 / 1024.0, 0, 'f', 1);
 }
 
-// The colours of FielDev: the dark teal of the viewport's cards and the model tree (#164c5e) and a deeper one for what is typed in (#0f3a49), cream
-// text (#eee8d5), Solarized's greys for what is said quietly, the blue of the selection (#268bd2) for what is pressed
+// The colours of FielDev: the dark teal of the viewport's cards and the model tree (#1f8a8f) and a deeper one for what is typed in (#176f75), cream
+// text (#eee8d5), Solarized's greys for what is said quietly, the blue of the selection (#2fb0a8) for what is pressed
 const char* kMuted = "#93a1a1";
 const char* kError = "#ff8f7f";
 const char* kGood = "#a8cc5f";
-const char* kPanel = "#164c5e";
-const char* kDeep = "#0f3a49";
-const char* kAccent = "#268bd2";
+const char* kPanel = "#1f8a8f";
+const char* kDeep = "#176f75";
+const char* kAccent = "#2fb0a8";
 
 QPalette appPalette()
 {
@@ -152,7 +152,7 @@ QPalette appPalette()
     p.setColor(QPalette::PlaceholderText, QColor("#6d8f99"));
     p.setColor(QPalette::ToolTipBase, QColor(kPanel));
     p.setColor(QPalette::ToolTipText, QColor("#eee8d5"));
-    p.setColor(QPalette::Link, QColor("#5fb0ee"));
+    p.setColor(QPalette::Link, QColor("#6fd3c8"));
     p.setColor(QPalette::Mid, QColor("#586e75"));
     p.setColor(QPalette::Disabled, QPalette::Text, QColor("#586e75"));
     p.setColor(QPalette::Disabled, QPalette::WindowText, QColor("#586e75"));
@@ -178,7 +178,7 @@ QString appStyleSheet()
         "QPushButton { background: rgba(147, 161, 161, 40); color: #eee8d5; border: 1px solid rgba(147, 161, 161, 90); border-radius: 5px;"
         "  padding: 5px 14px; }"
         "QPushButton:hover { border-color: %3; background: rgba(147, 161, 161, 70); }"
-        "QPushButton:pressed { background: rgba(38, 139, 210, 150); }"
+        "QPushButton:pressed { background: rgba(47, 176, 168, 150); }"
         "QPushButton:disabled { color: #586e75; border-color: rgba(147, 161, 161, 45); background: rgba(147, 161, 161, 20); }"
         "QPushButton#appRun { background: %3; color: white; border: none; border-radius: 6px; padding: 7px 24px; font-weight: 600; }"
         "QPushButton#appRun:hover { background: #3a9be0; }"
@@ -189,7 +189,7 @@ QString appStyleSheet()
         "QCheckBox { spacing: 8px; }"
         "QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid rgba(147, 161, 161, 130); border-radius: 4px; background: %2; }"
         "QCheckBox::indicator:hover { border-color: %3; }"
-        "QCheckBox::indicator:checked { background: %3; border-color: #5fb0ee; }"
+        "QCheckBox::indicator:checked { background: %3; border-color: #6fd3c8; }"
         "QPlainTextEdit { background: %2; color: #eee8d5; border: 1px solid rgba(147, 161, 161, 70); border-radius: 6px; padding: 4px;"
         "  selection-background-color: %3; selection-color: white; }"
         "QProgressBar { background: rgba(147, 161, 161, 50); border: none; border-radius: 3px; }"

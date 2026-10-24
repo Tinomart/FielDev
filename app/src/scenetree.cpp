@@ -158,7 +158,7 @@ const QIcon& reimportIcon()
 const QIcon& modeIcon(const QString& mode)
 {
     auto axes = [](QPainter& p, int alpha) {
-        const QColor cols[3] = {QColor(0xdc, 0x32, 0x2f), QColor(0x74, 0xb8, 0x1f), QColor(0x26, 0x8b, 0xd2)};
+        const QColor cols[3] = {QColor(0xdc, 0x32, 0x2f), QColor(0x74, 0xb8, 0x1f), QColor(0x2f, 0xb0, 0xa8)};
         const QPointF c(7, 9);
         const QPointF ends[3] = {QPointF(14, 9), QPointF(7, 2), QPointF(2.5, 13.5)};
         for (int a = 0; a < 3; ++a)
@@ -889,8 +889,8 @@ public:
         e->setFrame(false);
         // (opaque, and as wide as the row: the name that is being replaced must not show through or stick out behind it)
         e->setAutoFillBackground(true);
-        e->setStyleSheet("QLineEdit { background: #0b3240; color: #eee8d5; border: 1px solid #268bd2;"
-                         " border-radius: 2px; selection-background-color: #268bd2; font-size: 8.5pt; }");
+        e->setStyleSheet("QLineEdit { background: #146268; color: #eee8d5; border: 1px solid #2fb0a8;"
+                         " border-radius: 2px; selection-background-color: #2fb0a8; font-size: 8.5pt; }");
         e->selectAll();
         return e;
     }
@@ -1227,7 +1227,7 @@ protected:
         if (!m_dragging) return;
         QPainter p(viewport());
         p.setRenderHint(QPainter::Antialiasing);
-        const QColor blue = m_copy ? kCopy : QColor(0x26, 0x8b, 0xd2);
+        const QColor blue = m_copy ? kCopy : QColor(0x2f, 0xb0, 0xa8);
         if (m_ok)
         {
             if (m_over && m_at == ScenePanel::DropOn)
@@ -1489,13 +1489,13 @@ ScenePanel::ScenePanel(QWidget* parent)
     setObjectName("ScenePanel");
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet(
-        "#ScenePanel { background: rgba(22, 76, 94, 222);"
+        "#ScenePanel { background: rgba(31, 138, 143, 222);"
         "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
         "QTreeWidget { background: transparent; color: #eee8d5; border: none;"
         "  outline: none; font-size: 8.5pt; }"
         "QTreeWidget::item { padding: 1px 0px; }"
         "QTreeWidget::item:hover { background: rgba(147, 161, 161, 40); }"
-        "QTreeWidget::item:selected { background: rgba(38, 139, 210, 150); color: white; }"
+        "QTreeWidget::item:selected { background: rgba(255, 176, 128, 205); color: #2b1d16; }"
         "QToolButton#SceneHeader { color: #eee8d5; border: none; font-weight: bold;"
         "  font-size: 9pt; padding: 3px 6px; text-align: left; }"
         "QLabel { color: #93a1a1; font-size: 8pt; padding: 0px 6px 4px 6px; }"
@@ -2666,6 +2666,8 @@ void ScenePanel::rebuild()
             if (mine.contains(d.toString())) continue;
             if (d.toString() == it["attribute_of"].toString()) continue;        // (`x = result.von_mises`: a property of the model, not made of it)
             const QJsonObject ref = itemBefore(d.toString(), it["line"].toInt());
+            // (the cross-section shown at an armature is its child: the armature it reads is its parent in the tree, not a model it "uses")
+            if (it["callee"].toString() == "cut_face" && it.contains("owner") && ref.contains("var") && keyOf(ref) == it["owner"].toString()) continue;
             auto c = makeRow(row, d.toString(), ref.isEmpty() ? QIcon() : fadedIcon(itemIcon(ref, false)), "dep", it,
                              key + ">" + d.toString());
             c->setForeground(COL_NAME, QColor(kDim.red(), kDim.green(), kDim.blue(), 150));
@@ -2904,8 +2906,8 @@ void ScenePanel::rebuild()
         e->setProperty("shown", shown);
         e->setToolTip(T("Samples per mm"));
         e->setStyleSheet("QLineEdit { background: rgba(0, 0, 0, 80); color: #eee8d5; border: 1px solid rgba(147, 161, 161, 90);"
-                         " border-radius: 2px; padding: 0px 3px; font-size: 8.5pt; selection-background-color: #268bd2; }"
-                         "QLineEdit:focus { border: 1px solid #268bd2; background: rgba(0, 0, 0, 120); }");
+                         " border-radius: 2px; padding: 0px 3px; font-size: 8.5pt; selection-background-color: #2fb0a8; }"
+                         "QLineEdit:focus { border: 1px solid #2fb0a8; background: rgba(0, 0, 0, 120); }");
         e->installEventFilter(this);
         connect(e, &QLineEdit::textEdited, this, [this, e] { commitSetting(e, true); });
         connect(e, &QLineEdit::editingFinished, this, [this, e] { commitSetting(e); });
@@ -7773,6 +7775,24 @@ void ScenePanel::toggleIsolation()
         if (!it.isEmpty())
         {
             keep << keyOf(it);
+            // (an armature is made of its points, its cross-section and the face that shows it -- its children in the tree: they are a part of it, and stay shown with it)
+            if (madeOfPoints(it["callee"].toString()))
+            {
+                std::function<void(QTreeWidgetItem*)> keepChildren = [&](QTreeWidgetItem* parent) {
+                    for (int k = 0; k < parent->childCount(); ++k)
+                    {
+                        QTreeWidgetItem* child = parent->child(k);
+                        const QString childType = child->data(COL_NAME, ROLE_TYPE).toString();
+                        if (childType == "item" || childType == "part")
+                        {
+                            const QJsonObject ci = modelOfRow(child);
+                            if (!ci.isEmpty() && ci["visible"].toBool()) keep << keyOf(ci);          // (what is hidden by design stays hidden: the points of the cross-section, the cross-section)
+                        }
+                        keepChildren(child);
+                    }
+                };
+                keepChildren(row);
+            }
             names << (it.contains("var") ? it["var"].toString() : it["label"].toString());
         }
     }
@@ -8072,6 +8092,13 @@ ScenePanel::OnPlan ScenePanel::planDropOn(const QList<QJsonObject>& models, cons
     // What a drop ON an operation does: never a question.  A model becomes one more argument of an operation that takes any number
     // of them; an operation that works on exactly one model gives its place to the dropped one; a field takes the place of the
     // first plain number of the call.  Anything else cannot be done, and the reason is given
+    // (the cross-section shown at an armature -- `x_face = cut_face(x)`, a child of the armature -- is part of it: a profile dropped on it replaces the armature's cross-section)
+    if (target["callee"].toString() == "cut_face")
+    {
+        const QJsonArray shown = target["inputs"].toArray();
+        const QJsonObject host = shown.isEmpty() ? QJsonObject() : itemForVar(shown[0].toObject()["name"].toString());
+        if (!host.isEmpty() && host["callee"].toString() == "armature") return planDropOn(models, host);
+    }
     OnPlan p;
     QStringList names;
     for (const auto& m : models) names << m["var"].toString();

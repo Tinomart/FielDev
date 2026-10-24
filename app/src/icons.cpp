@@ -10,6 +10,7 @@ of the License, or (at your option) any later version.
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <cmath>
 #include <functional>
 
 #include "fieldev/icons.hpp"
@@ -106,40 +107,48 @@ QIcon dropArrow()
 
 QIcon logo(int size)
 {
-    // The mark (the same as the application's icon): a friendly block with a face, on a sunny tile
+    // The mark (the same as the application's icon): the F of the field lines, bold and playful -- a cream F that leans forward, two thick bands of peach round it like the contour lines of a
+    // field, on a teal tile.  Bold on purpose: it is looked at 16 pixels wide
     QPixmap px(size * 2, size * 2);
     px.fill(Qt::transparent);
     QPainter p(&px);
     p.setRenderHint(QPainter::Antialiasing);
     p.scale(size * 2 / 24.0, size * 2 / 24.0);
-    QLinearGradient sun(0, 0, 0, 24);
-    sun.setColorAt(0, QColor(0xff, 0xd6, 0x66));
-    sun.setColorAt(1, QColor(0xff, 0x6f, 0x91));
+    QPainterPath tile;
+    tile.addRoundedRect(QRectF(0.5, 0.5, 23, 23), 5.5, 5.5);
+    QLinearGradient bg(0, 0, 24, 24);
+    bg.setColorAt(0, QColor(0x9c, 0xee, 0xe2));
+    bg.setColorAt(1, QColor(0x2a, 0xae, 0xae));
+    p.fillPath(tile, bg);
+    p.setClipPath(tile);
+    // (the F: a stem and two arms, each a rounded bar; a grown copy of the three is a contour line of the field round it)
+    const QRectF parts[3] = {QRectF(6.9, 4.4, 5.1, 15.2), QRectF(6.9, 4.4, 10.7, 4.1), QRectF(6.9, 10.7, 8.9, 3.9)};
+    const auto grown = [&](double d) {
+        QPainterPath path;
+        for (const QRectF& r : parts) path.addRoundedRect(r.adjusted(-d, -d, d, d), 1.7 + d, 1.7 + d);
+        return path.simplified();
+    };
+    p.save();
+    p.translate(12, 12);
+    p.rotate(6);
+    p.translate(-12, -12);
+    p.fillPath(grown(2.35 + 1.45).subtracted(grown(2.35)), QColor(255, 214, 176));
+    p.fillPath(grown(5.15 + 1.45).subtracted(grown(5.15)), QColor(255, 170, 122));
+    const QColor ink(0x12, 0x45, 0x52);
+    p.fillPath(grown(0.55), ink);
+    p.fillPath(grown(0.0), QColor(255, 248, 240));
+    p.restore();
+    // (a sparkle at the top right)
+    QPolygonF star;
+    for (int k = 0; k < 8; ++k)
+    {
+        const double a = M_PI / 4 * k, r = k % 2 == 0 ? 1.9 : 0.5;
+        star << QPointF(19.6 + r * std::cos(a), 4.6 + r * std::sin(a));
+    }
+    p.setClipping(false);
     p.setPen(Qt::NoPen);
-    p.setBrush(sun);
-    p.drawRoundedRect(QRectF(0.5, 0.5, 23, 23), 5.5, 5.5);
-    const QColor ink(0x2b, 0x1d, 0x5c);
-    p.setPen(QPen(ink, 0.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    QPolygonF side, top;
-    side << QPointF(17.8, 10.3) << QPointF(20.8, 7.3) << QPointF(20.8, 17.9) << QPointF(17.8, 20.9);
-    top << QPointF(7.0, 10.3) << QPointF(17.8, 10.3) << QPointF(20.8, 7.3) << QPointF(10.0, 7.3);
-    p.setBrush(QColor(0x1f, 0x9a, 0x96));
-    p.drawPolygon(side);
-    p.setBrush(QColor(0x8f, 0xf0, 0xd8));
-    p.drawPolygon(top);
-    p.setBrush(QColor(0x2e, 0xc4, 0xb6));
-    p.drawRect(QRectF(7.0, 10.3, 10.8, 10.6));
-    // (the face)
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::white);
-    p.drawEllipse(QPointF(10.2, 14.2), 1.5, 1.75);
-    p.drawEllipse(QPointF(15.0, 14.2), 1.5, 1.75);
-    p.setBrush(ink);
-    p.drawEllipse(QPointF(10.4, 14.5), 0.75, 0.9);
-    p.drawEllipse(QPointF(15.2, 14.5), 0.75, 0.9);
-    p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(ink, 0.55, Qt::SolidLine, Qt::RoundCap));
-    p.drawArc(QRectF(10.6, 15.2, 3.6, 2.8), 200 * 16, 140 * 16);
+    p.setBrush(QColor(255, 255, 255, 245));
+    p.drawPolygon(star);
     p.end();
     px.setDevicePixelRatio(2);
     return QIcon(px);

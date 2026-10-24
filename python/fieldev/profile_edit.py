@@ -145,11 +145,33 @@ def _snap(req):
     return json.dumps({'edits': edits, 'label': 'Put the points on the plane', 'line': -1, 'name': ''})
 
 
-def _point_block(name, x, y, z):
-    ''' The lines of a point that is a model of its own: the point, its gizmo (so that it can be dragged) and the line that shows it '''
+def _point_block(name, x, y, z, size='1'):
+    ''' The lines of a point that is a model of its own: the point, its gizmo (so that it can be dragged, `size` the text of its scale) and the line that shows it '''
     return ['%s = point(%s, %s, %s)' % (name, x, y, z),
             '%s = gizmo(' % name, '    %s,' % name, '    move=(var(0), var(0), var(0)),', '    rotate=(var(0), var(0), var(0)),',
-            '    scale=(var(1), var(1), var(1)),', ')', name]
+            '    scale=(var(%s), var(%s), var(%s)),' % (size, size, size), ')', name]
+
+
+def _armature_info(owner, anchor):
+    ''' What the last run knows of the armature `owner` and of its node `anchor`: (half the width of its cross-section, the scale of that node) -- None and 1.0 where it is not known '''
+    try:
+        from fieldev import runner
+        from fieldev.stdlib import curves as C
+        info = getattr(runner.last_globals.get(owner), '_armature', None)
+        if info is None or info.profile is None:
+            return None, 1.0
+        coords = []
+        for p in getattr(info.profile, 'points', None) or []:
+            xyz = getattr(p, 'xyz', None)
+            if xyz is None:
+                xyz = tuple(p) + (0.0,) * (3 - len(p))
+            coords.append(tuple(C.value_of(v) for v in xyz))
+        half = 0.5 * max(max(c[i] for c in coords) - min(c[i] for c in coords) for i in range(3)) if coords else None
+        node = runner.last_globals.get(anchor)
+        scale = next((float(c.scale) for c in info.ctrls if c.item is node), 1.0)
+        return (half if half and half > 1e-9 else None), scale
+    except Exception:
+        return None, 1.0
 
 
 def _armature_node(req):
@@ -180,8 +202,15 @@ def _armature_node(req):
         while '%s_p%d' % (owner, k) in taken:
             k += 1
         new = '%s_p%d' % (owner, k)
-        block = _point_block(new, x, y, z)
+        # (the new node is as thick as the one before it; the one before it, once it is in the middle, is a corner: only the ends of an armature are spline points)
+        block = _point_block(new, x, y, z, _num_text(_armature_info(owner, anchor)[1]))
         edits = [[host.lineno - 1, 0, host.lineno - 1, 0, ''.join(b + '\n' for b in block)]]
+        if len(nodes.elts) >= 2:
+            before = next((a for a in tree.body if isinstance(a, ast.Assign) and len(a.targets) == 1 and isinstance(a.targets[0], ast.Name) and a.targets[0].id == anchor
+                           and _call_name(a.value) == 'point'), None)
+            if before is not None and not any(kw.arg == 'smooth' for kw in before.value.keywords):
+                row0, col0 = before.value.end_lineno - 1, _char_col(lines[before.value.end_lineno - 1], before.value.end_col_offset) - 1
+                edits.append([row0, col0, row0, col0, ', smooth=False'])
         last = nodes.elts[-1]
         row, col = last.end_lineno - 1, _char_col(lines[last.end_lineno - 1], last.end_col_offset)
         edits.append([row, col, row, col, ', ' + new])
@@ -205,7 +234,8 @@ def _armature_node(req):
     while any(t == '%s_%d' % (stem, n) or t.startswith('%s_%d_' % (stem, n)) for t in taken):
         n += 1
     var = '%s_%d' % (stem, n)
-    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'))
+    half, node_size = _armature_info(owner, anchor)
+    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'), half, node_size)
     end = host
     for stmt in tree.body[tree.body.index(host) + 1:]:
         shows = isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name) and stmt.value.id in (owner, owner + '_face')

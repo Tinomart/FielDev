@@ -1901,6 +1901,13 @@ void Interpreter::recordShape(
                     else
                         PyErr_Clear();
                     Py_XDECREF(rnd);
+                    // (how a node's thickness changes the section, and whether the first section is turned across the path)
+                    PyObject* off = PyObject_GetAttrString(obj, "_sweep_offset");
+                    PyObject* acr = PyObject_GetAttrString(obj, "_sweep_across");
+                    if (!off || !acr) PyErr_Clear();
+                    shape->setSweepOffset(off && PyObject_IsTrue(off) == 1, acr && PyObject_IsTrue(acr) == 1);
+                    Py_XDECREF(off);
+                    Py_XDECREF(acr);
                 }
                 Py_XDECREF(pd);
                 Py_XDECREF(qd);

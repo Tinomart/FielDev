@@ -1432,7 +1432,7 @@ A 2D shape pulled into a solid: the part of space between the distances `a` and 
 z = 0 for the shapes that lie there -- a circle, a rectangle -- so that is zmin and zmax; the plane of a profile is the plane of its points,
 and the normal is the direction u x v of that plane).  `extrude(circle(5), 0, 10)` is a cylinder 10 tall
 
-### `path_extrude(profile, path, twist=0)`
+### `path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False)`
 
 A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
 along `path`, turning with it, without twisting about it unless the points of the curve say so.
@@ -1445,6 +1445,17 @@ the ROTATION of a point (its gizmo's rotate numbers) twists the profile about th
 smooth change.  `twist` (degrees) turns the whole profile about the curve besides.  The ends are cut square.  A curve with corners is swept
 with mitered joints.  `path_extrude(circle(2), spline([a, b, c]))` is a bent tube; `extrude` is the straight case.  `path` may be a list of points:
 the spline through them
+
+ends     (round at the start, round at the end): an end that is True is a DOME instead of the flat face of the profile -- past the end of the path the profile shrinks along a quarter of a circle
+         (its size at a distance d from the end is the size there times sqrt(1 - (d / reach)^2), `reach` as long as the profile is wide), so that the end is the profile's own shape closing, as
+         long as the middle of its box is inside it or the shape can be seen from there (round, convex and star-like sections: a plus, a triangle; not a U or an L, whose notch the dome
+         covers).  The viewport builds the same dome from rings
+sizing   what the thickness of a point (its scale) does to the section: 'scale' (the default) multiplies the whole section about the middle of its box; 'offset' moves its outline in or out
+         by (scale - 1) times the radius of the widest circle the section holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is
+         exactly the scale -- and the round ends close along the same offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm
+         thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it
+across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays in its
+         own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle
 
 ### `profile(source, smooth=False, radius=0)`
 
@@ -1542,7 +1553,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
 sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in
 
-### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0)`
+### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizing="scale")`
 
 A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
@@ -1557,8 +1568,11 @@ profile  the cross-section: any 2D shape (a profile made of points, a polygon, a
 name     what the skeleton calls the armature ("arm.R"); joints: the names of the joints, one for each node (default `name_0`, `name_1` ...)
 parent   the name of the joint this armature hangs from, when its first node is not on a node of another armature
 twist    degrees: the whole cross-section turned about the path
+sizing   what the size of a node does to the cross-section there: "scale" (the default) multiplies the whole of it about its middle; "offset" moves its outline in or out by (size - 1) times
+         the radius of the widest circle it holds, so that a thinner cross-section of any shape stays inside a thicker one (see `path_extrude`)
 
-The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`) and flat at a corner
+The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the last) and
+flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it
 
 ### `character(armatures, blend="auto", symmetric=None)`
 

@@ -513,7 +513,7 @@ void Shape::setSweep(std::vector<ControlPoint> profile, bool profileDefault, std
 struct Shape::SweepNumbers
 {
     std::vector<libfive::pointshapes::Control> profile, path;
-    bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false, roundStart = false, roundEnd = false;
+    bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false, roundStart = false, roundEnd = false, offset = false, across = false;
     double twist = 0;                                                       // (degrees)
     Eigen::Vector3d about = Eigen::Vector3d::Zero(), move = Eigen::Vector3d::Zero(), rotate = Eigen::Vector3d::Zero(), scale = Eigen::Vector3d::Ones();
 };
@@ -536,6 +536,8 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
     out.free = m_sweep_free;
     out.roundStart = m_sweep_round_start;
     out.roundEnd = m_sweep_round_end;
+    out.offset = m_sweep_offset;
+    out.across = m_sweep_across;
     out.twist = evalConstant(m_sweep_twist, v);
     if (!std::isfinite(out.twist)) return false;
     out.placed = m_sweep_placed;
@@ -568,6 +570,75 @@ bool Shape::drawnFromNumbers() const
     }
     return false;
 }
+
+namespace
+{
+
+// The widest circle that fits inside a closed outline (a polygon, either way round): its radius and its middle -- found on a grid over the box of the outline, then narrowed in on.  profile.py's
+// _inscribed does the same on the same outline, so that the picture and the field move an outline by the same amount
+void inscribedCircle(const std::vector<Eigen::Vector2d>& poly, double& radius, Eigen::Vector2d& middle)
+{
+    radius = 0;
+    middle = Eigen::Vector2d::Zero();
+    const size_t n = poly.size();
+    if (n < 3) return;
+    double lox = 1e300, hix = -1e300, loy = 1e300, hiy = -1e300;
+    for (const auto& p : poly)
+    {
+        lox = std::min(lox, p.x());
+        hix = std::max(hix, p.x());
+        loy = std::min(loy, p.y());
+        hiy = std::max(hiy, p.y());
+    }
+    const auto depth = [&](double x, double y) {
+        bool inside = false;
+        double best = 1e300;
+        for (size_t i = 0; i < n; ++i)
+        {
+            const Eigen::Vector2d& a = poly[i];
+            const Eigen::Vector2d& b = poly[(i + 1) % n];
+            if ((a.y() > y) != (b.y() > y) && x < a.x() + (y - a.y()) * (b.x() - a.x()) / (b.y() - a.y())) inside = !inside;
+            const double dx = b.x() - a.x(), dy = b.y() - a.y(), l2 = dx * dx + dy * dy;
+            const double t = l2 > 0 ? std::max(0.0, std::min(1.0, ((x - a.x()) * dx + (y - a.y()) * dy) / l2)) : 0.0;
+            const double px = a.x() + t * dx - x, py = a.y() + t * dy - y;
+            best = std::min(best, px * px + py * py);
+        }
+        return inside ? std::sqrt(best) : -std::sqrt(best);
+    };
+    double bx = 0.5 * (lox + hix), by = 0.5 * (loy + hiy), bd = depth(bx, by);
+    const int cells = 24;
+    const double sx = (hix - lox) / cells, sy = (hiy - loy) / cells;
+    for (int i = 0; i < cells; ++i)
+    {
+        for (int j = 0; j < cells; ++j)
+        {
+            const double x = lox + (i + 0.5) * sx, y = loy + (j + 0.5) * sy, d = depth(x, y);
+            if (d > bd) { bd = d; bx = x; by = y; }
+        }
+    }
+    double wx = sx, wy = sy;
+    for (int round = 0; round < 6; ++round)
+    {
+        const double cx = bx, cy = by;
+        for (int i = -2; i <= 2; ++i)
+        {
+            for (int j = -2; j <= 2; ++j)
+            {
+                const double x = cx + i * wx * 0.5, y = cy + j * wy * 0.5, d = depth(x, y);
+                if (d > bd) { bd = d; bx = x; by = y; }
+            }
+        }
+        wx *= 0.5;
+        wy *= 0.5;
+    }
+    if (bd > 0)
+    {
+        radius = bd;
+        middle = Eigen::Vector2d(bx, by);
+    }
+}
+
+}   // namespace
 
 // The mesh of a sweep: the outline of the profile (from the middle of its box) carried along the path, a ring of it at both ends of every piece of the path -- in the frame
 // that piece has (the one the field of `path_extrude` has: carried along without turning about the path, turned by the points' rotations, scaled by their thickness) and cut
@@ -610,6 +681,68 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
     if (!cap) return nullptr;
     // (a mesh of libfive has a first vertex that is nobody's: the loop's vertices are the ones after it, and so are the indices of the triangles)
     const uint32_t capFirst = uint32_t(cap->verts.size()) - uint32_t(E);
+
+    // The widest circle the section holds (what a thickness is measured by when the sections are offset, and how far a round end reaches there), and -- for an offset -- how each corner of the
+    // outline moves: along the mitre of its two edges, so that every edge moves by the same amount, and held back where the outline would fold (half the way to the outline on the far side of
+    // it: where an arm is pulled thinner than itself, or a notch pushed shut, the corner stays on the middle line of it)
+    double inner = 0;
+    Eigen::Vector2d mid = Eigen::Vector2d::Zero();
+    inscribedCircle(prof, inner, mid);
+    const bool offsetMode = in.offset && inner > 1e-9;
+    std::vector<Eigen::Vector2d> mit(E, Eigen::Vector2d::Zero());
+    std::vector<double> limOut(E, HUGE_VAL), limIn(E, HUGE_VAL);
+    if (offsetMode)
+    {
+        const double orient = area >= 0 ? 1.0 : -1.0;
+        std::vector<Eigen::Vector2d> nrm(E, Eigen::Vector2d::Zero());
+        for (size_t i = 0; i < E; ++i)
+        {
+            const Eigen::Vector2d e = prof[(i + 1) % E] - prof[i];
+            const double l = e.norm();
+            if (l > 1e-12) nrm[i] = Eigen::Vector2d(e.y(), -e.x()) * (orient / l);
+        }
+        for (size_t i = 0; i < E; ++i)
+            if (nrm[i].squaredNorm() < 0.5) nrm[i] = nrm[(i + E - 1) % E];           // (an edge of no length: the normal of the one before it)
+        for (size_t i = 0; i < E; ++i)
+        {
+            const Eigen::Vector2d n1 = nrm[(i + E - 1) % E], n2 = nrm[i];
+            const Eigen::Vector2d s = n1 + n2;
+            const double c = 1.0 + n1.dot(n2);
+            Eigen::Vector2d m = c > 0.25 ? Eigen::Vector2d(s / c) : (s.norm() > 1e-9 ? Eigen::Vector2d(s.normalized() * 2.0) : n2);
+            if (m.norm() > 3.0) m = m.normalized() * 3.0;
+            mit[i] = m;
+        }
+        for (size_t i = 0; i < E; ++i)
+        {
+            const double len = mit[i].norm();
+            if (len < 1e-12) continue;
+            const Eigen::Vector2d u = mit[i] / len;
+            for (int dir = 0; dir < 2; ++dir)
+            {
+                const Eigen::Vector2d r = dir == 0 ? u : Eigen::Vector2d(-u);
+                double hit = HUGE_VAL;
+                for (size_t j = 0; j < E; ++j)
+                {
+                    if (j == i || (j + 1) % E == i) continue;
+                    const Eigen::Vector2d a = prof[j], q = prof[(j + 1) % E] - a;
+                    const double den = r.x() * q.y() - r.y() * q.x();
+                    if (std::fabs(den) < 1e-12) continue;
+                    const Eigen::Vector2d w = a - prof[i];
+                    const double t = (w.x() * q.y() - w.y() * q.x()) / den;
+                    const double s2 = (w.x() * r.y() - w.y() * r.x()) / den;
+                    if (t > 1e-9 && s2 >= 0 && s2 <= 1 && t < hit) hit = t;
+                }
+                if (hit < HUGE_VAL) (dir == 0 ? limOut : limIn)[i] = 0.5 * hit / len;
+            }
+        }
+    }
+    // (corner i of the outline at `scale`, moved out by `off` -- in when it is negative)
+    auto ringPoint = [&](size_t i, double scale, double off) -> Eigen::Vector2d {
+        const Eigen::Vector2d base = prof[i] * scale;
+        if (!offsetMode || std::fabs(off) < 1e-12) return base;
+        const double t = off > 0 ? std::min(off, limOut[i] * scale) : std::min(-off, limIn[i] * scale);
+        return off > 0 ? Eigen::Vector2d(base + mit[i] * t) : Eigen::Vector2d(base - mit[i] * t);
+    };
 
     // The path
     std::vector<std::pair<int, double>> owners;
@@ -655,6 +788,19 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
         {
             Uf[0] = pu;
             Wf[0] = pv;
+            const double d0 = ns.dot(T[0]);
+            if (in.across && std::fabs(d0) < 1.0 - 1e-9)
+            {
+                // (turned the least that puts it across the path: the way _across_frame of profile.py does)
+                const Vec target = d0 > 0 ? Vec(T[0]) : Vec(-T[0]);
+                Vec axis = ns.cross(target);
+                const double s0 = axis.norm();
+                axis /= s0;
+                const double c0 = std::fabs(d0);
+                const auto turn = [&](const Vec& v) { return Vec(v * c0 + axis.cross(v) * s0 + axis * (axis.dot(v) * (1.0 - c0))); };
+                Uf[0] = turn(pu);
+                Wf[0] = turn(pv);
+            }
         }
         else
         {
@@ -755,9 +901,17 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
             const double slope = cut.dot(Tk);
             // (the ends of an open path are the profile itself -- the profile at the start, its copy at the end -- not cut square across the path)
             const bool freeEnd = !closed && ((end == 0 && k == 0) || (end == 1 && k == pieces - 1));
-            for (const auto& q : prof)
+            for (size_t qi = 0; qi < E; ++qi)
             {
-                Vec p = centre + (nk * q.x() + bk * q.y()) * size;
+                Vec p;
+                if (offsetMode)
+                {
+                    // (the outline moved out by (size - 1) times the radius of the widest circle, not scaled)
+                    const Eigen::Vector2d q = ringPoint(qi, 1.0, (size - 1.0) * inner);
+                    p = centre + nk * q.x() + bk * q.y();
+                }
+                else
+                    p = centre + (nk * prof[qi].x() + bk * prof[qi].y()) * size;
                 if (!freeEnd && std::fabs(slope) > 1e-6) p -= Tk * (cut.dot(p - centre) / slope);
                 out->verts.push_back(Eigen::Vector3f(float(p.x()), float(p.y()), float(p.z())));
             }
@@ -795,7 +949,7 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
         mean /= double(E);
         auto dome = [&](uint32_t ring, const Vec& centre, const Vec& along, const Vec& nk, const Vec& bk, double size) {
             static const double angles[] = {12.0, 24.0, 36.0, 48.0, 60.0, 71.0, 80.0, 86.0};
-            const double reach = mean * size;
+            const double reach = offsetMode ? std::max(inner * size, 1e-6) : mean * size;
             // (a triangle of the dome faces out, away from the node: turned round here when it does not, so that no argument about the winding of the walls is needed)
             auto outward = [&](uint32_t a, uint32_t b, uint32_t c) {
                 const Eigen::Vector3f pa = out->verts[a], pb = out->verts[b], pc = out->verts[c];
@@ -809,9 +963,17 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
             {
                 const double th = deg * M_PI / 180.0, cs = std::cos(th), sn = std::sin(th);
                 const uint32_t first = uint32_t(out->verts.size());
-                for (const auto& q : prof)
+                for (size_t qi = 0; qi < E; ++qi)
                 {
-                    const Vec p = centre + along * (reach * sn) + (nk * q.x() + bk * q.y()) * (size * cs);
+                    Vec p;
+                    if (offsetMode)
+                    {
+                        // (the section of the node, its outline moved in along the quarter of a circle: every section of the dome lies inside the one below it)
+                        const Eigen::Vector2d q = ringPoint(qi, 1.0, (size - 1.0) * inner - reach * (1.0 - cs));
+                        p = centre + along * (reach * sn) + nk * q.x() + bk * q.y();
+                    }
+                    else
+                        p = centre + along * (reach * sn) + (nk * prof[qi].x() + bk * prof[qi].y()) * (size * cs);
                     out->verts.push_back(Eigen::Vector3f(float(p.x()), float(p.y()), float(p.z())));
                 }
                 for (size_t i = 0; i < E; ++i)
@@ -823,7 +985,7 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
                 previous = first;
             }
             const uint32_t tip = uint32_t(out->verts.size());
-            const Vec t = centre + along * reach;
+            const Vec t = centre + along * reach + (offsetMode ? Vec(nk * mid.x() + bk * mid.y()) : Vec(Vec::Zero()));
             out->verts.push_back(Eigen::Vector3f(float(t.x()), float(t.y()), float(t.z())));
             for (size_t i = 0; i < E; ++i) outward(previous + uint32_t(i), previous + uint32_t((i + 1) % E), tip);
         };
@@ -2596,6 +2758,7 @@ QString Shape::identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tre
         const auto sid = [&](const libfive::Tree& t) { return t.is_valid() ? quintptr(t.cooptimize(canonical).id()) : quintptr(0); };
         key += QString("|sweep %1 %2 %3%4|f%5").arg(m_sweep_profile.size()).arg(m_sweep_path.size()).arg(m_sweep_closed ? 1 : 0).arg(m_sweep_free ? "F" : "").arg(quintptr(built_tree.id()));
         key += QString("|r%1%2").arg(m_sweep_round_start ? 1 : 0).arg(m_sweep_round_end ? 1 : 0);              // (a dome or a flat end: not the same mesh)
+        key += QString("|o%1%2").arg(m_sweep_offset ? 1 : 0).arg(m_sweep_across ? 1 : 0);                      // (offset or scaled sections, across the path or in their own plane: not the same mesh)
         for (const auto* list : {&m_sweep_profile, &m_sweep_path})
         {
             for (const ControlPoint& c : *list)

@@ -29,6 +29,7 @@ License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 import ctypes
+import functools
 import math
 
 from fieldev.ffi import lib
@@ -316,10 +317,11 @@ def _has_handles_of_its_own(shape):
     return False
 
 
-def _profile_at(profile, a, b, size=None, centre=None):
+def _profile_at(profile, a, b, size=None, centre=None, grow=None):
     ''' The 2D shape as a field of two coordinates a and b (fields): where its own plane's origin is the point of the path and a, b run along its own two axes
         -- x and y for a shape in the plane z = 0, u and v for a profile.  `size` (a field, or None): how many times as big it is there -- the shape
-        is looked at from 1 / size as far, and the distance it says is made as many times as long, so that it is still a distance '''
+        is looked at from 1 / size as far, and the distance it says is made as many times as long, so that it is still a distance.  `grow` (a number, with `size`): the outline is moved out by
+        (size - 1) times it instead -- in where size is below 1 --, the section grown or thinned by an offset, not scaled (see `path_extrude(sizing='offset')`) '''
     profile = Shape.wrap(profile)
     inner = getattr(profile, 'profile2d', None)
     base = inner if inner is not None else profile
@@ -329,6 +331,8 @@ def _profile_at(profile, a, b, size=None, centre=None):
     cx, cy = centre if centre is not None else getattr(profile, '_centre2d', (0.0, 0.0))
     if size is None:
         return base.remap(a + cx if cx else a, b + cy if cy else b, Shape.wrap(0))
+    if grow is not None:
+        return base.remap(a + cx if cx else a, b + cy if cy else b, Shape.wrap(0)) - (size - 1.0) * grow
     return base.remap(a / size + cx if cx else a / size, b / size + cy if cy else b / size, Shape.wrap(0)) * size
 
 
@@ -349,7 +353,82 @@ def _turned(v, t, cs, sn):
     return C.add(C.add(C.mul(v, cs), C.mul(C.cross(t, v), sn)), C.mul(t, C.dot(t, v) * (1.0 - cs)))
 
 
-def path_extrude(profile, path, twist=0, ends=None):
+def _across_frame(bu, bv, t):
+    ''' The two axes of a profile (`bu`, `bv`) turned the least that puts its plane across the direction `t`: (u, v) -- the same two when it is across already --, or None when the plane holds
+        the direction (|n . t| below 0.1: nothing could be swept, the caller turns it another way) '''
+    n = C.unit(C.cross(bu, bv))
+    d = C.dot(n, t)
+    if abs(d) < 0.1:
+        return None
+    if abs(d) >= 1.0 - 1e-9:
+        return bu, bv
+    target = t if d > 0 else C.mul(t, -1.0)
+    axis = C.cross(n, target)
+    s = math.sqrt(C.dot(axis, axis))
+    axis = C.mul(axis, 1.0 / s)
+    c = abs(d)
+
+    def turn(v):
+        return C.add(C.add(C.mul(v, c), C.mul(C.cross(axis, v), s)), C.mul(axis, C.dot(axis, v) * (1.0 - c)))
+    return turn(bu), turn(bv)
+
+
+@functools.lru_cache(maxsize=64)
+def _inscribed_of(pts):
+    n = len(pts)
+    if n < 3:
+        return 0.0, (0.0, 0.0)
+    lox, hix = min(p[0] for p in pts), max(p[0] for p in pts)
+    loy, hiy = min(p[1] for p in pts), max(p[1] for p in pts)
+
+    def depth(x, y):
+        inside = False
+        best = 1e300
+        for i in range(n):
+            ax, ay = pts[i]
+            bx, by = pts[(i + 1) % n]
+            if (ay > y) != (by > y) and x < ax + (y - ay) * (bx - ax) / (by - ay):
+                inside = not inside
+            dx, dy = bx - ax, by - ay
+            l2 = dx * dx + dy * dy
+            t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / l2)) if l2 > 0 else 0.0
+            px, py = ax + t * dx - x, ay + t * dy - y
+            d2 = px * px + py * py
+            if d2 < best:
+                best = d2
+        d = math.sqrt(best)
+        return d if inside else -d
+    bx, by = 0.5 * (lox + hix), 0.5 * (loy + hiy)
+    bd = depth(bx, by)
+    cells = 24
+    sx, sy = (hix - lox) / cells, (hiy - loy) / cells
+    for i in range(cells):
+        for j in range(cells):
+            x, y = lox + (i + 0.5) * sx, loy + (j + 0.5) * sy
+            d = depth(x, y)
+            if d > bd:
+                bd, bx, by = d, x, y
+    wx, wy = sx, sy
+    for _ in range(6):
+        cx, cy = bx, by
+        for i in range(-2, 3):
+            for j in range(-2, 3):
+                x, y = cx + i * wx * 0.5, cy + j * wy * 0.5
+                d = depth(x, y)
+                if d > bd:
+                    bd, bx, by = d, x, y
+        wx *= 0.5
+        wy *= 0.5
+    return (bd, (bx, by)) if bd > 0 else (0.0, (0.0, 0.0))
+
+
+def _inscribed(points):
+    ''' The widest circle that fits inside the closed outline `points` [(x, y)]: (its radius, its middle) -- found on a grid over the box of the outline, then narrowed in on (the viewport's
+        Shape::sweepMesh does the same on the same outline, so that the field and the picture offset by the same amount); (0, ...) for an outline that holds none '''
+    return _inscribed_of(tuple((round(float(x), 9), round(float(y), 9)) for x, y in points))
+
+
+def path_extrude(profile, path, twist=0, ends=None, sizing='scale', across=False):
     ''' A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
         along `path`, turning with it, without twisting about it unless the points of the curve say so.
         THE 2D SHAPE IS WHERE THE SWEEP STARTS: the curve says how it travels, not where from -- the whole sweep is moved so that the first point of the curve is the middle of
@@ -364,8 +443,16 @@ def path_extrude(profile, path, twist=0, ends=None):
         ends     (round at the start, round at the end): an end that is True is a DOME instead of the flat face of the profile -- past the end of the path the profile shrinks along a
                  quarter of a circle (its size at a distance d from the end is the size there times sqrt(1 - (d / reach)^2), `reach` as long as the profile is wide), so that the end is the
                  profile's own shape closing, as long as the middle of its box is inside it or the shape can be seen from there (round, convex and star-like sections: a plus, a triangle; not a U or an L,
-                 whose notch the dome covers).  The viewport builds the same dome from rings (Shape::sweepMesh) '''
+                 whose notch the dome covers).  The viewport builds the same dome from rings (Shape::sweepMesh).
+        sizing   what the thickness of a point (its scale) does to the section: 'scale' (the default) multiplies the whole section about the middle of its box; 'offset' moves its outline in or out by
+                 (scale - 1) times the radius of the widest circle the section holds -- so a thinner section of ANY shape (a U, an L) stays inside a thicker one, and the radius of that circle is
+                 exactly the scale -- and the round ends close along the same offset (the section eroded along a quarter of a circle).  Where an offset folds (a notch narrower than the push, an arm
+                 thinner than the pull) the field fills it in or lets it vanish, and the viewport holds the outline on the middle line of it
+        across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
+                 in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle '''
     ends = (False, False) if ends is None else (bool(ends[0]), bool(ends[1]))
+    if sizing not in ('scale', 'offset'):
+        raise ValueError("path_extrude: sizing is 'scale' or 'offset', not %r" % (sizing,))
     if isinstance(path, (list, tuple)):
         from fieldev.stdlib.curves import spline
         path = spline(path)
@@ -461,7 +548,10 @@ def path_extrude(profile, path, twist=0, ends=None):
     W = [None] * pieces
     if base_plane is not None:
         bu, bv = base_plane[1], base_plane[2]
-        if abs(C.dot(C.unit(C.cross(bu, bv)), T[0])) >= 0.1:
+        turned_first = _across_frame(bu, bv, T[0]) if across else None
+        if turned_first is not None:
+            U[0], W[0] = turned_first
+        elif abs(C.dot(C.unit(C.cross(bu, bv)), T[0])) >= 0.1:
             U[0], W[0] = bu, bv
     if U[0] is None:
         first = None
@@ -536,6 +626,9 @@ def path_extrude(profile, path, twist=0, ends=None):
                 box_ring = [(bx0, by0), (bx1, by0), (bx1, by1), (bx0, by1)]
         except Exception:
             box_ring = None
+    # The radius of the widest circle the section holds: what an offset is measured by (`sizing='offset'`), and how far a round end reaches in
+    inner = _inscribed(ring or box_ring)[0] if (ring or box_ring) else 0.0
+    grow = inner if (sizing == 'offset' and inner > 1e-9) else None
     lo = [1e300] * 3
     hi = [-1e300] * 3
     best = None
@@ -553,18 +646,20 @@ def path_extrude(profile, path, twist=0, ends=None):
         s0, s1 = size_at(k), size_at(j)
         if box_ring:
             for end, sz in ((k, s0), (j, s1)):
+                # (an offset section is the outline as it is, pushed out by at most (scale - 1) * the radius of the widest circle it holds)
+                push = 0.0 if grow is None else max(sz - 1.0, 0.0) * grow
                 for px, py in box_ring:
                     for axis in range(3):
-                        x = V[end][axis] + sz * (px * nk[axis] + py * bk[axis])
-                        lo[axis] = min(lo[axis], x)
-                        hi[axis] = max(hi[axis], x)
+                        x = V[end][axis] + (sz if grow is None else 1.0) * (px * nk[axis] + py * bk[axis])
+                        lo[axis] = min(lo[axis], x - push)
+                        hi[axis] = max(hi[axis], x + push)
         size = None
         if abs(s0 - 1) > 1e-9 or abs(s1 - 1) > 1e-9:
             # (thicker or thinner here: the size runs along the piece from one end to the other)
             span = math.sqrt(C.dot(C.sub(V[j], V[k]), C.sub(V[j], V[k]))) + 1e-300
             slope = (s1 - s0) / span
             size = _linear(C.mul(T[k], slope), s0 - C.dot(T[k], V[k]) * slope).max(1e-3)
-        f = _profile_at(profile, a, b, size, centre2d)
+        f = _profile_at(profile, a, b, size, centre2d, grow)
         # the piece ends at the planes that bisect the corners (square at the ends of an open path), a hair past them, so that two pieces overlap there and
         # the joint is inside, not a plane where the field is zero
         mk, mj = tangent_at(k), tangent_at(j)
@@ -599,15 +694,26 @@ def path_extrude(profile, path, twist=0, ends=None):
             axis = C.mul(flat, -side if at_start else side)             # (out of the sweep)
             end_at = V[0] if at_start else V[n - 1]
             size0 = size_at(0 if at_start else n - 1)
-            reach = max(reach0 * size0, 1e-6)
             d = _linear(axis, -C.dot(axis, end_at))                     # (how far past the plane of the end)
             a = _linear(nk, -C.dot(nk, end_at))
             b = _linear(bk, -C.dot(bk, end_at))
-            size = ((1.0 - (d * (1.0 / reach)).square()).max(1e-6).sqrt() * size0).max(1e-3)
-            f = _profile_at(profile, a, b, size, centre2d)
             start = _linear(C.mul(axis, -1.0), C.dot(axis, end_at) - 1e-3)
+            if grow is None:
+                # (the section shrinking along a quarter of a circle, about the middle of its box)
+                reach = max(reach0 * size0, 1e-6)
+                size = ((1.0 - (d * (1.0 / reach)).square()).max(1e-6).sqrt() * size0).max(1e-3)
+                f = _profile_at(profile, a, b, size, centre2d)
+            else:
+                # (the section of the node, eroded: its outline moved in along a quarter of a circle until the widest circle it holds is gone -- every section of the dome lies inside the one below it)
+                reach = max(inner * size0, 1e-6)
+                closing = (d.square() * -1.0 + reach * reach).max(1e-9).sqrt()
+                f = _profile_at(profile, a, b, None, centre2d) - (size0 - 1.0) * grow + (closing * -1.0 + reach)
             best = best.min(f.max(start).max(d - reach))
+            for axis_i in range(3):
+                lo[axis_i] = min(lo[axis_i], end_at[axis_i] + axis[axis_i] * reach)
+                hi[axis_i] = max(hi[axis_i], end_at[axis_i] + axis[axis_i] * reach)
     out = Shape(lib.libfive_tree_copy(best.ptr))
+    out._sweep_inner = float(inner)         # (the radius of the widest circle the section holds: what the ring of a node is measured by when the sweep is offset)
     if box_ring:
         # (the box of the rings: one that holds the sweep, not its exact extent)
         pad = 0.02 * max(hi[a] - lo[a] for a in range(3)) + 1e-3
@@ -640,6 +746,8 @@ def path_extrude(profile, path, twist=0, ends=None):
         out._sweep_qclosed = bool(path.closed)
         out._sweep_twist = Shape.wrap(twist)
         out._sweep_round = ends
+        out._sweep_offset = grow is not None
+        out._sweep_across = bool(across)
         out._drawn_key = _sweep_key          # (what tells whether two sweeps are the same shape without meshing either: see symmetries.symmetry_images, distinct=True)
     return out
 
@@ -671,7 +779,8 @@ def _sweep_key(s):
         n = len(ring)
         outline = min(tuple(run[i:] + run[:i]) for run in (ring, ring[::-1]) for i in range(max(n, 1)))
         return ('sweep', outline, tuple(path), bool(s._sweep_qclosed), q(s._sweep_twist), bool(getattr(s, '_sweep_free', False)),
-                bool(s._sweep_pdefault), bool(s._sweep_qdefault), tuple(bool(v) for v in getattr(s, '_sweep_round', ())))
+                bool(s._sweep_pdefault), bool(s._sweep_qdefault), tuple(bool(v) for v in getattr(s, '_sweep_round', ())),
+                bool(getattr(s, '_sweep_offset', False)), bool(getattr(s, '_sweep_across', False)))
     except (AttributeError, TypeError, ValueError):
         return None
 

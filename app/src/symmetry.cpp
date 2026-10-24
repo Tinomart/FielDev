@@ -253,7 +253,7 @@ SymmetryPanel::SymmetryPanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     // (the look of the work plane's card)
     setStyleSheet(
-        "#SymmetryPanel { background: rgba(22, 76, 94, 222);"
+        "#SymmetryPanel { background: rgba(31, 138, 143, 222);"
         "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 6px; }"
         "QLabel { color: #93a1a1; font-size: 8pt; }"
         "QLabel#SymmetryInfo { color: #eee8d5; }"
@@ -271,7 +271,7 @@ SymmetryPanel::SymmetryPanel(QWidget* parent)
         "QToolButton#SymmetryClose:hover { color: #eee8d5; }"
         "QDoubleSpinBox, QSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
         "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 3px; padding: 1px 2px;"
-        "  font-size: 8pt; selection-background-color: rgba(38, 139, 210, 200); }");
+        "  font-size: 8pt; selection-background-color: rgba(47, 176, 168, 200); }");
 
     m_header->setObjectName("SymmetryHeader");
     m_header->setText(QString(QChar(0x25be)) + "  " + T("Symmetry"));

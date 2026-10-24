@@ -154,7 +154,7 @@ Editor::Editor(Language::Type language)
     // (the other tabs, which are not rendered, have a slightly darker page; the first tab is the bold
     // one with the accent line)
     setStyleSheet(QString(
-        "QPlainTextEdit { background-color: %1; color: %2; selection-background-color: #cfe3f3; border: none; }"
+        "QPlainTextEdit { background-color: %1; color: %2; selection-background-color: #ffe0cc; border: none; }"
         "QPlainTextEdit#Output { background-color: %3; border-top: 1px solid %4; padding: 2px 4px; }"
         "QPlainTextEdit#Aux { background-color: #f0ede3; }"
         "QTabBar { background: %3; }"

@@ -21,11 +21,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 namespace FielDev {
 
-// (the viewport's backdrop: a calm dark slate that lightens very gently upwards -- it is looked at all day, so it takes no attention from the model and has no hue to tire the eyes)
-#define SKY_BL 0.098, 0.137, 0.188
-#define SKY_BR 0.098, 0.137, 0.188
-#define SKY_TL 0.165, 0.216, 0.286
-#define SKY_TR 0.165, 0.216, 0.286
+// (the viewport's backdrop: a soft neutral charcoal grey that lightens very gently upwards -- it is looked at all day, so it takes no attention from the model: no deep blue to press on the eye, no strong hue,
+// and lifted from the old near-black.  Not lighter: the outlines, handles, rings and labels drawn over it are pale or mid-tone (cream, white, gold, the axis colours) and a middle grey takes their contrast away -- measured)
+#define SKY_BL 0.220, 0.230, 0.235
+#define SKY_BR 0.220, 0.230, 0.235
+#define SKY_TL 0.300, 0.310, 0.315
+#define SKY_TR 0.300, 0.310, 0.315
 
 void Background::initializeGL()
 {

@@ -218,6 +218,7 @@ public:
     /*  The ends of an open sweep that are domes -- a few rings that shrink like a quarter of a circle, and a point at the tip -- and not the flat face of the profile (an armature
      *  ends round at a node that is a spline point)  */
     void setSweepRound(bool atStart, bool atEnd) { m_sweep_round_start = atStart; m_sweep_round_end = atEnd; }
+    void setSweepOffset(bool offset, bool across) { m_sweep_offset = offset; m_sweep_across = across; }          // (a thickness offsets the outline, not scales it; the first section is across the path)
     bool hasSweep() const { return !m_sweep_path.empty() && !m_sweep_profile.empty(); }
     /*  The one number (var) an expression of the script's numbers is made of, or null when it has none or several: what moves a point along an axis  */
     static libfive::Tree::Id soleVarOf(const libfive::Tree& expression);
@@ -735,6 +736,7 @@ protected:
     bool m_sweep_profile_default = false, m_sweep_path_default = false, m_sweep_closed = false, m_sweep_placed = false, m_sweep_free = false;
     std::vector<std::pair<libfive::Tree::Id, float>> m_sweep_guard;
     bool m_sweep_round_start = false, m_sweep_round_end = false;
+    bool m_sweep_offset = false, m_sweep_across = false;
     libfive::Tree m_sweep_twist = libfive::Tree::invalid();
     double m_sweep_about[3] = {0, 0, 0};
     libfive::Tree m_sweep_move[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};

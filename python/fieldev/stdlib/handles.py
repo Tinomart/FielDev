@@ -286,8 +286,9 @@ def gizmo(shape, move=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1), about=None, 
                      '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist'):
             setattr(out, name, getattr(shape, name))
         out._sweep_free = getattr(shape, '_sweep_free', False)          # (the sweep of a primitive: its outline is in the plane z = 0)
-        if getattr(shape, '_sweep_round', None) is not None:
-            out._sweep_round = shape._sweep_round
+        for flag in ('_sweep_round', '_sweep_offset', '_sweep_across', '_sweep_inner'):
+            if getattr(shape, flag, None) is not None:
+                setattr(out, flag, getattr(shape, flag))
         out._sweep_guard = list(getattr(shape, '_sweep_guard', []))
         out._sweep_place = (tuple(float(x) for x in c), tuple(Shape.wrap(x) for x in move), tuple(Shape.wrap(x) for x in rotate), tuple(Shape.wrap(x) for x in scale))
     # (a prism stays one while the gizmo places it nowhere: its numbers are what they are made with)

@@ -619,10 +619,14 @@ protected:
     /*  The armature mode's own pieces (see startArmaturePlacing): where a click puts a node, the position of the node the next follows, the click, the cursor, a step back, the drawing  */
     bool armatureCursor(QPoint pos, QVector3D& out) const;
     bool armatureAnchorPosition(QVector3D& p) const;
+    bool armatureAnchorRadius(double& world) const;                 // (how thick the armature is at the node the next one follows: the size of the next node by default)
+    double armatureRadiusWorld(const Shape* node) const;           // (the radius of the ring of a node of an armature, in model units)
+    Shape* armatureRingAt(QPoint pos) const;                        // (the node of a selected armature whose ring is under the cursor)
     void placeArmatureNode(QPoint pos);
     void updateArmatureCursor(QPoint pos);
     void stepBackArmature();
     void drawArmaturePlacing(QPainter& painter);
+    void drawArmatureRings(QPainter& painter);
     /*  Asks for a picture and writes the call that stands it in the scene, in `plane` (front, back, right, left, top, bottom)  */
     void addReferenceImage(const QString& plane, const QVector3D& point, double scale, int atLine, const QString& file = QString());
     /*  The Python menu: the most basic features of the language -- a variable, if, loops, a function, a class ... -- as blocks of plain code written at the insertion point of the

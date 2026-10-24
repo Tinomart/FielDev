@@ -316,7 +316,7 @@ Tutorial::Tutorial(QMainWindow* window, View* view, Editor* editor, std::functio
     m_card->setObjectName("TourCard");
     m_card->setFixedWidth(440);
     m_card->setStyleSheet(
-        "#TourCard { background: #0d3a4a; border: 2px solid #ffcc33; border-radius: 10px; }"
+        "#TourCard { background: #176f75; border: 2px solid #ffcc33; border-radius: 10px; }"
         "#TourCard[done=\"true\"] { border: 2px solid #82cc58; }"
         "#TourCard QLabel { color: #eee8d5; background: transparent; }"
         "#TourCard QPushButton { color: #eee8d5; background: rgba(147, 161, 161, 40); border: 1px solid rgba(147, 161, 161, 110);"

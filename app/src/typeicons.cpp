@@ -188,18 +188,25 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
     }
     else if (type == "character")
     {
-        // a little head with a face
-        const QColor ink(0x2b, 0x1d, 0x5c);
-        p.setPen(QPen(ink, 1.2));
+        // a little figure with a face, as a character of a game is: a round head, a body, two arms and two legs
+        const QColor ink(0x1f, 0x4a, 0x58);
+        p.setPen(QPen(alpha(c, 230), 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.drawLine(QPointF(5.2, 9.4), QPointF(2.6, 11.6));
+        p.drawLine(QPointF(10.8, 9.4), QPointF(13.4, 11.6));
+        p.drawLine(QPointF(6.8, 12.6), QPointF(6.2, 15.0));
+        p.drawLine(QPointF(9.2, 12.6), QPointF(9.8, 15.0));
+        p.setPen(QPen(ink, 1.0));
+        p.setBrush(alpha(c, 215));
+        p.drawRoundedRect(QRectF(5.0, 8.4, 6.0, 4.8), 2.0, 2.0);
         p.setBrush(c);
-        p.drawEllipse(QPointF(8, 8.4), 6.0, 5.6);
+        p.drawEllipse(QPointF(8, 4.9), 3.5, 3.3);
         p.setPen(Qt::NoPen);
         p.setBrush(ink);
-        p.drawEllipse(QPointF(5.9, 7.4), 1.0, 1.25);
-        p.drawEllipse(QPointF(10.1, 7.4), 1.0, 1.25);
+        p.drawEllipse(QPointF(6.7, 4.4), 0.62, 0.78);
+        p.drawEllipse(QPointF(9.3, 4.4), 0.62, 0.78);
         p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(ink, 1.1, Qt::SolidLine, Qt::RoundCap));
-        p.drawArc(QRectF(5.6, 8.6, 4.8, 3.4), 200 * 16, 140 * 16);
+        p.setPen(QPen(ink, 0.9, Qt::SolidLine, Qt::RoundCap));
+        p.drawArc(QRectF(6.5, 4.9, 3.0, 2.2), 205 * 16, 130 * 16);
     }
     else if (type == "feature")
     {
@@ -287,7 +294,7 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
 // The mark of a custom block: a small badge at the lower right with a function's f
 void drawBlockMark(QPainter& p)
 {
-    p.setPen(QPen(QColor(0x16, 0x4c, 0x5e), 1.6));
+    p.setPen(QPen(QColor(0x1f, 0x8a, 0x8f), 1.6));
     p.setBrush(QColor(0xee, 0xe8, 0xd5));
     p.drawEllipse(QPointF(12.2, 12.2), 3.4, 3.4);
     QPainterPath f;
@@ -297,7 +304,7 @@ void drawBlockMark(QPainter& p)
     f.moveTo(11.0, 11.9);
     f.lineTo(13.3, 11.9);
     p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(QColor(0x16, 0x4c, 0x5e), 1.05, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setPen(QPen(QColor(0x1f, 0x8a, 0x8f), 1.05, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.drawPath(f);
 }
 

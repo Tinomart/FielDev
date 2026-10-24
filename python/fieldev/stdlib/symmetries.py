@@ -351,8 +351,9 @@ def _sweep_image(out, shape, mn, cn):
     out._sweep_qdefault, out._sweep_qclosed = shape._sweep_qdefault, shape._sweep_qclosed
     out._sweep_twist = Shape.wrap(shape._sweep_twist) * (-1.0 if improper else 1.0)
     out._sweep_free = False                      # (its outline is given in space: the plane is the one its points make)
-    if getattr(shape, '_sweep_round', None) is not None:
-        out._sweep_round = shape._sweep_round        # (the ends are the same ends: a dome stays a dome in the image)
+    for flag in ('_sweep_round', '_sweep_offset', '_sweep_across', '_sweep_inner'):
+        if getattr(shape, flag, None) is not None:
+            setattr(out, flag, getattr(shape, flag))        # (the ends are the same ends: a dome stays a dome in the image)
     guard = list(getattr(shape, '_sweep_guard', []))
     place = getattr(shape, '_sweep_place', None)
     if place is not None:

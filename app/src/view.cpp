@@ -41,6 +41,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPainterPath>
 #include <QtConcurrent>
 
 #include <algorithm>
@@ -949,7 +950,7 @@ void View::paintOverlay(QPainter& painter)
         const QRectF box(section_readout_pos + QPointF(14, 10),
                          QSizeF(fm.horizontalAdvance(section_readout) + 12, fm.height() + 6));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 215));
+        painter.setBrush(QColor(31, 138, 143, 215));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, section_readout);
@@ -986,7 +987,7 @@ void View::paintOverlay(QPainter& painter)
         const QRectF box(probe_pos + QPointF(16, 12),
                          QSizeF(fm.horizontalAdvance(text) + 14, fm.height() + 8));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 225));
+        painter.setBrush(QColor(31, 138, 143, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, text);
@@ -1216,7 +1217,7 @@ void View::drawLegends(QPainter& painter)
         const int boxW = textW + 20, boxH = fm.height() + 20 + rowH * cats.size();
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 200));
+        painter.setBrush(QColor(31, 138, 143, 200));
         painter.drawRoundedRect(box, 6, 6);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(QRect(box.left() + 10, box.top() + 6, boxW - 20, fm.height()),
@@ -1251,7 +1252,7 @@ void View::drawLegends(QPainter& painter)
         const int boxW = textW + 20, boxH = fm.height() + 20 + rowH * int(materialRows.size());
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 200));
+        painter.setBrush(QColor(31, 138, 143, 200));
         painter.drawRoundedRect(box, 6, 6);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(QRect(box.left() + 10, box.top() + 6, boxW - 20, fm.height()), Qt::AlignLeft | Qt::AlignVCenter, materialsTitle);
@@ -1286,7 +1287,7 @@ void View::drawLegends(QPainter& painter)
         const int boxH = barH + fm.height() * 2 + 18;
         const QRect box(right - boxW, height() - boxH - 12, boxW, boxH);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(22, 76, 94, 200));
+        painter.setBrush(QColor(31, 138, 143, 200));
         painter.drawRoundedRect(box, 6, 6);
 
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
@@ -1752,6 +1753,21 @@ void View::mousePressEvent(QMouseEvent* event)
         }
         if (event->button() == Qt::LeftButton)
         {
+            // The ring of a node of an armature that is selected: pressed, it scales the thickness of that node, as the ring of a selected node does
+            if (!m_arm.on)
+            {
+                if (Shape* node = armatureRingAt(event->pos()))
+                {
+                    syncPicker();
+                    beginGizmoDrag(GizmoGrip{node, 2, 0}, event->pos());
+                    if (gizmo_drag)
+                    {
+                        press_pos = QPoint(-100000, -100000);   // not a selection click
+                        press_target = nullptr;
+                        return;
+                    }
+                }
+            }
             // A part's handle (a move arrow or a rotation ring)
             syncPicker();
             const GizmoGrip grip = gizmoAt(event->pos());
@@ -2872,7 +2888,7 @@ void View::wpMarker(QPainter& painter, const QPointF& q, int mode, double alpha,
 {
     const double r = 5.0;
     painter.setPen(QPen(lit ? QColor(133, 153, 0) : QColor(238, 232, 213, int(255 * alpha)), 1.5));
-    painter.setBrush(QColor(38, 139, 210, int(255 * alpha)));
+    painter.setBrush(QColor(47, 176, 168, int(255 * alpha)));
     if (mode == 1)
     {
         painter.drawRect(QRectF(q.x() - r, q.y() - r, 2 * r, 2 * r));
@@ -3246,7 +3262,7 @@ void View::drawWorkPlane(QPainter& painter)
     QPolygonF quad;
     quad << toScreen(o + u * smin + v * tmin) << toScreen(o + u * smax + v * tmin) << toScreen(o + u * smax + v * tmax) << toScreen(o + u * smin + v * tmax);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(38, 139, 210, 26));
+    painter.setBrush(QColor(47, 176, 168, 26));
     painter.drawPolygon(quad);
     // The grid: every line of its step, a stronger one at every fifth; a coarser one when the step would be closer than a few pixels
     if (m_wp.grid)
@@ -3277,7 +3293,7 @@ void View::drawWorkPlane(QPainter& painter)
     painter.drawLine(toScreen(o + v * tmin), toScreen(o + v * tmax));
     // The view is a mode: a frame round the viewport says so
     painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(QColor(38, 139, 210, 150), 2.0));
+    painter.setPen(QPen(QColor(47, 176, 168, 150), 2.0));
     painter.drawRect(rect().adjusted(1, 1, -2, -2));
     // The line or the spline that is being put down: its points, and the way through them to where the cursor is
     if (!m_wpPlaced.isEmpty())
@@ -3565,32 +3581,150 @@ void View::updateArmatureCursor(QPoint pos)
     if (m_arm.cursorValid || was) m_overlay->update();
 }
 
-// What is being put down: a ring on the node the next one follows, the way from it to where the cursor is with a node there.  No text on the screen: what the clicks do is taught by the tour and the docs
+// How thick the armature is at a node, as the radius of its ring in model units: the number the armature gave the node (the radius of its cross-section) times the node's own scale
+double View::armatureRadiusWorld(const Shape* s) const
+{
+    const auto& h = s->gizmo();
+    const auto& vars = s->getVars();
+    double sum = 0;
+    int n = 0;
+    for (int a = 0; a < 3; ++a)
+    {
+        const auto it = h.scale[a] ? vars.find(h.scale[a]) : vars.end();
+        if (it == vars.end()) continue;
+        sum += it->second;
+        ++n;
+    }
+    return double(s->armatureFactor()) * std::max(0.0, n ? sum / n : 1.0);
+}
+
+// How thick the armature is at the node the next one follows (a node in the middle of an armature: the armature the next one branches from)
+bool View::armatureAnchorRadius(double& world) const
+{
+    if (m_arm.anchor.isEmpty() || !m_scene) return false;
+    for (const Shape* s : shapes)
+    {
+        if (!s->isPoint() || s->sourceLine() < 0 || !(s->armatureFactor() > 0.0f)) continue;
+        if (m_scene->varAtLine(s->sourceLine()) != m_arm.anchor) continue;
+        world = armatureRadiusWorld(s);
+        return world > 0;
+    }
+    return false;
+}
+
+// What is being put down: the node the next one follows with its ring, and the armature as it would be with the next node at the cursor -- the way from the one to the other as thick as the two
+// rings, drawn as the cursor moves, so that the size and the direction are seen before the click.  The ring at the cursor is the size of the node before it (the armature it branches from, for a
+// branch); the first node of an armature gets about what a new armature is made as thick as.  No text on the screen: what the clicks do is taught by the tour and the docs
 void View::drawArmaturePlacing(QPainter& painter)
 {
     if (!m_arm.on) return;
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
     const QColor gold(255, 196, 61);
+    const auto gold_a = [&](int alpha) { return QColor(gold.red(), gold.green(), gold.blue(), alpha); };
+    double worldR = 0;
+    const bool haveSize = m_arm.hasAnchorPos && armatureAnchorRadius(worldR);
+    double cursorR = 19.0;
+    if (haveSize && m_arm.cursorValid)
+    {
+        const float L = gizmoLength(m_arm.cursor);
+        if (L > 0) cursorR = std::max(4.0, 80.0 * worldR / double(L));
+    }
+    QPointF a;
+    double anchorR = 12.0;
     if (m_arm.hasAnchorPos)
     {
-        const QPointF a = toScreen(m_arm.anchorPos);
+        a = toScreen(m_arm.anchorPos);
+        if (haveSize)
+        {
+            const float La = gizmoLength(m_arm.anchorPos);
+            if (La > 0) anchorR = std::max(9.0, 80.0 * worldR / double(La));
+        }
         painter.setBrush(Qt::NoBrush);
         painter.setPen(QPen(gold, 2.5));
-        painter.drawEllipse(a, 12.0, 12.0);
-        if (m_arm.cursorValid)
-        {
-            painter.setPen(QPen(QColor(gold.red(), gold.green(), gold.blue(), 200), 2.0, Qt::DashLine));
-            painter.drawLine(a, toScreen(m_arm.cursor));
-        }
+        painter.drawEllipse(a, anchorR, anchorR);
     }
     if (m_arm.cursorValid)
     {
+        const QPointF c = toScreen(m_arm.cursor);
+        if (m_arm.hasAnchorPos)
+        {
+            QPainterPath tube;
+            tube.addEllipse(a, anchorR, anchorR);
+            tube.addEllipse(c, cursorR, cursorR);
+            const QPointF d = c - a;
+            const double l = std::hypot(d.x(), d.y());
+            if (l > 1e-6 && l > std::fabs(anchorR - cursorR))
+            {
+                // (the two outer tangents of the two rings: m is the unit normal of a tangent line, m . u = (r1 - r2) / l)
+                const QPointF u = d / l, n(-u.y(), u.x());
+                const double k = (anchorR - cursorR) / l, h = std::sqrt(std::max(0.0, 1.0 - k * k));
+                const QPointF m1 = u * k + n * h, m2 = u * k - n * h;
+                QPolygonF hull;
+                hull << a + m1 * anchorR << c + m1 * cursorR << c + m2 * cursorR << a + m2 * anchorR;
+                tube.addPolygon(hull);
+            }
+            painter.setPen(QPen(gold_a(200), 1.6));
+            painter.setBrush(gold_a(55));
+            painter.drawPath(tube.simplified());
+            painter.setPen(QPen(gold_a(200), 2.0, Qt::DashLine));
+            painter.drawLine(a, c);
+        }
+        else
+        {
+            painter.setPen(QPen(gold_a(200), 1.8));
+            painter.setBrush(gold_a(55));
+            painter.drawEllipse(c, cursorR, cursorR);
+        }
         painter.setPen(QPen(QColor(255, 255, 255, 230), 1.5));
-        painter.setBrush(QColor(gold.red(), gold.green(), gold.blue(), 160));
-        painter.drawEllipse(toScreen(m_arm.cursor), 7.0, 7.0);
+        painter.setBrush(gold_a(160));
+        painter.drawEllipse(c, 7.0, 7.0);
     }
     painter.restore();
+}
+
+// The ring of every node of an armature that is selected -- not only of the node that is selected: a circle round the node of the armature's real radius there, the way Dust3D shows the size of
+// its nodes.  Pressed, it scales the thickness of that node (see armatureRingAt)
+void View::drawArmatureRings(QPainter& painter)
+{
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setBrush(Qt::NoBrush);
+    for (const Shape* armature : shapes)
+    {
+        if (!armature->isSelected() || !armature->hasGroupPoints()) continue;
+        for (const Shape* node : shapes)
+        {
+            if (!node->isPoint() || !(node->armatureFactor() > 0.0f) || !armature->groupHas(node)) continue;
+            const double r = ringPx(node);
+            const QPointF c = toScreen(node->gizmoPivot());
+            painter.setPen(QPen(QColor(0, 0, 0, 80), 4.2));
+            painter.drawEllipse(c, r, r);
+            painter.setPen(QPen(QColor(0xe0, 0xa8, 0x20, 230), 2.0));          // (the gold of the scale ring of a point)
+            painter.drawEllipse(c, r, r);
+        }
+    }
+    painter.restore();
+}
+
+// The node of a selected armature whose ring is under the cursor (within a few pixels of the circle), if any
+Shape* View::armatureRingAt(QPoint pos) const
+{
+    const QPointF at(pos);
+    Shape* best = nullptr;
+    double bestDist = 4.5;
+    for (const Shape* armature : shapes)
+    {
+        if (!armature->isSelected() || !armature->hasGroupPoints()) continue;
+        for (Shape* node : shapes)
+        {
+            if (!node->isPoint() || !(node->armatureFactor() > 0.0f) || !node->hasGizmo() || !armature->groupHas(node)) continue;
+            const QPointF c = toScreen(node->gizmoPivot());
+            const double d = std::fabs(std::hypot(at.x() - c.x(), at.y() - c.y()) - ringPx(node));
+            if (d < bestDist) { bestDist = d; best = node; }
+        }
+    }
+    return best;
 }
 
 void View::addReferenceImage(const QString& plane, const QVector3D& point, double scale, int atLine, const QString& file)
@@ -4017,13 +4151,13 @@ void View::showSelectMenu(QPoint globalPos, int line, const QVector3D& point)
         "QLabel { color: #eee8d5; }"
         "QComboBox, QDoubleSpinBox { color: #eee8d5; background: rgba(0, 0, 0, 70);"
         "  border: 1px solid rgba(147, 161, 161, 90); border-radius: 3px; padding: 2px 6px;"
-        "  selection-background-color: rgba(38, 139, 210, 200); }"
-        "QComboBox QAbstractItemView { color: #eee8d5; background: #25607a;"
-        "  selection-background-color: rgba(38, 139, 210, 200); }"
+        "  selection-background-color: rgba(47, 176, 168, 200); }"
+        "QComboBox QAbstractItemView { color: #eee8d5; background: #2a9ea3;"
+        "  selection-background-color: rgba(47, 176, 168, 200); }"
         "QPushButton { color: #eee8d5; background: rgba(147, 161, 161, 28);"
         "  border: 1px solid rgba(147, 161, 161, 70); border-radius: 4px; padding: 4px 16px; }"
         "QPushButton:hover { background: rgba(147, 161, 161, 60); }"
-        "QPushButton:default { background: rgba(38, 139, 210, 170); border-color: rgba(38, 139, 210, 230);"
+        "QPushButton:default { background: rgba(47, 176, 168, 170); border-color: rgba(47, 176, 168, 230);"
         "  color: white; }");
     auto form = new QFormLayout(holder);
     form->setContentsMargins(10, 4, 10, 6);
@@ -5380,7 +5514,7 @@ void View::drawSectionHandle(QPainter& painter)
 void View::paintNormalArrow(QPainter& painter, QPointF p, QPointF q, bool hot)
 {
     const QPointF back = p - (q - p);
-    const QColor col = hot ? QColor(80, 170, 240) : QColor(38, 139, 210);
+    const QColor col = hot ? QColor(94, 206, 196) : QColor(47, 176, 168);
 
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
@@ -5412,7 +5546,7 @@ void View::paintNormalArrow(QPainter& painter, QPointF p, QPointF q, bool hot)
 
 namespace {
 
-const QColor kGizmoColor[3] = {QColor(0xdc, 0x32, 0x2f), QColor(0x74, 0xb8, 0x1f), QColor(0x26, 0x8b, 0xd2)};
+const QColor kGizmoColor[3] = {QColor(0xdc, 0x32, 0x2f), QColor(0x74, 0xb8, 0x1f), QColor(0x2f, 0xb0, 0xa8)};
 
 // The axes the three rotation rings turn about (turning right-handed about
 // each is a positive change of its angle).  The part turns by Rz * Ry * Rx, so
@@ -5754,7 +5888,7 @@ void View::drawFieldGizmo(QPainter& painter, const FieldViewer& v)
     arrow(m, u, kGizmoColor[ua], part == 1);
     arrow(m, w, kGizmoColor[va], part == 2);
     painter.setPen(QPen(part == 3 ? Qt::white : QColor(0xee, 0xe8, 0xd5), 1.5));
-    painter.setBrush(part == 3 || part == 4 ? QColor(80, 170, 240) : QColor(38, 139, 210));
+    painter.setBrush(part == 3 || part == 4 ? QColor(94, 206, 196) : QColor(47, 176, 168));
     painter.drawEllipse(m, 6.5, 6.5);
     painter.restore();
 }
@@ -5791,7 +5925,7 @@ void View::drawFieldIcons(QPainter& painter)
             painter.drawEllipse(q, 19, 19);
         }
         painter.setPen(QPen(hot ? QColor(Qt::white) : QColor(0xee, 0xe8, 0xd5), 1.5));
-        painter.setBrush(QColor(22, 76, 94, 235));
+        painter.setBrush(QColor(31, 138, 143, 235));
         painter.drawEllipse(q, 13, 13);
         icon.paint(&painter, QRect(int(std::lround(q.x())) - 9, int(std::lround(q.y())) - 9, 18, 18));
         // the name, over the icon
@@ -5801,7 +5935,7 @@ void View::drawFieldIcons(QPainter& painter)
         box.moveLeft(std::max(2.0, std::min(double(width()) - sz.width() - 2, box.left())));
         box.moveTop(std::max(2.0, box.top()));
         painter.setPen(QPen(green, 1.5));
-        painter.setBrush(QColor(22, 76, 94, 225));
+        painter.setBrush(QColor(31, 138, 143, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, text);
@@ -6516,7 +6650,7 @@ void View::drawProvisional(QPainter& painter)
         painter.drawRect(QRectF(q.x() - 5.5, q.y() - 5.5, 11, 11));
     }
     painter.setPen(QPen(QColor(0xee, 0xe8, 0xd5), 1.5));
-    painter.setBrush(QColor(38, 139, 210));
+    painter.setBrush(QColor(47, 176, 168));
     painter.drawEllipse(p0, 5.5, 5.5);
     painter.restore();
 }
@@ -6564,7 +6698,7 @@ void View::drawMarkers(QPainter& painter)
         // The dot of a gizmo (see drawGizmo), the same colours; lit up while the set is the model tree's selection
         const bool on = s->isSelected();
         painter.setPen(QPen(on ? QColor(Qt::white) : QColor(0xee, 0xe8, 0xd5), 1.0));
-        painter.setBrush(on ? QColor(80, 170, 235) : QColor(38, 139, 210));
+        painter.setBrush(on ? QColor(94, 206, 196) : QColor(47, 176, 168));
         const double r = on ? 4.5 : 4.0;
         for (const QVector3D& p : s->markers())
         {
@@ -6592,7 +6726,7 @@ void View::drawPointDots(QPainter& painter)
         if (q.x() < -8 || q.y() < -8 || q.x() > width() + 8 || q.y() > height() + 8) continue;
         const bool on = s->isSelected() || s == m_dotHover;
         painter.setPen(QPen(on ? QColor(Qt::white) : QColor(0xee, 0xe8, 0xd5), 1.5));
-        painter.setBrush(on ? QColor(80, 170, 235) : QColor(38, 139, 210));
+        painter.setBrush(on ? QColor(94, 206, 196) : QColor(47, 176, 168));
         const double r = on ? 6.0 : 5.0;
         const int style = pointStyleOf(s);
         if (style == 1)
@@ -6624,9 +6758,9 @@ void View::drawPointDots(QPainter& painter)
                 {
                     const QPointF u = d / len;
                     const QPointF tip = q + u * 46.0;
-                    painter.setPen(QPen(QColor(120, 195, 255), 1.6, Qt::DashLine));
+                    painter.setPen(QPen(QColor(140, 225, 215), 1.6, Qt::DashLine));
                     painter.drawLine(q - u * 46.0, tip);
-                    painter.setPen(QPen(QColor(120, 195, 255), 1.8));
+                    painter.setPen(QPen(QColor(140, 225, 215), 1.8));
                     const QPointF n(-u.y(), u.x());
                     painter.drawLine(tip, tip - u * 8.0 + n * 4.0);
                     painter.drawLine(tip, tip - u * 8.0 - n * 4.0);
@@ -6653,7 +6787,7 @@ void View::drawOutlines(QPainter& painter)
         if (s->outlines().empty() || (!s->isFlat() && !s->isCurve() && !s->isFace())) continue;
         const bool hot = s == m_outlineHover || (s->isHovered() && (s->isFlat() || s->isFace()));
         const bool on = s->isSelected();
-        QColor c = hot ? QColor(120, 195, 255) : on ? QColor(105, 180, 255) : QColor(52, 140, 245);
+        QColor c = hot ? QColor(140, 225, 215) : on ? QColor(105, 180, 255) : QColor(52, 140, 245);
         painter.setPen(QPen(c, hot ? 3.4 : on ? 2.8 : 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         std::vector<OutlinePoint> points;
         for (size_t li = 0; li < s->outlines().size(); ++li)
@@ -6766,7 +6900,7 @@ void View::drawHints(QPainter& painter)
     if (box.right() > width() - 4) box.moveRight(width() - 4);
     if (box.bottom() > height() - 4) box.moveBottom(mouse.pos.y() - 8);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(22, 76, 94, 225));
+    painter.setBrush(QColor(31, 138, 143, 225));
     painter.drawRoundedRect(box, 4, 4);
     painter.setPen(QColor(0xee, 0xe8, 0xd5));
     painter.drawText(box, Qt::AlignCenter, text);
@@ -6893,7 +7027,7 @@ void View::drawNameLabels(QPainter& painter)
         box.moveTop(std::max(2.0, box.top()));
         if (box.bottom() < 0 || box.top() > height()) continue;
         painter.setPen(QPen(s->isSelected() ? QColor(Qt::white) : QColor(0x93, 0xa1, 0xa1), 1.5));
-        painter.setBrush(QColor(22, 76, 94, 225));
+        painter.setBrush(QColor(31, 138, 143, 225));
         painter.drawRoundedRect(box, 4, 4);
         painter.setPen(QColor(0xee, 0xe8, 0xd5));
         painter.drawText(box, Qt::AlignCenter, s->appLabel());
@@ -6902,12 +7036,13 @@ void View::drawNameLabels(QPainter& painter)
 
 void View::drawGizmo(QPainter& painter)
 {
+    drawArmatureRings(painter);
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
     // The dot in the middle of a gizmo: it drags the shape freely (in the plane facing the camera)
     auto dot = [&](const QPointF& p0, bool on) {
         painter.setPen(QPen(on ? QColor(Qt::white) : QColor(0xee, 0xe8, 0xd5), 1.5));
-        painter.setBrush(on ? QColor(80, 170, 235) : QColor(38, 139, 210));
+        painter.setBrush(on ? QColor(94, 206, 196) : QColor(47, 176, 168));
         painter.drawEllipse(p0, on ? 6.5 : 5.5, on ? 6.5 : 5.5);
     };
     // A plane square of the Shift gizmo: the colour of the axis that is the plane's normal, lit up while it is under the cursor or dragged
@@ -7051,7 +7186,7 @@ void View::drawGizmo(QPainter& painter)
                     const QPointF at = scaling ? p0 + QPointF(0.7071, -0.7071) * radius : toScreen(groupCenter + (0.62f * L) * u);
                     const QRectF box(at + QPointF(8, -8 - fm.height()), QSizeF(fm.horizontalAdvance(text) + 10, fm.height() + 4));
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(QColor(22, 76, 94, 225));
+                    painter.setBrush(QColor(31, 138, 143, 225));
                     painter.drawRoundedRect(box, 4, 4);
                     painter.setPen(QColor(0xee, 0xe8, 0xd5));
                     painter.drawText(box, Qt::AlignCenter, text);
@@ -7184,7 +7319,7 @@ void View::drawGizmo(QPainter& painter)
                     const QPointF at = p0 + QPointF(0.7071, -0.7071) * radius;
                     const QRectF box(at + QPointF(8, -8 - fm.height()), QSizeF(fm.horizontalAdvance(text) + 10, fm.height() + 4));
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(QColor(22, 76, 94, 225));
+                    painter.setBrush(QColor(31, 138, 143, 225));
                     painter.drawRoundedRect(box, 4, 4);
                     painter.setPen(QColor(0xee, 0xe8, 0xd5));
                     painter.drawText(box, Qt::AlignCenter, text);
