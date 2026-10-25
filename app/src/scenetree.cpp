@@ -1838,7 +1838,16 @@ void ScenePanel::setScene(const QString& json)
     noteLockedInMulti(false);
     // (the shapes of this run are in the viewport already, and a changed shape is a new one: the selected models are
     // lit up again, from the lines they are on now)
-    emit(highlightLines(selectedLines()));
+    // (the scene of a run that is not done -- the rows an edit made, before the run has made its shapes -- finds the shapes of the last run in the viewport, on the lines they were made on: they stay lit.
+    // The selected statement of an edit that wrote it again is on another line than its shape, and the picture lost the selection -- the circles and points of an armature -- until the run was done)
+    if (std::getenv("FIELDEV_TIMING"))
+    {
+        QStringList lit;
+        for (int l : selectedLines()) lit << QString::number(l + 1);
+        fprintf(stderr, "[tree] scene of a run that is %s: the lines lit are %s\n", m_scene["run_done"].toBool() ? "done" : "not done", lit.join(",").toUtf8().constData());
+    }
+    if (m_scene["run_done"].toBool()) emit(highlightLines(selectedLines()));
+    else emit(highlightLinesKeep(selectedLines()));
     updateActiveSymmetry();
     updateMultiNote();
     updateProvisional();
@@ -3643,7 +3652,7 @@ bool ScenePanel::editFollowed(const QList<TextEdit>& edits, const QString& what,
             if (!m_rebuildPending) return;              // (a scene made the rows meanwhile)
             rebuild();
             updateMultiNote();
-            emit(highlightLines(selectedLines()));      // (the shapes of the selected rows, by their lines as they are now)
+            emit(highlightLinesKeep(selectedLines()));  // (the shapes of the selected rows, by their lines as they are now; the ones that were lit stay lit until the run has made new ones)
             runDeferred();
         });
     }
@@ -5843,7 +5852,7 @@ void ScenePanel::select(QTreeWidgetItem* row, bool focus)
         }
         if (it.contains("index") && it["index"].toInt() == k) lines = linesOf(it);
         emit(goToLine(line));
-        emit(highlightLines(lines));
+        { const QList<int> lit = lines; if (m_scene["run_done"].toBool()) emit(highlightLines(lit)); else emit(highlightLinesKeep(lit)); }   // (while the run of an edit is on its way the rows say the lines of the text after the edit, and the shapes in the viewport stand on the lines of the text before it: the shapes that are lit stay lit, and the run's own scene lights them exactly)
         if (focus)
         {
             const auto b = p["bounds"].toArray();
@@ -5863,12 +5872,12 @@ void ScenePanel::select(QTreeWidgetItem* row, bool focus)
         // call it is in, and the model it stands for is lit up
         const QJsonObject ref = itemBefore(row->data(COL_NAME, ROLE_PART).toString(), it["line"].toInt());
         emit(goToLine(it["line"].toInt() - 1));
-        emit(highlightLines(ref.isEmpty() ? QList<int>() : linesOf(ref)));
+        { const QList<int> lit = ref.isEmpty() ? QList<int>() : linesOf(ref); if (m_scene["run_done"].toBool()) emit(highlightLines(lit)); else emit(highlightLinesKeep(lit)); }
         if (focus && !ref.isEmpty()) focusOn(ref);
         return;
     }
     emit(goToLine(it["line"].toInt() - 1));
-    emit(highlightLines(linesOf(it)));
+    { const QList<int> lit = linesOf(it); if (m_scene["run_done"].toBool()) emit(highlightLines(lit)); else emit(highlightLinesKeep(lit)); }
     if (focus)
     {
         focusOn(it);
@@ -6945,7 +6954,11 @@ void ScenePanel::onSelectionChanged()
         const QString key = (*i)->data(COL_NAME, ROLE_KEY).toString();
         if (now.contains(key) && !m_selectOrder.contains(key)) m_selectOrder << key;
     }
-    emit(highlightLines(selectedLines()));
+    // (while the run of an edit is on its way the rows say the lines of the text after the edit, and the shapes in the viewport are those of the run before, on the lines of the text before it: lit by
+    // those lines, the shape of a statement that the edit wrote again goes out, and comes back with the run -- a flicker of the circles and points of an armature at every node.  The shapes that are
+    // lit stay lit; the run's own scene lights them exactly)
+    if (!m_scene["run_done"].toBool()) emit(highlightLinesKeep(selectedLines()));
+    else emit(highlightLines(selectedLines()));
     updateActiveSymmetry();
     updateMultiNote();
     updateProvisional();

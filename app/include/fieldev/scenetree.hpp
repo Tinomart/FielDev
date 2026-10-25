@@ -349,6 +349,9 @@ signals:
 
     /*  Highlight the shapes displayed by these (0-based) lines  */
     void highlightLines(QList<int> lines0);
+    /*  The same, while the run of an edit is on its way: the shapes of the selected rows are lit, and the ones that were lit stay lit.  The edit that writes the line of a statement again (a node put
+        into the call of an armature) leaves no shape on that line, and the picture lost the selection -- the circles and points of the armature -- until the run had made the new ones  */
+    void highlightLinesKeep(QList<int> lines0);
     /*  An edit of the script was followed by the tree before it was run: every (0-based) line of the old text is moved[line] now, or -1
      *  when it is gone.  The viewport's shapes know the lines they were made on only from a run: they are told  */
     void sourceLinesMoved(QVector<int> moved);

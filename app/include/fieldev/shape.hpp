@@ -346,6 +346,10 @@ public:
      */
     const libfive::Region<3>& getMeshBounds() const { return mesh_bounds; }
     bool hasMesh() const { return mesh && gl_ready; }
+    /*  Called by the viewport when a run has replaced this shape and it stays in the picture until its successor has a mesh: it does no work any more -- what it has is drawn, no finer level is
+        made for it, and nothing is announced  */
+    void becomeGhost();
+    bool isGhost() const { return m_ghost; }
     /*  The box of the mesh as a drag shows it -- moved, turned and scaled by the numbers of the gizmo that are being dragged -- false when no such picture is shown  */
     bool previewBox(QVector3D& lo, QVector3D& hi) const;
     /*  The same box for a shape that is not drawn moved but meshed again as it is dragged (the section view cuts, a colour, a result): where its mesh would be at the numbers of the
@@ -961,6 +965,7 @@ protected:
     QVector3D m_pre_lo, m_pre_hi;
     bool m_pre_stale = false;
     bool m_keyKnown = false;
+    bool m_ghost = false;
     libfive::Tree::Id m_keyId = libfive::Tree::Id();
     QString m_keyText;
     /*  The box of the shape at these numbers, searched for over a box (its own search, a few milliseconds at the most): false when it cannot be found  */

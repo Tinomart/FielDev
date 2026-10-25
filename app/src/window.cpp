@@ -1467,6 +1467,7 @@ Window::Window(Arguments args)
         connect(scene, &ScenePanel::editScriptLive, editor, &Editor::applyEditsLive);
         connect(scene, &ScenePanel::rerunRequested, editor, &Editor::onTextChangedDebounce);
         connect(scene, &ScenePanel::highlightLines, view, &View::highlightLines);
+        connect(scene, &ScenePanel::highlightLinesKeep, view, &View::keepHighlight);
         connect(scene, &ScenePanel::sourceLinesMoved, view, &View::moveSourceLines);
         connect(scene, &ScenePanel::focusRequested, view, &View::focusOn);
         // (the gizmo of a model that is selected is drawn at once, before the script has run with its numbers)

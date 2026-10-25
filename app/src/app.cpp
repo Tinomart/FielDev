@@ -105,6 +105,10 @@ bool App::notify(QObject* receiver, QEvent* e)
     static const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
     static int depth = 0;
     if (!timing || QThread::currentThread() != thread()) return QApplication::notify(receiver, e);
+    // (what the log says of the event is taken before it is delivered: the handler may delete the receiver -- a single-shot timer does -- and the event too)
+    const int type = int(e->type());
+    const char* cls = receiver ? receiver->metaObject()->className() : "?";
+    const QByteArray name = receiver ? receiver->objectName().toUtf8() : QByteArray();
     const auto t0 = std::chrono::steady_clock::now();
     ++depth;
     const bool r = QApplication::notify(receiver, e);
@@ -112,8 +116,7 @@ bool App::notify(QObject* receiver, QEvent* e)
     const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     if (ms > 30)
         fprintf(stderr, "[at %lld ms] [gui] %*sthe window's thread was busy %.0f ms with event %d of %s \"%s\"\n",
-                (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), depth * 2, "", ms, int(e->type()),
-                receiver ? receiver->metaObject()->className() : "?", receiver ? qPrintable(receiver->objectName()) : "");
+                (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), depth * 2, "", ms, type, cls, name.constData());
     return r;
 }
 

@@ -5,6 +5,15 @@ What FielDes did before the fork is in the git history of this repository (this 
 
 ## 1.0.0 (not released)
 
+### After a click nothing flickers; a node brings the armature mode back; closing does not wait for a heavy render
+- **No flicker on a click (seen in a virtual display with software rendering, not on a real screen, not on Windows).** Four causes, found by recording every frame: (1) the shapes a run replaced were deleted before the new ones had a mesh, so the rings, dots and tube
+  vanished for a few frames -- they now stay in the picture until the shape that replaces them has its mesh; (2) the model tree lit shapes by the line numbers of the new text while the viewport still held the old ones, so the selection dropped for up to half a second --
+  the selection is kept while the run of an edit is on its way; (3) the first partial result of a run had stale lines and took shapes away that came back a moment later -- they stay until the run is final; (4) a one-node armature is a ball that becomes a tube at the second node.
+  A shape that is removed also no longer leaves a dangling hover or press pointer behind.
+- **A click on a node of an armature puts the armature mode back on**, going on from that node (a drag still moves it; Shift and Ctrl clicks still select several; `Esc` or a right click ends the mode). Where this is only in the viewport: selecting the node in the tree does not.
+- **Closing the window while a heavy model is being meshed no longer waits for the whole render**: the render is told to stop first (example 33 did not exit within 70 s after the window was told to close, and now does).
+- Fixed in passing: the timing log (`FIELDEV_TIMING`) read an object after it was deleted and could crash the program once in forty runs.
+
 ### The Characters section is its own; a playful look; words a game developer knows
 - **New armature is a mode of its own, not the work plane.** *Draw an armature* is gone, and so is the Armature button of the work plane (which is for 2D drawing only: Line, Spline, Point). *Characters ▸ New armature* puts the nodes down **one click after another and writes each into the script as it is put down**: the first click makes the armature (`armature([...], profile=armature_1_cut)`, with its cross-section and its cut face), every click after adds a node (a point with a gizmo, in the list of the call; `profile_edit.py`, op `armature`) in the plane through the node before it that faces the camera, so turning the view puts the next one in depth. **A click on a node goes on from it**; from a node in the middle the armature **branches** (a new armature that begins on the same point, which `skeleton_of` hangs from that joint). A right click or Esc goes back a step -- from the node to none, then out of the mode --, Ctrl+Z takes the last node back, and *Add nodes from here* is in the menu of a node. An armature of one node is a ball with its cross-section (`cut_face` works on it).
 - **The Characters menu is made like the others:** *Characters*, with an icon of its own, holds *New armature*, the entry for feature models, *character*, *skeleton_of* and *Reference image ▸*.

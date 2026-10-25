@@ -31,7 +31,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <map>
 #include <memory>
 
+#include <QElapsedTimer>
 #include <QFutureWatcher>
+#include <QPointer>
 #include <QOpenGLWidget>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLTexture>
@@ -113,6 +115,7 @@ public slots:
     /*  Model-tree selection: highlight the shapes displayed by these
      *  (0-based) script lines  */
     void highlightLines(QList<int> lines0);
+    void keepHighlight(QList<int> lines0);          // (the same for an edit's run on its way: what was lit stays lit)
 
     /*  The model tree followed an edit of the script before it was run (a line went in or out): the lines the shapes were made on are the
      *  lines they are on now -- moved[old line] = new line, or -1 when the line is gone.  Until the run that answers the edit has made new
@@ -548,6 +551,8 @@ protected:
     int m_dotPressLine = -1;
     bool m_dotMoved = false;
     QPoint m_dotPressPos;
+    QString m_armNodePress;                 // the variable of the armature node whose dot is pressed while the armature mode is off: let go without a move, the press puts the mode back on, going on from it
+    QPoint m_armNodePressPos;
     /*  The copy of a point that was pressed (the dot of a placed copy, of an image in a symmetry): the row of the point it is a copy of, and which of the copies of that point it is, in
         the order they are drawn.  The point is selected by the press (it is the original's row that is selected), and that copy -- and only that one -- shows the point's gizmo (its arrows,
         its ring, the ring that sizes its influence), at the copy, taken through the map of the copy; dragging it changes the original's numbers  */
@@ -661,6 +666,19 @@ protected:
         double size = 1.0;                  // (how thick the node to be put down is against the one before it -- or against the armature it branches from: Shift + wheel)
     };
     ArmaturePlacing m_arm;
+
+    /*  A shape that a run takes away and replaces by one of the same kind that has no mesh yet is kept in the picture until the new one has -- the mesher takes tens of milliseconds, and a picture
+        without the shape in it is a flicker at every click that changes it (see setShapes and the end of paintGL)  */
+    struct RetiredShape
+    {
+        QPointer<Shape> old, successor;
+        QElapsedTimer age;
+        bool untilFinal = false;            // (taken away by the partial result of a run that is going on, with no successor yet: it stays until the run's own result -- or five seconds)
+    };
+    QList<RetiredShape> m_retired;
+    /*  What the view keeps of a shape for a hover or a press -- the outline under the cursor, the grip of its gizmo, the pull or the face being pressed -- is forgotten when a run takes the shape away: the hint
+        under the cursor read the hovered outline's shape after the run that replaced it had deleted it  */
+    void forgetRemoved(Shape* s);
     // The symmetry (see setActiveSymmetry)
     bool symmetric() const { return m_sym.on; }
     Shape* symmetryShape() const;                               // (the model that is selected and is a symmetry)

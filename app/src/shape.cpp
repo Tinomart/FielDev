@@ -125,6 +125,8 @@ Shape::~Shape()
 {
     if (mesh_future.isRunning())
     {
+        // (the window is closing, or the shape is gone: what the render still has to do is not wanted)
+        mesh_settings.cancel.store(true);
         mesh_future.waitForFinished();
     }
 }
@@ -2957,9 +2959,24 @@ void Shape::deleteLater()
     }
 }
 
+void Shape::becomeGhost()
+{
+    m_ghost = true;
+    next.div = MESH_DIV_EMPTY;              // (no finer level follows)
+    if (running) mesh_settings.cancel.store(true);
+}
+
 void Shape::onFutureFinished()
 {
     running = false;
+    if (m_ghost)
+    {
+        // (a shape that a run has replaced, kept in the picture until its successor has a mesh: what it has is drawn, what its render made is dropped, and nothing follows)
+        auto dropped = mesh_future.result();
+        std::unique_ptr<libfive::Mesh> gone(dropped.mesh);
+        if (next.div == MESH_DIV_ABORT) QObject::deleteLater();
+        return;
+    }
 
     auto bm = mesh_future.result();
     // The mesh was read from the render cache: it is the finished one, whatever level asked for it

@@ -210,6 +210,7 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
                 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tKeys).count());
 
     // Erase all existing shapes that aren't in the new_shapes list
+    QList<Shape*> removed;
     bool vars_changed = false;
     bool any_running = false;
     for (auto itr=shapes.begin(); itr != shapes.end(); /* no update */ )
@@ -237,8 +238,9 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
                 hover_target = nullptr;
             }
             if (*itr == m_dotHover) m_dotHover = nullptr;
+            forgetRemoved(*itr);
             disconnect(*itr, &Shape::redraw, this, &View::update);
-            (*itr)->deleteLater();
+            removed.push_back(*itr);
             itr = shapes.erase(itr);
             pick_timer.start();
         }
@@ -250,6 +252,96 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
             any_running |= !(*itr)->done();
             new_shapes_map.erase(n);
             ++itr;
+        }
+    }
+
+    // The shapes that are gone: one that has a mesh and is replaced in this run by a shape of the same kind that has none yet stays in the picture until that has one (the mesher takes tens of
+    // milliseconds, and a picture without the shape is a flicker at every click that changes it); the others are deleted
+    {
+        const auto kindOfShape = [](const Shape* s) {
+            return (s->hasSweep() ? 1 : 0) | (s->hasPrism() ? 2 : 0) | (s->isFace() ? 4 : 0) | (s->isCurve() ? 8 : 0) | (s->isFlat() ? 16 : 0);
+        };
+        QList<Shape*> successors;
+        for (const auto& kv : new_shapes_map) successors.push_back(kv.second);
+        // (the result of a run that is going on shows what the statements that ran so far have made: a shape of the last run that its statements have not replaced yet is not shown by it, and
+        // is kept in the picture -- until the run's own result, which pairs it with the shape that replaces it)
+        const bool partialRun = keepFromLine >= 0;
+        if (!partialRun)
+        {
+            for (int k = m_retired.size() - 1; k >= 0; --k)
+            {
+                if (!m_retired[k].untilFinal) continue;
+                if (m_retired[k].old) removed.push_back(m_retired[k].old);
+                m_retired.removeAt(k);
+            }
+        }
+        std::sort(successors.begin(), successors.end(), [](const Shape* x, const Shape* y) { return x->sourceLine() < y->sourceLine(); });
+        std::sort(removed.begin(), removed.end(), [](const Shape* x, const Shape* y) { return x->sourceLine() < y->sourceLine(); });
+        const auto retire = [&](Shape* o, Shape* next) {
+            RetiredShape r;
+            r.old = o;
+            r.successor = next;
+            r.untilFinal = next == nullptr;
+            r.age.start();
+            m_retired.push_back(r);
+            // (it does no work meanwhile, and says nothing to the viewport)
+            o->becomeGhost();
+            QObject::disconnect(this, nullptr, o, nullptr);
+            QObject::disconnect(o, nullptr, this, nullptr);
+            QObject::disconnect(o, nullptr, &pick_timer, nullptr);
+            if (std::getenv("FIELDEV_TIMING"))
+                fprintf(stderr, "[at %lld ms] [view] the shape of line %d stays in the picture until the new one of line %d has a mesh\n",
+                        (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), o->sourceLine() + 1, next ? next->sourceLine() + 1 : -1);
+        };
+        QList<Shape*> unpaired;
+        for (Shape* o : removed)
+        {
+            Shape* next = nullptr;
+            if (o->hasMesh() && !o->noPaint())
+            {
+                for (int k = 0; k < successors.size(); ++k)
+                {
+                    if (!successors[k]->noPaint() && kindOfShape(successors[k]) == kindOfShape(o))
+                    {
+                        next = successors[k];
+                        successors.removeAt(k);
+                        break;
+                    }
+                }
+            }
+            if (next) retire(o, next);
+            else unpaired.push_back(o);
+        }
+        // (a shape of another kind -- the ball that an armature of one node is, which the second node turns into a tube -- takes what is left, in the order of the lines)
+        for (Shape* o : unpaired)
+        {
+            Shape* next = nullptr;
+            if (o->hasMesh() && !o->noPaint())
+            {
+                for (int k = 0; k < successors.size(); ++k)
+                {
+                    if (!successors[k]->noPaint())
+                    {
+                        next = successors[k];
+                        successors.removeAt(k);
+                        break;
+                    }
+                }
+            }
+            if (next)
+            {
+                retire(o, next);
+                continue;
+            }
+            if (partialRun && o->hasMesh() && !o->noPaint())
+            {
+                retire(o, nullptr);
+                continue;
+            }
+            if (o->hasMesh() && std::getenv("FIELDEV_TIMING"))
+                fprintf(stderr, "[at %lld ms] [view] the shape of line %d (kind %d) has a mesh and no successor: it goes at once\n",
+                        (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), o->sourceLine() + 1, kindOfShape(o));
+            o->deleteLater();
         }
     }
 
@@ -376,9 +468,34 @@ void View::highlightLines(QList<int> lines0)
         bool on = lines0.contains(s->sourceLine());
         // (the dot of an image -- the point of a placed copy, of an image in a symmetry -- is the point it is the image of: selected with it)
         if (!on && s->gizmo().dotOnly && s->followedShape()) on = lines0.contains(s->followedShape()->sourceLine());
+        if (!on && s->isSelected() && std::getenv("FIELDEV_TIMING"))
+            fprintf(stderr, "[at %lld ms] [view] highlightLines (%d lines) puts out the shape of line %d\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000),
+                    int(lines0.size()), s->sourceLine() + 1);
         s->setSelected(on);
     }
     if (m_copyLine >= 0 && !lines0.contains(m_copyLine)) m_copyLine = -1;          // (another row is selected: no copy of the point is the one that was pressed any more)
+    applyActiveCopy();
+    update();
+}
+
+void View::forgetRemoved(Shape* s)
+{
+    if (m_outlineHover == s) m_outlineHover = nullptr;
+    if (m_pullShape == s) m_pullShape = nullptr;
+    if (m_faceShape == s) m_faceShape = nullptr;
+    if (press_target == s) press_target = nullptr;
+    if (right_press_target == s) right_press_target = nullptr;
+    if (gizmo_hover.shape == s) gizmo_hover = GizmoGrip();
+}
+
+void View::keepHighlight(QList<int> lines0)
+{
+    for (auto& s : shapes)
+    {
+        bool on = lines0.contains(s->sourceLine());
+        if (!on && s->gizmo().dotOnly && s->followedShape()) on = lines0.contains(s->followedShape()->sourceLine());
+        if (on) s->setSelected(true);               // (and the ones that were lit stay lit)
+    }
     applyActiveCopy();
     update();
 }
@@ -800,6 +917,10 @@ void View::paintGL()
     // (the opaque shapes first; then the translucent ones -- a flow with a body in it -- blended over them.  A translucent shape is drawn
     // twice: first for its depth alone, so that only its nearest layer is left, then in colour over that layer.  Blending every triangle in
     // the order the mesh has them would paint the far side and the inner surfaces over the near ones, in patches)
+    // (the shapes that a run has replaced and that stay in the picture until their successors have a mesh: see setShapes)
+    QList<Shape*> drawn = shapes;
+    for (const auto& r : m_retired)
+        if (r.old) drawn.push_back(r.old);
     for (int pass = 0; pass < 3; ++pass)
     {
         if (pass == 1)
@@ -814,7 +935,7 @@ void View::paintGL()
             glEnable(GL_BLEND);
             glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
         }
-        for (auto& s : shapes)
+        for (auto& s : drawn)
         {
             if (s->is2D()) continue;                // (the 2D shapes are drawn last, over everything)
             if ((s->opacityValue() < 0.999f) != (pass >= 1)) continue;
@@ -900,12 +1021,12 @@ void View::paintGL()
     // what it was drawn for under a body's surface -- and they are in front of each other as their places say.  The picking buffer is made the same way
     {
         bool any = false;
-        for (auto& s : shapes) any = any || (s->is2D() && !s->noPaint());
+        for (auto& s : drawn) any = any || (s->is2D() && !s->noPaint());
         if (any)
         {
             glClear(GL_DEPTH_BUFFER_BIT);
             setClipUniform(clipping);
-            for (auto& s : shapes)
+            for (auto& s : drawn)
                 if (s->is2D() && !s->noPaint()) s->draw(m);
             if (clipping)
             {
@@ -924,6 +1045,49 @@ void View::paintGL()
         const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tPaintGL).count();
         if (ms > 20)
             fprintf(stderr, "[at %lld ms] [view] paint: the scene drew in %.0f ms (%d shapes)\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), ms, int(shapes.size()));
+    }
+
+    if (std::getenv("FIELDEV_TIMING"))
+    {
+        // (what this picture has: a run that replaces the shapes shows in a picture as fewer meshes, or nothing selected, for as long as it lasts)
+        static int lastShapes = -1, lastMeshes = -1, lastSelected = -1, lastMode = -1;
+        int meshes = 0, selectedNow = 0;
+        for (auto& s : shapes)
+        {
+            if (s->hasMesh()) ++meshes;
+            if (s->isSelected()) ++selectedNow;
+        }
+        for (const auto& r : m_retired)
+            if (r.old && r.old->hasMesh()) ++meshes;
+        const int mode = m_arm.on ? 1 : 0;
+        if (int(shapes.size()) != lastShapes || meshes != lastMeshes || selectedNow != lastSelected || mode != lastMode)
+        {
+            fprintf(stderr, "[at %lld ms] [frame] %d shapes, %d with a mesh, %d selected, armature mode %s\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000),
+                    int(shapes.size()), meshes, selectedNow, mode ? "on" : "off");
+            lastShapes = int(shapes.size());
+            lastMeshes = meshes;
+            lastSelected = selectedNow;
+            lastMode = mode;
+        }
+    }
+
+    // (the shapes kept for the picture's sake go when the shape that replaces them has been drawn once -- or after a third of a second: a mesh that does not come must not keep the old shape up)
+    if (!m_retired.isEmpty())
+    {
+        bool gone = false;
+        for (int k = m_retired.size() - 1; k >= 0; --k)
+        {
+            const RetiredShape& r = m_retired[k];
+            const bool done = r.untilFinal ? r.age.elapsed() > 5000
+                                          : (!r.successor || !shapes.contains(r.successor) || r.successor->hasMesh() || r.age.elapsed() > 300);
+            if (!r.old || done)
+            {
+                if (r.old) r.old->deleteLater();
+                m_retired.removeAt(k);
+                gone = true;
+            }
+        }
+        if (gone) update();
     }
 
     if (m_overlay)
@@ -1687,6 +1851,8 @@ void View::mousePressEvent(QMouseEvent* event)
     // selection (E, R, G, H, I) are not typed into the script
     if (!hasFocus()) setFocus(Qt::MouseFocusReason);
 
+    m_armNodePress.clear();
+
     // The armature mode: a click on a node that is there makes it the one the next follows (and selects it, as a click on a dot does); a click anywhere else puts down the next node
     if (event->button() == Qt::LeftButton && m_arm.on && !(event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier)))
     {
@@ -1696,6 +1862,8 @@ void View::mousePressEvent(QMouseEvent* event)
         {
             QVector3D p;
             m_arm.anchor = var;
+            if (std::getenv("FIELDEV_TIMING"))
+                fprintf(stderr, "[at %lld ms] [armature] a node was clicked: the next one goes on from '%s'\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), var.toUtf8().constData());
             m_arm.hasAnchorPos = dot->dotPosition(p);
             if (m_arm.hasAnchorPos) m_arm.anchorPos = p;
             m_overlay->update();
@@ -1878,6 +2046,15 @@ void View::mousePressEvent(QMouseEvent* event)
                     m_copyLine = isPointCopy(dot) ? dotLine(dot) : -1;
                     m_copyNth = isPointCopy(dot) ? copyIndexOf(dot) : 0;
                     applyActiveCopy();
+                }
+                // (a node of an armature that is pressed with the mode off and let go without a move puts the mode back on, going on from it: noted here, done at the release)
+                {
+                    QString nodeVar;
+                    if (!m_arm.on && m_scene && dot->sourceLine() >= 0 && !(event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier)) && m_scene->armatureNodeAtLine(dotLine(dot), &nodeVar))
+                    {
+                        m_armNodePress = nodeVar;
+                        m_armNodePressPos = event->pos();
+                    }
                 }
                 const int selectedCount = selectedShapeCount();       // (the images of one row, and the dots drawn with them, are one selection)
                 const bool direct = !(event->modifiers() & Qt::ControlModifier) && dot->sourceLine() >= 0 && !dot->isLocked() && !(dot->isSelected() && selectedCount > 1);
@@ -2160,6 +2337,14 @@ void View::mouseReleaseEvent(QMouseEvent* event)
     QOpenGLWidget::mouseReleaseEvent(event);
     event->accept();
     if (event->button() == Qt::LeftButton) m_leftDown = false;
+    if (event->button() == Qt::LeftButton && !m_armNodePress.isEmpty())
+    {
+        // (a node of an armature was clicked with the mode off: it goes on, from that node, once what the click does is done)
+        const QString nodeVar = m_armNodePress;
+        m_armNodePress.clear();
+        if ((event->pos() - m_armNodePressPos).manhattanLength() < 4 && !m_arm.on)
+            QTimer::singleShot(0, this, [this, nodeVar] { if (!m_arm.on) startArmaturePlacing(nodeVar); });
+    }
     if (m_pullShape)
     {
         Shape* shape = m_pullShape;
@@ -3535,6 +3720,8 @@ void View::startArmaturePlacing(const QString& anchor)
         if (!m_arm.hasAnchorPos) m_arm.anchor.clear();
     }
     setCursor(Qt::CrossCursor);
+    if (std::getenv("FIELDEV_TIMING"))
+        fprintf(stderr, "[at %lld ms] [armature] mode on, the node to go on from: '%s'\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), m_arm.anchor.toUtf8().constData());
     emit(armaturePlacingChanged(true));
     m_overlay->update();
 }
@@ -3544,6 +3731,8 @@ void View::stopArmaturePlacing()
     if (!m_arm.on) return;
     m_arm = ArmaturePlacing();
     setCursor(Qt::ArrowCursor);
+    if (std::getenv("FIELDEV_TIMING"))
+        fprintf(stderr, "[at %lld ms] [armature] mode off\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000));
     emit(armaturePlacingChanged(false));
     m_overlay->update();
 }
