@@ -175,7 +175,7 @@ def merge(props, blend=0.0):
     out = union_all(bodies, blend) if len(bodies) > 1 else bodies[0]
     if not layers:
         return out
-    layers.sort(key=lambda m: m.where is not None)           # (the ones that are everywhere go first: the rest are painted over them)
+    layers.sort(key=lambda m: (m.where is not None, bool(getattr(m, '_cover', False))))           # (the ones that are everywhere go first, the covers of `covered` last: the rest are painted over them)
     return _prop(out, layers)
 
 

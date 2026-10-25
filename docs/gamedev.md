@@ -77,6 +77,13 @@ Every method returns a new terrain; the old one is untouched. Rivers and roads g
 
 A prop is a body shown in its materials (bark and leaves are two). `placed` scales, turns (degrees about z) and moves it with its materials; `merge` joins several into one body. `scatter` stands props on the ground where it is flat enough (`max_slope`, degrees) and a rule allows (`where`: a field that is negative where props may stand, or a function of x, y, z), at least `min_distance` apart. It remembers where each stands, so `export_scatter` writes the few meshes **once** and a `name_instances.json` (variant, position, turn, scale for each): what an engine wants for a forest.
 
+## Snow, moss and dust as geometry
+
+    snowy = covered(rock(1.4, seed=7), depth=0.12, angle=55)                        # snow on every surface that faces up, thinning out where it would slide off
+    mossy = covered(crate(1.0), depth=0.04, angle=70, name="moss", color="#4f7a34")
+
+`covered` adds a layer of `depth` to every surface of a model that faces `direction` (up by default) to within `angle` degrees -- thickest where it faces straight at it, thinning to nothing at the angle -- and gives it a material of its own (`name`, `color`) that lies only on the cover, so an exported file has it as a layer. It is arithmetic on the field of the model, which is differenced on both sides along each axis to find which way its surface faces: it works on anything with a field (a prop, a kit piece, a level), the cover is geometry that an engine sees in the silhouette, and a `covered` prop can still be `placed`, `merge`d and `scatter`ed. The field is evaluated seven times as often, so a model that is slow to mesh is slower with a cover.
+
 ## Modular kits
 
     walls = kit(cell=(4, 4, 3), wall=0.3, floor=0.25)
@@ -86,7 +93,7 @@ A prop is a body shown in its materials (bark and leaves are two). `placed` scal
                          "##  #"], edges={(2, 2, 2): "door", (1, 0, 0): "window"})
     walls.export(house, "out/kit")                  # each piece once, and kit.json: which piece stands in which cell, turned how
 
-The cell of a piece has its south-west floor corner at the origin. `wall_piece` stands on the south edge; `turn` quarter turns (counter-clockwise from above) put it on the east, north, west edge. A plan is a list of strings, the first the northmost; a cell is inside unless it is a space. Walls stand on every edge with outside beyond it; `edges` changes an edge: `{(i, j, side): kind}` with `side` 0 south, 1 east, 2 north, 3 west and `kind` "door", "arch", "window", "wall" or `None`.
+The cell of a piece has its south-west floor corner at the origin. `wall_piece` stands on the south edge; `turn` quarter turns (counter-clockwise from above) put it on the east, north, west edge. A plan is a list of strings, the first the northmost; a cell is inside unless it is a space. Walls stand on every edge with outside beyond it; `edges` changes an edge: `{(i, j, side): kind}` with `side` 0 south, 1 east, 2 north, 3 west and `kind` "door", "arch", "window", "wall" or `None`. `stairs={(i, j, k): turn}` puts a stairs piece in the cell (i, j) of level k, rising towards north, west, south or east for `turn` 0, 1, 2, 3, and leaves out the floor above it; it leads up into the next cell in that direction, which has to be inside the plan, and `levels` has to be at least k + 2.
 
 Every piece is cut to its cell, so it ends exactly on the cell's faces. `seam(a, b, axis)` asks both fields, on a grid just inside the face they share, what is solid, and `check()` does it for the whole kit. Walls that run north-south give the corner squares to the ones that run east-west, and a post (`pillar_piece`) closes a corner where two walls would only touch at a point, so no volume is made twice.
 

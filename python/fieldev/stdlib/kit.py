@@ -33,6 +33,7 @@ from fieldev.stdlib.level import doorway, window_opening
 
 __all__ = ['kit', 'Kit']
 
+_RISES = ((0, 1), (-1, 0), (0, -1), (1, 0))         # (the way stairs rise for 0, 1, 2, 3 quarter turns: north, west, south, east)
 _DIRS = ((0, -1), (1, 0), (0, 1), (-1, 0))          # (the neighbour a wall faces away to: south, east, north, west)
 
 
@@ -73,8 +74,9 @@ class Kit:
 
     # ---- the pieces: each in its own cell, ending exactly on its faces
 
-    def _in_cell(self, body):
+    def _in_cell(self, body, top=None):
         sx, sy, sz = self.cell
+        sz = sz if top is None else float(top)             # (stairs reach the top of the floor above, which is the next cell's)
         clipped = body.max(box((0.0, 0.0, 0.0), (sx, sy, sz)))
         _bounded(clipped, [0.0, 0.0, 0.0], [sx, sy, sz])
         return clipped
@@ -122,7 +124,7 @@ class Kit:
         run = sy / steps
         y = Shape.Y()
         blocks = [box((0.0, k * run, 0.0), (sx, (k + 1) * run, self.floor + rise * (k + 1))) for k in range(int(steps))]
-        return self._in_cell(union_all(blocks))
+        return self._in_cell(union_all(blocks), self.cell[2] + self.floor)
 
     def pieces(self):
         ''' Every piece of the kit by its name: floor, ceiling, wall, wall_door, wall_arch, wall_window, corner, pillar, stairs '''
@@ -142,11 +144,13 @@ class Kit:
             out = rotate_z(out, math.radians(90.0 * (turn % 4)), (sx / 2.0, sy / 2.0, 0.0))
         return move(out, (i * sx, j * sy, k * sz))
 
-    def build(self, plan, edges=None, levels=1, ceiling=True):
+    def build(self, plan, edges=None, levels=1, ceiling=True, stairs=None):
         ''' The level of a floor plan: `plan` is a list of strings, the first the northmost; any character but a space is a cell that is inside.  A floor on every cell; a wall on
             every edge that has outside (or the edge of the plan) beyond it; a post at every corner that two walls meet at a point.  `edges` changes an edge: {(i, j, side): kind} --
             the cell (i, j) counted from the south-west, `side` 0 south, 1 east, 2 north, 3 west, `kind` "door", "arch", "window", "wall" (a wall where there is none, between two
-            cells that are inside) or None (no wall).  `levels`: stacked this many times; `ceiling`: a ceiling on the top one.  The body has `_placements`: what stands where '''
+            cells that are inside) or None (no wall).  `levels`: stacked this many times; `ceiling`: a ceiling on the top one.  `stairs`: {(i, j, k): turn} -- a stairs piece in the cell (i, j) of level k, rising towards north, west, south
+            or east for `turn` 0, 1, 2, 3, with the floor above it left out; it leads up into the next cell in that direction, which has to be inside the plan, and `levels` has to be at
+            least k + 2.  The body has `_placements`: what stands where '''
         rows = [r for r in plan]
         height = len(rows)
         inside = set()
@@ -157,6 +161,16 @@ class Kit:
         if not inside:
             raise ValueError('build: the plan has no cell inside')
         edges = dict(edges or {})
+        stairs = {tuple(int(c) for c in cell): int(turn) % 4 for cell, turn in dict(stairs or {}).items()}
+        for (i, j, k), turn in stairs.items():
+            di, dj = _RISES[turn]
+            if (i, j) not in inside:
+                raise ValueError('build: the stairs at %r are not in a cell that is inside the plan' % ((i, j, k),))
+            if not 0 <= k < int(levels) - 1:
+                raise ValueError('build: the stairs at %r lead up to a level that is not built (levels=%d)' % ((i, j, k), int(levels)))
+            if (i + di, j + dj) not in inside:
+                raise ValueError('build: the stairs at %r end at a cell that is not inside the plan' % ((i, j, k),))
+        holes = {(i, j, k + 1) for (i, j, k) in stairs}             # (the floor above stairs is left out)
         pieces = self.pieces()
         placements = []
 
@@ -173,7 +187,10 @@ class Kit:
         for (i, j) in sorted(inside):
             walls = {side: has_wall(i, j, side) for side in range(4)}
             for k in range(int(levels)):
-                placements.append(('floor', i, j, k, 0))
+                if (i, j, k) not in holes:
+                    placements.append(('floor', i, j, k, 0))
+                if (i, j, k) in stairs:
+                    placements.append(('stairs', i, j, k, stairs[(i, j, k)]))
                 if ceiling and k == int(levels) - 1:
                     placements.append(('ceiling', i, j, k, 0))
                 for side in range(4):
@@ -209,6 +226,7 @@ class Kit:
         _bounded(body, lo, hi)
         body._placements = [{'piece': n, 'cell': [i, j, k], 'turn': t} for n, i, j, k, t in placements]
         body._kit = self
+        body._kit_pieces = pieces               # (the pieces of this build: another build with the same kit does not change what `export` writes for this one)
         return body
 
     # ---- checking and exporting
@@ -261,11 +279,12 @@ class Kit:
             raise TypeError('export: the first argument is the body that build(...) made')
         os.makedirs(os.fspath(folder), exist_ok=True)
         sx, sy, sz = self.cell
-        made = getattr(self, '_pieces_made', None) or self.pieces()
+        made = getattr(built, '_kit_pieces', None) or getattr(self, '_pieces_made', None) or self.pieces()
         paths = []
         for name in sorted({p['piece'] for p in placements}):
             path = os.path.join(os.fspath(folder), '%s.%s' % (name, ext))
-            export_mesh(made[name], path, bounds=((0.0, 0.0, 0.0), (sx, sy, sz)), **export_options(ext, options))
+            lo, hi = getattr(made[name], '_bounds', None) or ((0.0, 0.0, 0.0), (sx, sy, sz))             # (the stairs are a floor's thickness higher than the cell)
+            export_mesh(made[name], path, bounds=(tuple(lo), tuple(hi)), **export_options(ext, options))
             paths.append(path)
         index = os.path.join(os.fspath(folder), 'kit.json')
         with open(index, 'w') as f:
