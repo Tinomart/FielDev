@@ -705,6 +705,24 @@ public:
      *  shape: it is made again from its points, not kept with the points it had.  */
     QString identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tree>& canonical);
 
+    /*  Makes the shape's identity between runs (see View::setShapes) once, with the map of the thread that made the shape, and keeps it: telling the shapes of a run from the last
+     *  run's is then a comparison of a pointer and a string.  It was made in the window's thread, by co-optimizing the trees of every shape of the new run and of the last one together, at
+     *  every run: 100 to 400 ms in which the window did not answer, and more with every point of a model.  `epoch` says which life of the map it is of (a map that has grown large is
+     *  cleared, and the ids of one life say nothing of another's)  */
+    void makeKey(std::unordered_map<libfive::TreeDataKey, libfive::Tree>& canonical, quint64 epoch);
+    bool keyKnown() const { return m_keyKnown; }
+    libfive::Tree::Id keyId() const { return m_keyId; }
+    const QString& keyText() const { return m_keyText; }
+
+    /*  Searches the box of the shape (measureExtent) ahead of its render, in the thread that made it (the shapes of a run on the threads of the pool, one each), and keeps the settings and
+     *  numbers it is of: the render that starts later takes the box if it is of the same ones (takePreExtent) and searches again if not.  The search -- up to 50 ms a shape -- was made at the
+     *  start of every new shape's render, in the window's thread, one shape after the other  */
+    void premeasureExtent(const Settings& s);
+
+    /*  Makes what the shape's first picture would otherwise make in the window's thread: the map of a copy's dot (gizmoMap), whose twelve expressions took 25 ms to make ready for each of the four
+     *  dots of a copy of a profile, at the first picture of every run.  Called by the thread that made the shape, before the window has it  */
+    void warmUp() const;
+
 signals:
     void gotMesh();
     void redraw();
@@ -933,6 +951,18 @@ protected:
      *  (the coarse level) is sized by the shape too: about 64 samples across it, however large the region round it is.  The shape's box is
      *  found by a quick search (a few milliseconds at the most) when its render starts  */
     void measureExtent(const Settings& s);
+    /*  Whether premeasureExtent searched the box for these settings and these numbers (and so measureExtent need not): it is taken once  */
+    bool takePreExtent(const Settings& s);
+    bool m_pre_done = false;
+    QVector3D m_pre_min, m_pre_max;
+    bool m_pre_auto = true;
+    std::map<libfive::Tree::Id, float> m_pre_vars;
+    bool m_pre_valid = false;                   // (what that search found: the box, or that it found none)
+    QVector3D m_pre_lo, m_pre_hi;
+    bool m_pre_stale = false;
+    bool m_keyKnown = false;
+    libfive::Tree::Id m_keyId = libfive::Tree::Id();
+    QString m_keyText;
     /*  The box of the shape at these numbers, searched for over a box (its own search, a few milliseconds at the most): false when it cannot be found  */
     bool searchExtent(const std::map<libfive::Tree::Id, float>& numbers, const QVector3D& search_lo, const QVector3D& search_hi, QVector3D& lo, QVector3D& hi, float seconds = 0.05f,
                       float coarse = 0.0f);
@@ -1025,6 +1055,8 @@ protected:
     mutable size_t m_liveHash = 0;                                // (the numbers gizmoMap last worked the map out from, and the map)
     mutable bool m_liveHashed = false;
     mutable QMatrix4x4 m_liveMap;
+    mutable std::vector<std::unique_ptr<libfive::ArrayEvaluator>> m_liveEvals;     // (the evaluators of the twelve expressions of gizmoMap, made once: see there)
+    mutable std::vector<libfive::Tree::Id> m_liveEvalIds;                           // (the trees they are of)
     bool m_previewShown = false;                 // the mesh is shown moved (m_previewXform is not the identity)
     GizmoNumbers gizmoNumbersIn(const std::map<libfive::Tree::Id, float>& v) const;
     void refreshPreview();                       // the matrix from what the mesh was made with to the numbers now

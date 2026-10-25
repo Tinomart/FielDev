@@ -31,6 +31,7 @@ public:
     App(int& argc, char** argv);
 protected:
     bool event(QEvent* event) override;
+    bool notify(QObject* receiver, QEvent* e) override;
 
     QScopedPointer<Window> window;
     QScopedPointer<AppWindow> appWindow;

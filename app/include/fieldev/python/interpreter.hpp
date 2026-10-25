@@ -93,6 +93,13 @@ protected:
     int m_stale = 0;                        // of those, the first ones that are of an older text than the run that is going: dropped
     int freshRequests() const { return std::max(0, m_requests.load() - m_stale); }   // (the runs that are still wanted)
 
+    // The map the identities of the shapes are made with (Shape::makeKey): the shapes of a run are told from the last run's by ids of it, so it lives from run to run, and a new life of it (an epoch)
+    // starts when it has grown large.  Only the worker thread uses it
+    std::unordered_map<libfive::TreeDataKey, libfive::Tree> m_canonical;
+    quint64 m_keyEpoch = 0;
+    // What the window's thread would otherwise do for the shapes of a finished run, in the worker thread and the pool's (see the definition)
+    void prepareShapes(Result& out);
+
 };
 
 }   // namespace Python

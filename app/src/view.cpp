@@ -182,23 +182,23 @@ View::~View()
 
 void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
 {
-    // We're going to co-optimize every single new and old tree together,
-    // so that we can deduplicate them.  This could be expensive; if we
-    // notice the main thread lagging, we could do the new_shapes half of this
-    // co-optimization on the worker thread, but would then need to pass
-    // the map from the thread.
-    std::unordered_map<libfive::TreeDataKey, libfive::Tree> canonical;
-
     // Pack tree IDs into a pair of sets for fast checking.  A shape is its geometry AND its colours: the same geometry coloured
     // differently is another shape (a body, and the same body tinted where a condition acts on it, are both drawn)
     using ShapeKey = std::pair<libfive::Tree::Id, QString>;
+    // (the identity of a shape between runs is made ONCE, by the thread that made the shape, with the map of that thread -- Shape::makeKey --, and only compared here.  Here it was made for every
+    // shape of the new run and every shape of the last one, by co-optimizing all their trees together: 100 to 400 ms in which the window did not answer, and more with every point of a model.
+    // A shape with none -- none is made elsewhere -- is told from all the others by its address: it is never the same as a shape of the last run)
+    const auto keyOf = [](Shape* s) -> ShapeKey {
+        if (!s->keyKnown()) return ShapeKey{nullptr, QString("unkeyed %1").arg(quintptr(s))};
+        return ShapeKey{s->keyId(), s->keyText()};
+    };
     std::map<ShapeKey, Shape*> new_shapes_map;
     std::map<Shape*, ShapeKey> new_shapes_key;
     const auto tKeys = std::chrono::steady_clock::now();
     for (auto& s : new_shapes)
     {
         const auto tOne = std::chrono::steady_clock::now();
-        const ShapeKey key{s->getUniqueId(canonical), s->identityKey(canonical)};
+        const ShapeKey key = keyOf(s);
         new_shapes_key.insert({s, key});
         new_shapes_map.insert({key, s});
         const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tOne).count();
@@ -215,7 +215,7 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
     for (auto itr=shapes.begin(); itr != shapes.end(); /* no update */ )
     {
         // (same geometry coloured differently -- another field or range -- is a different shape: its colours are computed while meshing)
-        auto n = new_shapes_map.find(ShapeKey{(*itr)->getUniqueId(canonical), (*itr)->identityKey(canonical)});
+        auto n = new_shapes_map.find(keyOf(*itr));
         if (n == new_shapes_map.end() && keepFromLine >= 0 && (*itr)->sourceLine() >= keepFromLine)
         {
             // (a statement that has not run yet in this run: its shape is the last run's, until the run makes it -- not gone)
@@ -307,6 +307,9 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
     refreshSymmetry();              // (the symmetry model is another shape now)
     linkFollowers();
     applyActiveCopy();              // (the copies are linked to their points now: the one that was pressed shows the gizmo again)
+    if (std::getenv("FIELDEV_TIMING"))
+        fprintf(stderr, "[at %lld ms] [view] setShapes: all done %.0f ms after the keys began\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000),
+                1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tKeys).count());
 }
 
 void View::linkFollowers()
@@ -747,6 +750,7 @@ void View::paintGL()
         bool on = false;
         ~FrameClock() { if (on) std::fprintf(stderr, "[drag] frame drawn in %.1f ms\n", double(t.nsecsElapsed()) / 1e6); }
     } frameClock;
+    const auto tPaintGL = std::chrono::steady_clock::now();
     if (gizmo_drag && std::getenv("FIELDEV_TIMING"))
     {
         frameClock.on = true;
@@ -915,6 +919,12 @@ void View::paintGL()
 
     glDisable(GL_DEPTH_TEST);
     painter.endNativePainting();
+    if (std::getenv("FIELDEV_TIMING"))
+    {
+        const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tPaintGL).count();
+        if (ms > 20)
+            fprintf(stderr, "[at %lld ms] [view] paint: the scene drew in %.0f ms (%d shapes)\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), ms, int(shapes.size()));
+    }
 
     if (m_overlay)
     {
@@ -924,6 +934,16 @@ void View::paintGL()
 
 void View::paintOverlay(QPainter& painter)
 {
+    // (for the timing logs: which part of the overlay keeps the window's thread)
+    const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
+    const auto timed = [&](const char* what, const std::function<void()>& draw) {
+        if (!timing) { draw(); return; }
+        const auto t0 = std::chrono::steady_clock::now();
+        draw();
+        const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        if (ms > 8)
+            fprintf(stderr, "[at %lld ms] [view] overlay: %s took %.0f ms\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), what, ms);
+    };
     if (show_triad)
     {
         drawTriad(painter);
@@ -932,15 +952,15 @@ void View::paintOverlay(QPainter& painter)
     {
         drawSectionHandle(painter);
     }
-    drawWorkPlane(painter);
-    drawArmaturePlacing(painter);
-    drawSymmetry(painter);
-    drawFieldIcons(painter);
-    drawOutlines(painter);
-    drawMarkers(painter);
-    drawPointDots(painter);
-    drawGizmo(painter);
-    drawHints(painter);
+    timed("drawWorkPlane", [&] { drawWorkPlane(painter); });
+    timed("drawArmaturePlacing", [&] { drawArmaturePlacing(painter); });
+    timed("drawSymmetry", [&] { drawSymmetry(painter); });
+    timed("drawFieldIcons", [&] { drawFieldIcons(painter); });
+    timed("drawOutlines", [&] { drawOutlines(painter); });
+    timed("drawMarkers", [&] { drawMarkers(painter); });
+    timed("drawPointDots", [&] { drawPointDots(painter); });
+    timed("drawGizmo", [&] { drawGizmo(painter); });
+    timed("drawHints", [&] { drawHints(painter); });
     if (!section_readout.isEmpty() && !section_drag)
     {
         QFont font = painter.font();

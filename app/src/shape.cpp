@@ -1568,18 +1568,46 @@ QMatrix4x4 Shape::gizmoMap() const
     size_t h = 1469598103u;
     for (const auto& kv : vars) h = (h ^ std::hash<float>()(kv.second)) * 1099511628211ull;
     if (m_liveHashed && h == m_liveHash) return m_liveMap;
+    const auto tMap = std::chrono::steady_clock::now();
+    // (the twelve expressions are evaluated by evaluators that are kept: making the tape of an expression of thousands of nodes cost more than all the evaluations of it -- 25 ms for the twelve of one
+    // dot, in the window's thread, for each of the four dots of a copy of a profile at the first picture of every run.  They are given the numbers again, and made again only if the expressions are others)
+    std::vector<libfive::Tree::Id> ids;
+    for (const auto& t : m_gizmo.liveLinear) ids.push_back(t.id());
+    for (const auto& t : m_gizmo.liveShift) ids.push_back(t.id());
+    const bool made = ids != m_liveEvalIds || m_liveEvals.size() != ids.size();
+    if (made)
+    {
+        m_liveEvals.clear();
+        for (const auto& t : m_gizmo.liveLinear) m_liveEvals.push_back(std::make_unique<libfive::ArrayEvaluator>(t, vars));
+        for (const auto& t : m_gizmo.liveShift) m_liveEvals.push_back(std::make_unique<libfive::ArrayEvaluator>(t, vars));
+        m_liveEvalIds = ids;
+    }
+    else
+    {
+        for (auto& e : m_liveEvals)
+            for (const auto& kv : vars) e->setVar(kv.first, kv.second);
+    }
+    const auto value = [&](size_t i) {
+        m_liveEvals[i]->set(Eigen::Vector3f::Zero(), 0);
+        return double(m_liveEvals[i]->values(1)[0]);
+    };
     float l[9], s[3];
     for (int i = 0; i < 9; ++i)
     {
-        const double v = evalConstant(m_gizmo.liveLinear[size_t(i)], vars);
+        const double v = value(size_t(i));
         if (!std::isfinite(v)) return m_gizmo.map;
         l[i] = float(v);
     }
     for (int i = 0; i < 3; ++i)
     {
-        const double v = evalConstant(m_gizmo.liveShift[size_t(i)], vars);
+        const double v = value(size_t(9 + i));
         if (!std::isfinite(v)) return m_gizmo.map;
         s[i] = float(v);
+    }
+    if (std::getenv("FIELDEV_TIMING"))
+    {
+        const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tMap).count();
+        if (ms > 5) fprintf(stderr, "[shape] line %d: the map of a copy's dot took %.0f ms (%s)\n", source_line + 1, ms, made ? "evaluators made" : "evaluators kept");
     }
     const QMatrix4x4 linear(l[0], l[1], l[2], 0, l[3], l[4], l[5], 0, l[6], l[7], l[8], 0, 0, 0, 0, 1);
     QMatrix4x4 full;
@@ -2111,6 +2139,15 @@ bool Shape::updateFrom(const Shape* other)
     // (the same tree: only whether its gizmo is shown, and its pivot,
     // can differ, and whether it is locked)
     m_gizmo = other->m_gizmo;
+    // (the map of its expressions that the run's shape worked out -- see warmUp --, for the numbers it had: the expressions are now this shape's)
+    m_liveHashed = other->m_liveHashed;
+    m_liveHash = other->m_liveHash;
+    m_liveMap = other->m_liveMap;
+    {   // (and the evaluators made for those expressions: the run's shape is not kept, they go to this one -- the numbers are given to them again before they are used)
+        Shape* given = const_cast<Shape*>(other);
+        m_liveEvals = std::move(given->m_liveEvals);
+        m_liveEvalIds = given->m_liveEvalIds;
+    }
     m_group_points = other->m_group_points;
     m_outlineMode = other->m_outlineMode;           // (when the gizmo of a profile or a line is shown: `x = gizmo(x, mode=...)` changes nothing in its tree)
     m_editLine = other->m_editLine;                 // (the line of the outline an image is an image of: what pressing its outline edits)
@@ -2180,6 +2217,27 @@ bool Shape::updateFrom(const Shape* other)
     }
     m_script_vars = other->vars;
     m_script_vars_known = true;
+    // (the box that the thread which made the run's shape searched for the numbers the run gives: the render that the numbers start takes it, and does not search again in the window's thread)
+    if (other->m_pre_done)
+    {
+        m_ext_valid = other->m_ext_valid;
+        m_ext_lo = other->m_ext_lo;
+        m_ext_hi = other->m_ext_hi;
+        m_ext_stale = other->m_ext_stale;
+        m_pre_done = true;
+        m_pre_min = other->m_pre_min;
+        m_pre_max = other->m_pre_max;
+        m_pre_auto = other->m_pre_auto;
+        m_pre_vars = other->m_pre_vars;
+        m_pre_valid = other->m_pre_valid;
+        m_pre_lo = other->m_pre_lo;
+        m_pre_hi = other->m_pre_hi;
+        m_pre_stale = other->m_pre_stale;
+    }
+    else
+    {
+        m_pre_done = false;         // (the box the script's box now says is not the one that was searched for)
+    }
     const bool varsChanged = updateVars(other->vars);
     if (exactChanged && !varsChanged && !started && m_geometry_known && wouldRenderDifferently(m_last_settings))
     {
@@ -2665,10 +2723,12 @@ void Shape::drawMonochrome(const QMatrix4x4& M, QColor color)
 void Shape::startRender(Settings s, libfive::BRepAlgorithm alg)
 {
     const auto t0 = std::chrono::steady_clock::now();
-    measureExtent(s);
+    // (the thread that made the shape searched its box already, if it could -- see premeasureExtent --, for these settings and numbers: the window's thread does not search it again)
+    const bool ahead = takePreExtent(s);
+    if (!ahead) measureExtent(s);
     if (std::getenv("FIELDEV_TIMING"))
-        fprintf(stderr, "[shape] line %d: measureExtent %.0f ms (%s%s%s)\n", source_line + 1,
-                1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(), m_ext_valid ? "found" : "none",
+        fprintf(stderr, "[shape] line %d: measureExtent %.0f ms (%s%s%s%s)\n", source_line + 1,
+                1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(), ahead ? "searched ahead: " : "", m_ext_valid ? "found" : "none",
                 m_ext_valid ? "" : ": ", m_ext_valid ? "" : extentWhy(s).c_str());
     if (!m_geometry_known || s != m_last_settings) m_div_sized = false;           // (another region or resolution: its level is chosen again)
     sizeFirstLevel(s);
@@ -2715,10 +2775,11 @@ void Shape::startRender(RenderSettings s)
             if (s.div == MESH_DIV_NEW_VARS)
             {
                 const auto tExt = std::chrono::steady_clock::now();
-                measureExtent(s.settings);          // (the numbers changed: the shape is not where it was)
+                const bool ahead = takePreExtent(s.settings);           // (searched already, for these numbers, by the thread that made the run's shape: see updateFrom)
+                if (!ahead) measureExtent(s.settings);          // (the numbers changed: the shape is not where it was)
                 if (std::getenv("FIELDEV_TIMING"))
-                    fprintf(stderr, "[shape] line %d: measureExtent (new numbers) %.0f ms (%s)\n", source_line + 1,
-                            1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tExt).count(), m_ext_valid ? "found" : "none");
+                    fprintf(stderr, "[shape] line %d: measureExtent (new numbers) %.0f ms (%s%s)\n", source_line + 1,
+                            1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tExt).count(), ahead ? "searched ahead: " : "", m_ext_valid ? "found" : "none");
                 sizeFirstLevel(s.settings);
             }
             s.div = (s.div == MESH_DIV_NEW_VARS) ? default_div : 0;
@@ -3052,6 +3113,61 @@ QString Shape::identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tre
     return key;
 }
 
+void Shape::makeKey(std::unordered_map<libfive::TreeDataKey, libfive::Tree>& canonical, quint64 epoch)
+{
+    m_keyId = getUniqueId(canonical);
+    m_keyText = QString("e%1|").arg(epoch) + identityKey(canonical);
+    m_keyKnown = true;
+}
+
+void Shape::warmUp() const
+{
+    if (m_gizmo.present && m_gizmo.mapped) (void)gizmoMap();
+}
+
+void Shape::premeasureExtent(const Settings& s)
+{
+    measureExtent(s);
+    m_pre_done = true;
+    m_pre_min = s.min;
+    m_pre_max = s.max;
+    m_pre_auto = s.autoScale;
+    m_pre_vars = vars;
+    m_pre_valid = m_ext_valid;
+    m_pre_lo = m_ext_lo;
+    m_pre_hi = m_ext_hi;
+    m_pre_stale = m_ext_stale;
+}
+
+bool Shape::takePreExtent(const Settings& s)
+{
+    bool fits = m_pre_done && m_pre_auto == s.autoScale && m_pre_min == s.min && m_pre_max == s.max;
+    // (the numbers the box was searched for hold every number of this shape, with the values it has now: the shape of a later run may know more numbers than the same shape of an earlier one,
+    // and the ones it does not use do not change the box)
+    if (fits)
+    {
+        for (const auto& kv : vars)
+        {
+            const auto it = m_pre_vars.find(kv.first);
+            if (it == m_pre_vars.end() || it->second != kv.second)
+            {
+                fits = false;
+                break;
+            }
+        }
+    }
+    // (kept, not used up: the same settings arrive again -- the window applies the run's settings after its shapes -- and the search is the same one; what it found is put back, since a search
+    // for other settings in between may have replaced it.  Other numbers or another region do not fit it)
+    if (fits)
+    {
+        m_ext_valid = m_pre_valid;
+        m_ext_lo = m_pre_lo;
+        m_ext_hi = m_pre_hi;
+        m_ext_stale = m_pre_stale;
+    }
+    return fits;
+}
+
 namespace {
 
 /*  What a mesher thread does while it waits for work (libfive's FreeThreadHandler).  Left alone, a thread with nothing to do
@@ -3177,7 +3293,9 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
     RenderProgress handler(render_progress, s.div);
     mesh_settings.progress_handler = &handler;
     mesh_settings.free_thread_handler = &g_renderIdle;
-    mesh_settings.low_priority = run_heavy;
+    // (always at a lower priority than the window's thread: eight workers at the same one, on a machine of four cores, left the window a ninth of the processor while a shape was meshed, and
+    // every drawn picture waited for the mesher.  The mesher takes what the window leaves, which is all of it when the window has nothing to do)
+    mesh_settings.low_priority = true;
     // A part with its own resolution is meshed on its own (setRenderHint):
     // over a cube around it, at the resolution it needs
     // (the resolution was worked out when the render started, in the GUI's thread: the box it is of is made there, and is not read from here)

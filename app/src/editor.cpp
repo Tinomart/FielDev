@@ -552,6 +552,15 @@ void Editor::refreshOutline(bool runDone)
 
 void Editor::onInterpreterDone(Result r)
 {
+    // (for the timing logs: which step of taking a run's result keeps the window's thread)
+    QElapsedTimer lapClock;
+    lapClock.start();
+    const auto lap = [&](const char* what) {
+        if (!qEnvironmentVariableIsSet("FIELDEV_TIMING")) return;
+        const double ms = double(lapClock.nsecsElapsed()) / 1e6;
+        lapClock.restart();
+        if (ms > 1.5) std::cerr << "[editor] result: " << what << " took " << int(ms) << " ms" << std::endl;
+    };
     m_scriptRunning = false;
     if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
         std::cerr << "[at " << QDateTime::currentMSecsSinceEpoch() % 100000000 << " ms] [run] done: okay=" << r.okay << " replaced=" << r.replaced << " discard=" << m_discardResults
@@ -568,6 +577,7 @@ void Editor::onInterpreterDone(Result r)
     libfive::run_progress::requestPause(false);
     m_runText.clear();
     updateControls();
+    lap("the start (controls)");
     if (again) QTimer::singleShot(0, this, [this] { m_textChangedDebounce.start(); });
     if (m_runRow->isVisible() && qEnvironmentVariableIsSet("FIELDEV_TIMING"))
         std::cerr << "[bar-script] " << std::fixed << QDateTime::currentMSecsSinceEpoch() / 1000.0
@@ -639,9 +649,13 @@ void Editor::onInterpreterDone(Result r)
         }
 
         m_errorLine0 = -1;
+        lap("the result's text, the places of the numbers");
         emit(scriptErrorChanged(QString(), -1));       // (before the scene: the model tree's note is made from it)
+        lap("scriptErrorChanged");
         emit(shapes(r.shapes));
+        lap("the viewport takes the shapes");
         emit(fieldSources(r.fields));
+        lap("fieldSources");
     } else {
         setResult(Color::red, r.error.error);
         {
@@ -781,11 +795,13 @@ void Editor::onInterpreterDone(Result r)
         m_warnings = v;
     }
 
+    lap("warnings and selections");
     // Announce the settings
     if (r.okay || !r.shapes.isEmpty()) {
         emit(settingsChanged(r.settings, first_change));
         first_change = false;
     }
+    lap("settingsChanged");
 }
 
 void Editor::undo()

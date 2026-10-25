@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 #include <Python.h>
 #include <QApplication>
+#include <QtConcurrent>
 #include <QDateTime>
 #include <QMessageBox>
 #include <QRegularExpression>
@@ -759,6 +760,13 @@ void Interpreter::resume()
 
 void Interpreter::evaluate(QString script, bool resuming)
 {
+    // (the map the shapes' identities are made with grows with every script that was edited: a new life of it starts when it is large -- the shapes of the last run then differ from this run's
+    // by their epoch, and are all made again once)
+    if (m_canonical.size() > 300000)
+    {
+        m_canonical.clear();
+        ++m_keyEpoch;
+    }
     emit(busy());
     setRunScript(script);
 
@@ -1236,7 +1244,18 @@ void Interpreter::evaluate(QString script, bool resuming)
     PyThreadState_SetAsyncExc(m_workerThreadId, nullptr);
     PyGILState_Release(gstate);
 
+    prepareShapes(out);
     emit(done(out));
+}
+
+void Interpreter::prepareShapes(Result& out)
+{
+    // The box each shape is meshed in is searched for here, on the threads of the pool, one shape to a thread -- and not at the start of each shape's render in the window's thread, one shape after
+    // the other (up to 50 ms a shape, 170 ms in all for the four dots of a copy of a profile, in which the window did not answer): see Shape::premeasureExtent.  The shapes are not the window's yet
+    if (out.shapes.isEmpty()) return;
+    const Settings settings = out.settings;
+    QList<Shape*> shapes = out.shapes;
+    QtConcurrent::blockingMap(shapes, [&settings](Shape* s) { s->premeasureExtent(settings); s->warmUp(); });
 }
 
 QString Interpreter::callSupport(const QString& function, const QString& arg, QString* error)
@@ -1398,6 +1417,7 @@ void Interpreter::publishPartial(PyObject* snapshot, PyObject* linesList, int ru
         Py_XDECREF(shown);
     }
     Py_DECREF(host_mod);
+    prepareShapes(out);
     emit(partialResult(out));
 }
 
@@ -2437,6 +2457,7 @@ void Interpreter::recordShape(
             PyErr_Clear();
         }
         shape->settleField();               // (the field of a shape that is not drawn from numbers is made here, in the script's thread)
+        shape->makeKey(m_canonical, m_keyEpoch);        // (its identity between runs, made here and not in the window's thread: see Shape::makeKey)
         shape->moveToThread(QApplication::instance()->thread());
         out.shapes.push_back(shape);
 
