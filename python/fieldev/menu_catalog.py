@@ -337,6 +337,8 @@ OPERATIONS = [
     ('shear_x_y', 'Bend and twist', 'shear_x_y({body}, ({x}, {ym}), {s}, {t})', False),
     # The colours a body is shown and exported with (the presets: see material_presets(); a material of your own is `material(...)`)
     ('with_materials', 'Materials', 'with_materials({body}, material_preset("{preset}"))', False),
+    # Snow, moss or dust laid on every surface of the body that faces up, as geometry (see fieldev.stdlib.finish)
+    ('covered', 'Materials', 'covered({body}, depth={t}, angle=50)', False),
     # The cross-section of an armature, at its first node (made with every armature the menu makes: here for one that was written by hand)
     ('cut_face', 'Character', 'cut_face({body})', False),
     # A character: the armatures selected are joined into one body (the other half a mirror image), and are the skeleton of it
