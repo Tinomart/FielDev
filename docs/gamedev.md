@@ -44,12 +44,14 @@ The materials of a model shown with `with_materials` are exported with it (`expo
 | `.flattened(center, radius, level, blend)` | A flat place, joined to the ground over `blend`. |
 | `.road(path, width, blend, depth, smooth)` | A flat road along the path; the places are `(x, y)` or `(x, y, z)`, a place with no z is as high as the ground is there. |
 | `.river(path, width, depth, blend, smooth)` | A channel with sloping banks. |
+| `.river_water(freeboard)` | The water of the rivers made so far, as a body of its own in the water material: it fills each channel from the bed up to `freeboard` below the ground the river was cut into, following the river downhill. Where a river runs across a steep slope the water spills to the low side. |
+| `.steep_places(max_angle)`, `.walkable_fraction(max_angle, samples)` | The ground in its materials with red where it is steeper than `max_angle` degrees (a check to look at while modelling), and the share of the ground that is not. |
 | `.cave(path, radius, blend)`, `.add(shape, blend)`, `.cut(shape, blend)` | 3D changes of the solid. |
 | `.height_at(x, y)`, `.slope_at(x, y)` | Numbers, for standing things on the ground. |
 | `.chunk(ix, iy, size)`, `.chunks(size)` | A square of the world, or all of them. |
 | `.textured(...)`, `.material_layers(...)` | Grass, rock (steeper than `rock_angle`, and the walls of caves), snow (above `snow_line`), sand (below `beach`), and a road and a river bed wherever `.road` and `.river` were made. |
 | `water(size, level, depth)` | A slab of water. |
-| `export_terrain_chunks(ground, folder, size)` | One file per square, with materials. |
+| `export_terrain_chunks(ground, folder, size, lods=None)` | One file per square, with materials. `lods=[4000, 1000, 250]` writes every square at three budgets of triangles (`name_ix_iy_lod0.glb` ...): the field is meshed again, coarser. |
 
 Every method returns a new terrain; the old one is untouched. Rivers and roads go over each other in the order you call them.
 
@@ -87,6 +89,13 @@ A prop is a body shown in its materials (bark and leaves are two). `placed` scal
 The cell of a piece has its south-west floor corner at the origin. `wall_piece` stands on the south edge; `turn` quarter turns (counter-clockwise from above) put it on the east, north, west edge. A plan is a list of strings, the first the northmost; a cell is inside unless it is a space. Walls stand on every edge with outside beyond it; `edges` changes an edge: `{(i, j, side): kind}` with `side` 0 south, 1 east, 2 north, 3 west and `kind` "door", "arch", "window", "wall" or `None`.
 
 Every piece is cut to its cell, so it ends exactly on the cell's faces. `seam(a, b, axis)` asks both fields, on a grid just inside the face they share, what is solid, and `check()` does it for the whole kit. Walls that run north-south give the corner squares to the ones that run east-west, and a post (`pillar_piece`) closes a corner where two walls would only touch at a point, so no volume is made twice.
+
+## Collision meshes
+
+    export_collision(rock, "out/rock.glb", triangles=300)                  # out/rock_collision.glb
+    export_collision(rock, "out/rock.glb", triangles=300, naming="godot")  # out/rock-colonly.glb
+
+A body that is a field has no low-poly version to model by hand: the field is meshed again with fewer triangles, and the rougher copy stays where the surface is. `naming` is the suffix an engine looks for (`"godot"`: `-colonly`, which its importer reads from the node name, so the node gets the same name); nothing here was tried in an engine. The same idea gives levels of detail: `export_lods(part, path, [8000, 2000, 500])`, and `lods=` of `export_terrain_chunks`.
 
 ## What is not here yet
 

@@ -33,5 +33,6 @@ two seconds, except `12` (mesh export and import), which writes a mesh and reads
 | `43_level_and_kit.py` | none (a hall, a cell and a corridor; a house of kit pieces) | a level from the space inside it (`room`, `corridor`, `doorway`, `window_opening`, `staircase`, `pillar`, `build_level`) and a modular kit (`kit(...)`, `.build(plan)`, `.check()`, `.export(...)`) |
 | `44_props.py` | none (a row of props, a grove on terrain) | `rock`, `tree` (round, pine, bush), `crate`, `barrel`, `placed`, `merge`, `scatter` (on terrain, by a slope and a rule), `export_scatter` |
 | `45_game_world.py` | none (a small world) | all of it together: terrain with a road, a river and a cave, a keep, a house of kit pieces, trees, rocks and crates standing on the ground by rules; it meshes for a while.  Drag a material onto the keep (View > Materials) |
+| `46_water_and_walking.py` | none (a piece of ground with a river) | `.river_water`, `.steep_places`, `.walkable_fraction`: the water of a river as a body of its own, and the ground in red where a character cannot walk; `lods=` of `export_terrain_chunks`; docs/gamedev.md |
 
 (Open each script: the comment at its top says what to look at.)

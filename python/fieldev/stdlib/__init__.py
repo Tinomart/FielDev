@@ -36,6 +36,7 @@ from fieldev.stdlib.terrain import *
 from fieldev.stdlib.level import *
 from fieldev.stdlib.props import *
 from fieldev.stdlib.kit import *
+from fieldev.stdlib.collision import *
 from fieldev.stdlib.content_cache import cache_info, clear_caches
 
 # progress(fraction, text): your own long computations on the progress bar

@@ -60,7 +60,7 @@ def _height_range(h, cx, cy, sx, sy, n=17):
     return min(values), max(values)
 
 
-def _make(height, box, base, edits, features=()):
+def _make(height, box, base, edits, features=(), rivers=()):
     ''' The Terrain with this height field, in this footprint (cx, cy, sx, sy), with the floor of its slab at `base` and the 3D changes `edits` made to it in order '''
     from fieldev.stdlib.shapes import _bounded
     cx, cy, sx, sy = box
@@ -74,6 +74,7 @@ def _make(height, box, base, edits, features=()):
     out._base = base
     out._edits = tuple(edits)
     out._features = tuple(features)
+    out._rivers = tuple(rivers)
     low, high = _height_range(height, cx, cy, sx, sy)
     margin = 0.1 * (high - low) + 1.0
     _bounded(out, [cx - sx / 2.0, cy - sy / 2.0, min(base, low) - margin], [cx + sx / 2.0, cy + sy / 2.0, high + margin])
@@ -140,11 +141,11 @@ def _path(nodes, ground, smooth):
     return _catmull(pts, 8) if smooth else pts
 
 
-def _along(pts):
+def _along(pts, with_point=False):
     ''' (the distance across the ground from the path, the height of the path nearest to it) as fields of x and y: the pieces of the path are straight, the height runs
         along each of them, and the nearest piece wins '''
     x, y = Shape.X(), Shape.Y()
-    best_d = best_z = None
+    best_d = best_z = best_x = best_y = None
     for a, b in zip(pts, pts[1:]):
         dx, dy = b[0] - a[0], b[1] - a[1]
         l2 = dx * dx + dy * dy
@@ -155,15 +156,18 @@ def _along(pts):
         qx, qy = px - t * dx, py - t * dy
         d = (qx.square() + qy.square()).sqrt()
         z = a[2] + t * (b[2] - a[2])
+        wx, wy = a[0] + t * dx, a[1] + t * dy                  # (the place of this piece that is nearest to (x, y))
         if best_d is None:
-            best_d, best_z = d, z
+            best_d, best_z, best_x, best_y = d, z, wx, wy
         else:
             nearer = (-(d - best_d).compare(0.0)).max(0.0)       # (1 where this piece is nearer than the ones before it, else 0)
             best_z = best_z + (z - best_z) * nearer
+            best_x = best_x + (wx - best_x) * nearer
+            best_y = best_y + (wy - best_y) * nearer
             best_d = best_d.min(d)
     if best_d is None:
         raise ValueError('a path needs two places that are not the same')
-    return best_d, best_z
+    return (best_d, best_z, best_x, best_y) if with_point else (best_d, best_z)
 
 
 class Terrain(Shape):
@@ -172,13 +176,14 @@ class Terrain(Shape):
     _box = None
     _base = None
     _edits = ()
+    _rivers = ()                    # (the rivers made: (distance from the path as a field, how far the channel reaches, the nearest place of the path as two fields, the ground before the channel, the depth) -- what river_water fills)
     _features = ()                  # (the roads and rivers made: (kind, distance from the path as a field, half the width) -- what the road and river materials are where)
 
-    def _with_height(self, height, feature=None):
-        return _make(height, self._box, self._base, self._edits, self._features + ((feature,) if feature else ()))
+    def _with_height(self, height, feature=None, river=None):
+        return _make(height, self._box, self._base, self._edits, self._features + ((feature,) if feature else ()), self._rivers + ((river,) if river else ()))
 
     def _with_edit(self, op, shape, blend):
-        return _make(self._height, self._box, self._base, self._edits + ((op, Shape.wrap(shape), float(blend)),), self._features)
+        return _make(self._height, self._box, self._base, self._edits + ((op, Shape.wrap(shape), float(blend)),), self._features, self._rivers)
 
     # ---- what the ground is like at a place
 
@@ -234,10 +239,29 @@ class Terrain(Shape):
     def river(self, path, width=6.0, depth=2.0, blend=None, smooth=True):
         ''' A channel `depth` deep along `path` (places (x, y)), `width` across at its bottom, with banks that slope up to the ground over `blend` (its width by default) '''
         pts = _path(path, None, smooth)
-        dist, _ = _along(pts)
+        dist, _, px, py = _along(pts, True)
         blend = float(width) if blend is None else float(blend)
         bowl = 1.0 - smoothstep(dist, 0.0, float(width) / 2.0 + blend)
-        return self._with_height(self._height - float(depth) * bowl, ('river', dist, float(width) / 2.0))
+        return self._with_height(self._height - float(depth) * bowl, ('river', dist, float(width) / 2.0),
+                                 (dist, float(width) / 2.0 + blend, px, py, self._height, float(depth)))
+
+    def river_water(self, freeboard=0.4):
+        ''' The water of the rivers made so far, as a body of its own in the water material: it fills each channel from the bed up to `freeboard` below the level the ground had at the
+            middle of the channel before it was cut (at the nearest place of the river's path, so the water follows the river downhill), and ends where the bank rises above it.  It
+            is a separate body, so that an engine can give it a water shader: export it beside the ground.  Where a river runs across a steep slope the water spills towards the
+            low side as far as the channel reaches -- let a river run along the fall of the land, or over flat land '''
+        from fieldev.stdlib.shapes import _bounded
+        if not self._rivers:
+            raise ValueError('river_water: this ground has no river -- make one with river(...) first')
+        x, y, z = Shape.X(), Shape.Y(), Shape.Z()
+        body = None
+        for dist, reach, px, py, before, depth in self._rivers:
+            surface = before(px, py, z) - float(freeboard)                  # (the ground at the nearest place of the path, as it was before the channel, less the freeboard)
+            piece = (z - surface).max(self._height(x, y, z) - 0.1 - z).max(dist - reach)       # (a little under the bed, so that the two bodies do not share a face)
+            body = piece if body is None else body.min(piece)
+        lo, hi = self._bounds
+        _bounded(body, list(lo), list(hi))
+        return with_materials(body, material_preset('water'))
 
     def cave(self, path, radius=4.0, blend=2.0):
         ''' A tunnel of that radius along `path` (places (x, y, z): inside the ground, or coming out of it), blended into the ground over `blend`.  A cut of the solid: a heightmap
@@ -255,6 +279,36 @@ class Terrain(Shape):
     def cut(self, shape, blend=0.0):
         ''' A body taken out of the ground (a pit, a cellar, a cave of your own), with a blend of `blend` along the cut '''
         return self._with_edit('cut', shape, blend)
+
+    # ---- where a character can walk
+
+    def _tangent(self, e=0.5):
+        ''' The tangent of the angle of the ground, as a field (what `slope_at` gives in degrees: the same differences over `e` on each side) '''
+        x, y, z = Shape.X(), Shape.Y(), Shape.Z()
+        h = self._height
+        gx = (h(x + e, y, z) - h(x - e, y, z)) * (0.5 / e)
+        gy = (h(x, y + e, z) - h(x, y - e, z)) * (0.5 / e)
+        return (gx.square() + gy.square()).sqrt()
+
+    def steep_places(self, max_angle=35.0, color='#d9483b', **options):
+        ''' The ground in the colours of `textured(**options)`, with `color` (red) wherever it is steeper than `max_angle` degrees: a check to look at while you model, for the places
+            a character cannot walk up.  It is a layer like the others, so it is in the file if you export it '''
+        layers = self.material_layers(**options)
+        layers.append(material('too_steep', color=color, roughness=0.9, where=math.tan(math.radians(float(max_angle))) - self._tangent()))
+        return with_materials(self, layers)
+
+    def walkable_fraction(self, max_angle=35.0, samples=30):
+        ''' How much of the ground, seen from above, is not steeper than `max_angle` degrees: a number from 0 to 1, from a grid of `samples` x `samples` places '''
+        cx, cy, sx, sy = self._box
+        n = int(samples)
+        if n < 1:
+            raise ValueError('walkable_fraction: samples is at least 1')
+        ok = 0
+        for i in range(n):
+            for j in range(n):
+                if self.slope_at(cx - sx / 2.0 + (i + 0.5) * sx / n, cy - sy / 2.0 + (j + 0.5) * sy / n) <= float(max_angle):
+                    ok += 1
+        return ok / float(n * n)
 
     # ---- cutting it up
 
@@ -326,10 +380,13 @@ def water(size=(200.0, 200.0), level=0.0, depth=3.0, center=(0.0, 0.0)):
     return with_materials(slab, material_preset('water'))
 
 
-def export_terrain_chunks(ground, folder, size, name='terrain', ext='glb', layers=None, **options):
+def export_terrain_chunks(ground, folder, size, name='terrain', ext='glb', layers=None, lods=None, **options):
     ''' Writes every square of `ground` (`size` across) as a file of its own, `folder/name_ix_iy.ext`, with the materials of `ground.textured()` (or `layers`: a list of
-        `material(...)`) -- the pieces of a streamed world.  The other options are those of `export_mesh` (resolution, max_triangles, up="y" ...).  Returns the paths '''
-    from fieldev.stdlib.exporting import export_mesh
+        `material(...)`) -- the pieces of a streamed world.  `lods`: a list of budgets of triangles, the finest first (`[4000, 1000, 250]`) -- every square is then written at each of them, as
+        `name_ix_iy_lod0.ext`, `name_ix_iy_lod1.ext` ... (see `export_lods`): the field is meshed again, coarser, so each level is the same ground and the squares still meet at the edge
+        of the ground they share, but a coarser level does not meet a finer neighbour exactly (the edges are different polygons).  The other options are those of `export_mesh`
+        (resolution, max_triangles, up="y" ...).  Returns the paths '''
+    from fieldev.stdlib.exporting import export_mesh, export_lods
     if not isinstance(ground, Terrain):
         raise TypeError('export_terrain_chunks: the first argument is a terrain(...)')
     layers = ground.material_layers() if layers is None else layers
@@ -340,5 +397,8 @@ def export_terrain_chunks(ground, folder, size, name='terrain', ext='glb', layer
         lo, hi = body._bounds
         path = os.path.join(os.fspath(folder), '%s_%d_%d.%s' % (name, ix, iy, ext))
         use = layers if ext.lower() in ('obj', 'glb', 'gltf') else None
-        paths.append(export_mesh(body, path, bounds=(tuple(lo), tuple(hi)), materials=use, **export_options(ext, options)))
+        if lods is None:
+            paths.append(export_mesh(body, path, bounds=(tuple(lo), tuple(hi)), materials=use, **export_options(ext, options)))
+        else:
+            paths.extend(export_lods(body, path, lods, bounds=(tuple(lo), tuple(hi)), materials=use, **export_options(ext, options)))
     return paths
