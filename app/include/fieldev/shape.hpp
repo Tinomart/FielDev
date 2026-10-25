@@ -233,7 +233,12 @@ public:
      *  to `at`; from anywhere else on the sweep a branch hangs from the node at `anchor` -- `size` thick.  It is gone with the shape: the run that has the node in the script makes another one  */
     void previewSweepNode(const QVector3D& anchor, const QVector3D& at, double size);
     void clearSweepPreview();
-    bool hasSweep() const { return !m_sweep_path.empty() && !m_sweep_profile.empty(); }
+    bool hasSweep() const { return !m_sweep_path.empty() && !m_sweep_profile.empty() && !m_sweep_seed; }
+    /*  An armature of ONE node -- a ball -- that carries what its next node would make of it a sweep of: the profile, the node as a path of one, how it is placed.  It is not a sweep (it is drawn from its
+     *  field) until a node is previewed on it (previewSweepNode): then the click draws the sweep at once, before the script has run with the node  */
+    void setSweepSeed(bool seed) { m_sweep_seed = seed; }
+    bool hasSweepSeed() const { return m_sweep_seed && !m_sweep_path.empty() && !m_sweep_profile.empty(); }
+    bool previewing() const { std::lock_guard<std::mutex> lock(m_previewMutex); return !m_sweepPreview.empty(); }
     /*  The one number (var) an expression of the script's numbers is made of, or null when it has none or several: what moves a point along an axis  */
     static libfive::Tree::Id soleVarOf(const libfive::Tree& expression);
     bool hasControls() const { return !m_controls.empty(); }
@@ -763,7 +768,7 @@ protected:
     struct SweepNumbers;
     std::vector<ControlPoint> m_sweep_profile, m_sweep_path;
     std::vector<SweepBranch> m_sweep_branches;
-    bool m_sweep_profile_default = false, m_sweep_path_default = false, m_sweep_closed = false, m_sweep_placed = false, m_sweep_free = false;
+    bool m_sweep_profile_default = false, m_sweep_path_default = false, m_sweep_closed = false, m_sweep_placed = false, m_sweep_free = false, m_sweep_seed = false;
     std::vector<std::pair<libfive::Tree::Id, float>> m_sweep_guard;
     bool m_sweep_round_start = false, m_sweep_round_end = false;
     bool m_sweep_offset = false, m_sweep_across = false;

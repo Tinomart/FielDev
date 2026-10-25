@@ -24,9 +24,6 @@ the README has the design decisions (*Known limitations*).
   when the drag ends. Its `height`, `opacity` and `flip` are numbers in the script.
 - **A plain `path_extrude` has `sizes` but no circle in the viewport.** How thick a sweep is at a point is the number in `sizes` of the call (a var(): change it in the script). Only the nodes of an armature have the circle round them that is dragged and the Shift + wheel over the node that sets the same number. The scale of a point -- the gold ring of its gizmo -- is how strongly the curve leaves it, for both.
 - **A feature model follows a dragged point when the script runs again, not during the drag.** Its surface is a mesh made of the points (every point a vertex, every loop an edge loop), so it changes when you let go of a point; an armature, which is a path extrude with a cross-section of its own, follows a dragged node at once.
-- **A branch of an armature is drawn as a sweep that crosses its parent in the viewport; the blend is in the field.** `armature([a, b, [c, d], e])` joins the branch to the rest with a smooth union as wide as
-  the branch is thick (what `character` and the export mesh), but the viewport draws every piece of an armature natively, ring by ring from the numbers of its nodes, and does not blend them: where a branch leaves its
-  parent the two surfaces cross. A `character` of the armature, or the exported mesh, shows the blend.
 - **`uv_unwrap` is a pure-Python unwrap**: a mesh of tens of thousands of triangles takes tens of seconds to lay out (the conformal map of an island of more than 6000 triangles is replaced by a planar projection), and the
   packing is a few per cent looser than a dedicated packer's.
 - **FielDev writes no animation and no morph targets**: it is a modelling program. A rigged glTF is the mesh in its bind pose with the skeleton and the skin weights.

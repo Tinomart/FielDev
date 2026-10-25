@@ -421,7 +421,9 @@ def _toggle(tree, lines, name, line, obj):
     new_state = {'corner': 'spline', 'spline': 'round' if in_profile else 'corner', 'round': 'corner'}[state]
     # What the point says of itself now.  A round corner is a corner with a radius: it says no `smooth=` (a radius beats the profile's default), and its radius starts at a quarter of
     # its shorter edge
-    smooth = {'corner': False, 'spline': True, 'round': None}[new_state]
+    # (a round corner is a corner with a radius, so it says `smooth=False` where the profile says its points are spline points -- a point that says nothing is a spline point there, and a radius means nothing
+    # on one; where the profile says corners, that is what it says anyway and the keyword is left out)
+    smooth = {'corner': False, 'spline': True, 'round': False}[new_state]
     if smooth is not None and smooth == bool(default):
         smooth = None                                              # (what the profile says anyway)
     radius = None

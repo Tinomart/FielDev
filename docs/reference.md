@@ -1197,7 +1197,7 @@ The surface of an infinite cylinder along an axis: a surface, negative inside
 
 What FielDev draws for a shape (see the top of this file)
 
-### `image_dot(source, xyz, rows, about, shift=(0.0, 0.0, 0.0), frozen=())`
+### `image_dot(source, xyz, rows, about, shift=(0.0, 0.0, 0.0), frozen=(), index=None)`
 
 The dot of a point that is drawn somewhere else than the point is: the IMAGE of `source` under the map that takes a place to `about + rows * (place - about) + shift` (a turn or a
 mirror image, then a move), at `xyz` -- expressions of the numbers of `source`.  It is the point in every way that is seen: it is pressed, dragged, double clicked, and it is
@@ -1558,7 +1558,7 @@ A character joins its armatures with a blend as wide as each one is thick (`blen
 the size of the character; `blend=3` is 3 mm everywhere.
 
 A BRANCH is a list among the nodes: `armature([hip, knee, ankle, [toe_a, toe_b], heel_end])` -- it hangs from the node before it (the ankle), is swept from there with the same cross-section and the same
-sizes and joints lists, and is joined to the rest with a blend as wide as it is thick.  It is part of the armature: one profile, one cross-section, one skeleton.
+sizes and joints lists.  It is part of the armature -- one profile, one cross-section, one skeleton -- and `character` joins it with a blend as wide as it is thick.
 
 The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it (the first
 node of a branch: from the node it branches from).  An armature
@@ -1599,8 +1599,8 @@ The cross-section says how the size of a node sizes it: `sizing=` of the 2D shap
 nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
 The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
-last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from, and is
-joined to the rest with a blend as wide as it is thick
+last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  The armature
+is the union of its pieces -- what the viewport draws -- and `character` joins them with a blend as wide as each branch is thick, as it joins armatures
 
 ### `character(armatures, blend='auto', symmetric=None)`
 

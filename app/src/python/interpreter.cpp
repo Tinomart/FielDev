@@ -1929,6 +1929,11 @@ void Interpreter::recordShape(
                     Py_XDECREF(fr);
                     shape->setSweepGuard(std::move(sweepGuard));
                     shape->setSweepBranches(std::move(branches));
+                    // (a ball that carries what its next node would make of it a sweep of: see Shape::setSweepSeed)
+                    PyObject* seed = PyObject_GetAttrString(obj, "_sweep_seed");
+                    shape->setSweepSeed(seed && PyObject_IsTrue(seed) == 1);
+                    Py_XDECREF(seed);
+                    PyErr_Clear();
                     // (the ends of the sweep that are domes: an armature ends round at a node that is a spline point)
                     PyObject* rnd = PyObject_GetAttrString(obj, "_sweep_round");
                     if (rnd && PyTuple_Check(rnd) && PyTuple_Size(rnd) == 2)

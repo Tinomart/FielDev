@@ -3596,7 +3596,7 @@ void View::placeArmatureNode(QPoint pos)
         {
             for (Shape* s : shapes)
             {
-                if (s->hasSweep() && s->groupHas(anchorPoint, true))
+                if ((s->hasSweep() || s->hasSweepSeed()) && s->groupHas(anchorPoint, true))
                 {
                     s->previewSweepNode(anchorAt, at, double(anchorPoint->armatureSize()) * double(m_arm.size));
                     break;

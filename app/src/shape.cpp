@@ -529,7 +529,8 @@ struct Shape::SweepNumbers
 bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& out) const
 {
     static const bool off = std::getenv("FIELDEV_NO_NATIVE") != nullptr;          // (for comparing with the field: every sweep and prism is meshed from its field)
-    if (off || !hasSweep() || !m_sweep_twist.is_valid()) return false;
+    const bool seeded = hasSweepSeed() && previewing();           // (a ball whose next node is drawn before the script has it)
+    if (off || !(hasSweep() || seeded) || !m_sweep_twist.is_valid()) return false;
     if (color_field.is_valid()) return false;
     for (const auto& g : m_sweep_guard)
     {
@@ -537,7 +538,7 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
         if (it == v.end() || std::fabs(it->second - g.second) > 1e-6f * std::max(1.0f, std::fabs(g.second))) return false;
     }
     if (!controlNumbersOf(m_sweep_profile, true, v, out.profile, this) || out.profile.size() < 3) return false;
-    if (!controlNumbersOf(m_sweep_path, false, v, out.path, this) || out.path.size() < 2) return false;
+    if (!controlNumbersOf(m_sweep_path, false, v, out.path, this) || out.path.size() < (seeded ? 1u : 2u)) return false;
     out.size.assign(out.path.size(), 1.0);
     for (size_t i = 0; i < m_sweep_path.size() && i < out.size.size(); ++i)
         if (m_sweep_path[i].hasSize)
@@ -587,6 +588,7 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
         }
     }
     if (!m_sweepPreview.empty()) applySweepPreview(out);
+    if (out.path.size() < 2) return false;
     return true;
 }
 
@@ -605,8 +607,8 @@ void Shape::applySweepPreview(SweepNumbers& s) const
         fresh.pos = Eigen::Vector3d(node.at.x(), node.at.y(), node.at.z());
         // (the path that ends at the node goes on to the new one: the node it ended at is in the middle now, and a node in the middle is a corner -- only the ends of an armature are spline points)
         const auto goOn = [&](std::vector<Control>& path, std::vector<double>& size, bool& roundEnd) {
-            if (path.size() < 2 || !here(path.back().pos, node.anchor)) return false;
-            path.back().smooth = 0;
+            if (path.empty() || !here(path.back().pos, node.anchor)) return false;
+            if (path.size() >= 2) path.back().smooth = 0;
             path.push_back(fresh);
             size.push_back(node.size);
             roundEnd = true;
@@ -644,7 +646,7 @@ void Shape::applySweepPreview(SweepNumbers& s) const
 
 void Shape::previewSweepNode(const QVector3D& anchor, const QVector3D& at, double size)
 {
-    if (!hasSweep()) return;
+    if (!hasSweep() && !hasSweepSeed()) return;
     {
         std::lock_guard<std::mutex> lock(m_previewMutex);
         m_sweepPreview.push_back(SweepPreviewNode{anchor, at, size});
@@ -3006,7 +3008,7 @@ QString Shape::identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tre
         }
         key += QString(";%1,%2").arg(pid(m_prism_a)).arg(pid(m_prism_b));
     }
-    if (hasSweep())
+    if (hasSweep() || hasSweepSeed())
     {
         const auto sid = [&](const libfive::Tree& t) { return t.is_valid() ? quintptr(t.cooptimize(canonical).id()) : quintptr(0); };
         key += QString("|sweep %1 %2 %3%4|f%5").arg(m_sweep_profile.size()).arg(m_sweep_path.size()).arg(m_sweep_closed ? 1 : 0).arg(m_sweep_free ? "F" : "").arg(quintptr(built_tree.id()));
@@ -3212,7 +3214,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
             fprintf(stderr, "[prism] line %d: %s\n", source_line + 1,
                     m ? "drawn from the numbers of its points" : ready ? "its outline cannot be cut into triangles: its field is meshed" : "its guard or its numbers do not hold: its field is meshed");
     }
-    if (!m && hasSweep())
+    if (!m && (hasSweep() || (hasSweepSeed() && previewing())))
     {
         SweepNumbers sn;
         const bool ready = sweepNow(run_flat_vars, sn);
