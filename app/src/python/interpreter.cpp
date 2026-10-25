@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 #include <Python.h>
 #include <QApplication>
+#include <QDateTime>
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <cstdlib>
@@ -722,7 +723,7 @@ void Interpreter::eval(QString script)
         if (qEnvironmentVariableIsSet("FIELDEV_TIMING")) std::cerr << "[run] request dropped (a newer one is waiting)" << std::endl;
         return;
     }
-    if (qEnvironmentVariableIsSet("FIELDEV_TIMING")) std::cerr << "[run] start" << std::endl;
+    if (qEnvironmentVariableIsSet("FIELDEV_TIMING")) std::cerr << "[at " << QDateTime::currentMSecsSinceEpoch() % 100000000 << " ms] [run] start" << std::endl;
     evaluate(script, false);
 }
 
@@ -1792,14 +1793,14 @@ void Interpreter::recordShape(
             PyObject* qp = PyObject_GetAttrString(obj, "_sweep_qpos");
             if (pp && PyList_Check(pp) && PyList_Size(pp) > 0 && qp && PyList_Check(qp) && PyList_Size(qp) > 0)
             {
-                auto readPoints = [&](const char* pos, const char* rot, const char* scale, const char* flag, const char* radius, const char* size, std::vector<Shape::ControlPoint>& points) -> bool {
-                    PyObject* cp = PyObject_GetAttrString(obj, pos);
-                    PyObject* cr = PyObject_GetAttrString(obj, rot);
-                    PyObject* cs = PyObject_GetAttrString(obj, scale);
-                    PyObject* cf = PyObject_GetAttrString(obj, flag);
-                    PyObject* crad = radius ? PyObject_GetAttrString(obj, radius) : nullptr;      // (the points of a path have no radius: a round corner is a corner of a face)
+                auto readPoints = [&](PyObject* from, const char* pos, const char* rot, const char* scale, const char* flag, const char* radius, const char* size, std::vector<Shape::ControlPoint>& points) -> bool {
+                    PyObject* cp = PyObject_GetAttrString(from, pos);
+                    PyObject* cr = PyObject_GetAttrString(from, rot);
+                    PyObject* cs = PyObject_GetAttrString(from, scale);
+                    PyObject* cf = PyObject_GetAttrString(from, flag);
+                    PyObject* crad = radius ? PyObject_GetAttrString(from, radius) : nullptr;      // (the points of a path have no radius: a round corner is a corner of a face)
                     if (!crad) PyErr_Clear();
-                    PyObject* csz = size ? PyObject_GetAttrString(obj, size) : nullptr;                 // (how thick the sweep is at each point of its path)
+                    PyObject* csz = size ? PyObject_GetAttrString(from, size) : nullptr;                 // (how thick the sweep is at each point of its path)
                     if (!csz) PyErr_Clear();
                     bool good = cp && PyList_Check(cp);
                     for (Py_ssize_t i = 0; good && i < PyList_Size(cp); ++i)
@@ -1853,8 +1854,32 @@ void Interpreter::recordShape(
                     return good;
                 };
                 std::vector<Shape::ControlPoint> profile, path;
-                bool good = readPoints("_sweep_ppos", "_sweep_prot", "_sweep_pscale", "_sweep_pflag", "_sweep_pradius", nullptr, profile) &&
-                            readPoints("_sweep_qpos", "_sweep_qrot", "_sweep_qscale", "_sweep_qflag", nullptr, "_sweep_qsize", path);
+                bool good = readPoints(obj, "_sweep_ppos", "_sweep_prot", "_sweep_pscale", "_sweep_pflag", "_sweep_pradius", nullptr, profile) &&
+                            readPoints(obj, "_sweep_qpos", "_sweep_qrot", "_sweep_qscale", "_sweep_qflag", nullptr, "_sweep_qsize", path);
+                // (the branches of an armature: pieces of its path that hang from a node, each a sweep of its own path with the profile of this one -- see armature.py)
+                std::vector<Shape::SweepBranch> branches;
+                {
+                    PyObject* br = PyObject_GetAttrString(obj, "_sweep_branches");
+                    for (Py_ssize_t b = 0; good && br && PyList_Check(br) && b < PyList_Size(br); ++b)
+                    {
+                        PyObject* one = PyList_GetItem(br, b);
+                        Shape::SweepBranch piece;
+                        good = readPoints(one, "_sweep_qpos", "_sweep_qrot", "_sweep_qscale", "_sweep_qflag", nullptr, "_sweep_qsize", piece.path) && piece.path.size() >= 2;
+                        PyObject* qd1 = PyObject_GetAttrString(one, "_sweep_qdefault");
+                        piece.pathDefault = qd1 && PyObject_IsTrue(qd1) == 1;
+                        Py_XDECREF(qd1);
+                        PyObject* rn = PyObject_GetAttrString(one, "_sweep_round");
+                        if (rn && PyTuple_Check(rn) && PyTuple_Size(rn) == 2)
+                        {
+                            piece.roundStart = PyObject_IsTrue(PyTuple_GetItem(rn, 0)) == 1;
+                            piece.roundEnd = PyObject_IsTrue(PyTuple_GetItem(rn, 1)) == 1;
+                        }
+                        Py_XDECREF(rn);
+                        branches.push_back(std::move(piece));
+                    }
+                    Py_XDECREF(br);
+                    PyErr_Clear();
+                }
                 PyObject* pd = PyObject_GetAttrString(obj, "_sweep_pdefault");
                 PyObject* qd = PyObject_GetAttrString(obj, "_sweep_qdefault");
                 PyObject* qc = PyObject_GetAttrString(obj, "_sweep_qclosed");
@@ -1903,6 +1928,7 @@ void Interpreter::recordShape(
                     shape->setSweepFree(fr && PyObject_IsTrue(fr) == 1);
                     Py_XDECREF(fr);
                     shape->setSweepGuard(std::move(sweepGuard));
+                    shape->setSweepBranches(std::move(branches));
                     // (the ends of the sweep that are domes: an armature ends round at a node that is a spline point)
                     PyObject* rnd = PyObject_GetAttrString(obj, "_sweep_round");
                     if (rnd && PyTuple_Check(rnd) && PyTuple_Size(rnd) == 2)
@@ -2213,6 +2239,28 @@ void Interpreter::recordShape(
                             full.translate(-c[0], -c[1], -c[2]);
                             hd.mapped = true;
                             hd.map = full;
+                            // (an image whose place is made of numbers of the script: the matrix and the move as expressions of them, so that the viewport follows them -- see handles/armature.cut_face)
+                            PyObject* live = PyObject_GetAttrString(obj, "_symmetry_live");
+                            if (live && PyTuple_Check(live) && PyTuple_Size(live) == 2)
+                            {
+                                PyObject* lin = PyTuple_GetItem(live, 0);
+                                PyObject* mv3 = PyTuple_GetItem(live, 1);
+                                if (lin && mv3 && PyTuple_Check(lin) && PyTuple_Size(lin) == 9 && PyTuple_Check(mv3) && PyTuple_Size(mv3) == 3)
+                                {
+                                    std::vector<libfive::Tree> lt, st;
+                                    bool good = true;
+                                    for (int k = 0; k < 9; ++k) { lt.push_back(treeOfShape(PyTuple_GetItem(lin, k))); good = good && lt.back().is_valid(); }
+                                    for (int k = 0; k < 3; ++k) { st.push_back(treeOfShape(PyTuple_GetItem(mv3, k))); good = good && st.back().is_valid(); }
+                                    if (good)
+                                    {
+                                        hd.liveLinear = std::move(lt);
+                                        hd.liveShift = std::move(st);
+                                        hd.liveAbout = QVector3D(c[0], c[1], c[2]);
+                                    }
+                                }
+                            }
+                            Py_XDECREF(live);
+                            PyErr_Clear();
                         }
                     }
                     Py_XDECREF(sy);
@@ -2237,6 +2285,15 @@ void Interpreter::recordShape(
                 shape->setGizmo(hd);
             }
             Py_XDECREF(h);
+            PyErr_Clear();
+        }
+
+        // Which point of an outline the dot is the image of (`_image_index`, see points.image_dot)
+        if (PyObject_HasAttrString(obj, "_image_index"))
+        {
+            PyObject* ix = PyObject_GetAttrString(obj, "_image_index");
+            if (ix && PyLong_Check(ix)) shape->setImageIndex(int(PyLong_AsLong(ix)));
+            Py_XDECREF(ix);
             PyErr_Clear();
         }
 

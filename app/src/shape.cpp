@@ -514,6 +514,13 @@ struct Shape::SweepNumbers
 {
     std::vector<libfive::pointshapes::Control> profile, path;
     std::vector<double> size;                                               // (how thick the section is at each point of the path)
+    struct Chain
+    {
+        std::vector<libfive::pointshapes::Control> path;
+        std::vector<double> size;
+        bool pathDefault = false, roundStart = false, roundEnd = false;
+    };
+    std::vector<Chain> branches;                                            // (the pieces of an armature that hang from a node of the path: see setSweepBranches)
     bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false, roundStart = false, roundEnd = false, offset = false, across = false;
     double twist = 0;                                                       // (degrees)
     Eigen::Vector3d about = Eigen::Vector3d::Zero(), move = Eigen::Vector3d::Zero(), rotate = Eigen::Vector3d::Zero(), scale = Eigen::Vector3d::Ones();
@@ -539,6 +546,24 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
             if (!std::isfinite(z)) return false;
             out.size[i] = std::max(0.0, z);
         }
+    out.branches.clear();
+    for (const SweepBranch& b : m_sweep_branches)
+    {
+        SweepNumbers::Chain chain;
+        if (!controlNumbersOf(b.path, false, v, chain.path, this) || chain.path.size() < 2) return false;
+        chain.size.assign(chain.path.size(), 1.0);
+        for (size_t i = 0; i < b.path.size() && i < chain.size.size(); ++i)
+            if (b.path[i].hasSize)
+            {
+                const double z = evalConstant(b.path[i].size, v);
+                if (!std::isfinite(z)) return false;
+                chain.size[i] = std::max(0.0, z);
+            }
+        chain.pathDefault = b.pathDefault;
+        chain.roundStart = b.roundStart;
+        chain.roundEnd = b.roundEnd;
+        out.branches.push_back(std::move(chain));
+    }
     out.profileDefault = m_sweep_profile_default;
     out.pathDefault = m_sweep_path_default;
     out.closed = m_sweep_closed;
@@ -561,7 +586,80 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
             if (!std::isfinite(out.move[a]) || !std::isfinite(out.rotate[a]) || !std::isfinite(out.scale[a])) return false;
         }
     }
+    if (!m_sweepPreview.empty()) applySweepPreview(out);
     return true;
+}
+
+void Shape::applySweepPreview(SweepNumbers& s) const
+{
+    std::vector<SweepPreviewNode> nodes;
+    {
+        std::lock_guard<std::mutex> lock(m_previewMutex);
+        nodes = m_sweepPreview;
+    }
+    using Control = libfive::pointshapes::Control;
+    const auto here = [](const Eigen::Vector3d& p, const QVector3D& q) { return (p - Eigen::Vector3d(q.x(), q.y(), q.z())).norm() <= 1e-3 * (1.0 + p.norm()); };
+    for (const SweepPreviewNode& node : nodes)
+    {
+        Control fresh;
+        fresh.pos = Eigen::Vector3d(node.at.x(), node.at.y(), node.at.z());
+        // (the path that ends at the node goes on to the new one: the node it ended at is in the middle now, and a node in the middle is a corner -- only the ends of an armature are spline points)
+        const auto goOn = [&](std::vector<Control>& path, std::vector<double>& size, bool& roundEnd) {
+            if (path.size() < 2 || !here(path.back().pos, node.anchor)) return false;
+            path.back().smooth = 0;
+            path.push_back(fresh);
+            size.push_back(node.size);
+            roundEnd = true;
+            return true;
+        };
+        bool done = goOn(s.path, s.size, s.roundEnd);
+        for (auto& b : s.branches)
+            if (!done) done = goOn(b.path, b.size, b.roundEnd);
+        if (done) continue;
+        // (from anywhere else on the sweep a branch hangs from the node: it begins with that node, round, and ends round)
+        const auto find = [&](const std::vector<Control>& path, const std::vector<double>& size, Control& found, double& thick) {
+            for (size_t k = 0; k < path.size(); ++k)
+            {
+                if (!here(path[k].pos, node.anchor)) continue;
+                found = path[k];
+                thick = k < size.size() ? size[k] : 1.0;
+                return true;
+            }
+            return false;
+        };
+        Control from;
+        double thick = 1.0;
+        bool have = find(s.path, s.size, from, thick);
+        for (size_t i = 0; !have && i < s.branches.size(); ++i) have = find(s.branches[i].path, s.branches[i].size, from, thick);
+        if (!have) continue;
+        SweepNumbers::Chain chain;
+        chain.path = {from, fresh};
+        chain.size = {thick, node.size};
+        chain.pathDefault = s.pathDefault;
+        chain.roundStart = true;
+        chain.roundEnd = true;
+        s.branches.push_back(std::move(chain));
+    }
+}
+
+void Shape::previewSweepNode(const QVector3D& anchor, const QVector3D& at, double size)
+{
+    if (!hasSweep()) return;
+    {
+        std::lock_guard<std::mutex> lock(m_previewMutex);
+        m_sweepPreview.push_back(SweepPreviewNode{anchor, at, size});
+    }
+    startRender(RenderSettings { m_last_settings, MESH_DIV_NEW_VARS, m_last_alg });
+}
+
+void Shape::clearSweepPreview()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_previewMutex);
+        if (m_sweepPreview.empty()) return;
+        m_sweepPreview.clear();
+    }
+    startRender(RenderSettings { m_last_settings, MESH_DIV_NEW_VARS, m_last_alg });
 }
 
 bool Shape::drawnFromNumbers() const
@@ -649,10 +747,10 @@ void inscribedCircle(const std::vector<Eigen::Vector2d>& poly, double& radius, E
 
 }   // namespace
 
-// The mesh of a sweep: the outline of the profile (from the middle of its box) carried along the path, a ring of it at both ends of every piece of the path -- in the frame
+// The mesh of ONE path of a sweep: the outline of the profile (from the middle of its box) carried along the path, a ring of it at both ends of every piece of the path -- in the frame
 // that piece has (the one the field of `path_extrude` has: carried along without turning about the path, turned by the points' rotations, scaled by their thickness) and cut
 // by the planes that bisect the corners (square at the ends of an open path) -- and the walls between the rings; the profile's face closes an open path's ends
-std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
+std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed)
 {
     using Vec = Eigen::Vector3d;
     // The profile in the coordinates of its own plane, from the middle of the box of its outline
@@ -761,7 +859,9 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
     // The sweep starts at the profile: the path says how it travels, not where from.  The first point of the path is the middle of the box of the profile (path_extrude of profile.py
     // moves the field the same way)
     {
-        const Vec shift = (o + pu * cx + pv * cy) - V[0];
+        // (a branch of an armature is moved by the shift of the path it hangs from, so that its first node is where that node is)
+        const Vec shift = forcedShift ? *forcedShift : Vec((o + pu * cx + pv * cy) - V[0]);
+        if (shiftUsed) *shiftUsed = shift;
         for (auto& p : V) p += shift;
     }
     const bool closed = in.closed;
@@ -1085,6 +1185,33 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
         fprintf(stderr, "[sweep] %zu vertices, %zu triangles, highest index %u; longest edge %.2f in triangle %u: (%.1f %.1f %.1f) (%.1f %.1f %.1f) (%.1f %.1f %.1f); ring %zu, pieces %d\n", out->verts.size(), out->branes.size(),
                 highest, longest, worst, out->verts[tri[0]].x(), out->verts[tri[0]].y(), out->verts[tri[0]].z(), out->verts[tri[1]].x(), out->verts[tri[1]].y(), out->verts[tri[1]].z(),
                 out->verts[tri[2]].x(), out->verts[tri[2]].y(), out->verts[tri[2]].z(), E, pieces);
+    }
+    return out;
+}
+
+// The mesh of a sweep and of the branches that hang from it: the path is meshed as sweepChain does, then each branch with the same profile -- moved by the shift of the path, so that its first node is
+// the node it hangs from -- the pieces added to the one mesh, and all of it placed by the gizmo together
+std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
+{
+    using Vec = Eigen::Vector3d;
+    Vec shift = Vec::Zero();
+    auto out = sweepChain(in, nullptr, &shift);
+    if (!out) return nullptr;
+    for (const SweepNumbers::Chain& b : in.branches)
+    {
+        SweepNumbers one = in;
+        one.branches.clear();
+        one.path = b.path;
+        one.size = b.size;
+        one.pathDefault = b.pathDefault;
+        one.closed = false;
+        one.roundStart = b.roundStart;
+        one.roundEnd = b.roundEnd;
+        const auto piece = sweepChain(one, &shift, nullptr);
+        if (!piece) return nullptr;
+        const uint32_t first = uint32_t(out->verts.size());
+        for (const auto& p : piece->verts) out->verts.push_back(p);
+        for (const auto& t : piece->branes) out->branes.push_back(Eigen::Matrix<uint32_t, 3, 1>(t[0] + first, t[1] + first, t[2] + first));
     }
     // Placed by the gizmo: scaled about its point, turned about x, then y, then z (degrees), then moved -- as `gizmo()` places a shape
     if (in.placed)
@@ -1432,9 +1559,41 @@ bool Shape::symmetryNow(Symmetry& out) const
     return true;
 }
 
+QMatrix4x4 Shape::gizmoMap() const
+{
+    if (m_gizmo.liveLinear.size() != 9 || m_gizmo.liveShift.size() != 3) return m_gizmo.map;
+    // (worked out again only when a number of the script has changed)
+    size_t h = 1469598103u;
+    for (const auto& kv : vars) h = (h ^ std::hash<float>()(kv.second)) * 1099511628211ull;
+    if (m_liveHashed && h == m_liveHash) return m_liveMap;
+    float l[9], s[3];
+    for (int i = 0; i < 9; ++i)
+    {
+        const double v = evalConstant(m_gizmo.liveLinear[size_t(i)], vars);
+        if (!std::isfinite(v)) return m_gizmo.map;
+        l[i] = float(v);
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        const double v = evalConstant(m_gizmo.liveShift[size_t(i)], vars);
+        if (!std::isfinite(v)) return m_gizmo.map;
+        s[i] = float(v);
+    }
+    const QMatrix4x4 linear(l[0], l[1], l[2], 0, l[3], l[4], l[5], 0, l[6], l[7], l[8], 0, 0, 0, 0, 1);
+    QMatrix4x4 full;
+    full.translate(s[0], s[1], s[2]);
+    full.translate(m_gizmo.liveAbout);
+    full *= linear;
+    full.translate(-m_gizmo.liveAbout);
+    m_liveMap = full;
+    m_liveHash = h;
+    m_liveHashed = true;
+    return full;
+}
+
 QMatrix4x4 Shape::gizmoMapLinear() const
 {
-    QMatrix4x4 L = m_gizmo.map;
+    QMatrix4x4 L = gizmoMap();
     L(0, 3) = L(1, 3) = L(2, 3) = 0;
     return L;
 }
@@ -1466,8 +1625,9 @@ QMatrix4x4 Shape::gizmoMatrix(const QVector3D& move, const QVector3D& rotate, co
     {
         // (an image: what the numbers do to the original, done to the image -- taken to the original's places, done there, and brought back)
         bool ok = false;
-        const QMatrix4x4 back = m_gizmo.map.inverted(&ok);
-        if (ok) A = m_gizmo.map * A * back;
+        const QMatrix4x4 map = gizmoMap();
+        const QMatrix4x4 back = map.inverted(&ok);
+        if (ok) A = map * A * back;
     }
     return A;
 }
@@ -1964,6 +2124,7 @@ bool Shape::updateFrom(const Shape* other)
     m_locked = other->m_locked;
     m_linked = other->m_linked;
     m_isPoint = other->m_isPoint;
+    m_imageIndex = other->m_imageIndex;
     m_armatureFactor = other->m_armatureFactor;
     m_armatureSizeVar = other->m_armatureSizeVar;
     m_armatureSize = other->m_armatureSize;
@@ -2078,7 +2239,9 @@ void Shape::buildDeps() const
         add(m_prism_a);
         add(m_prism_b);
         for (const auto& g : m_prism_guard) m_deps.insert(g.first);
-        for (const auto* list : {&m_sweep_profile, &m_sweep_path})
+        std::vector<const std::vector<ControlPoint>*> sweepLists{&m_sweep_profile, &m_sweep_path};
+        for (const SweepBranch& b : m_sweep_branches) sweepLists.push_back(&b.path);
+        for (const auto* list : sweepLists)
         {
             for (const ControlPoint& c : *list)
             {
@@ -2100,6 +2263,8 @@ void Shape::buildDeps() const
             add(m_sweep_rotate[a]);
             add(m_sweep_scale[a]);
         }
+        for (const auto& t : m_gizmo.liveLinear) add(t);
+        for (const auto& t : m_gizmo.liveShift) add(t);
         for (int a = 0; a < 3; ++a)
         {
             if (m_gizmo.move[a]) m_deps.insert(m_gizmo.move[a]);
@@ -2249,7 +2414,7 @@ void Shape::adoptMeshFromSource()
     GizmoNumbers made = m_meshGizmo;
     if (m_followKind == FOLLOW_IMAGE)
     {
-        X = m_gizmo.map;
+        X = gizmoMap();
         made = source->m_meshGizmo;
     }
     else
@@ -2847,7 +3012,13 @@ QString Shape::identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tre
         key += QString("|sweep %1 %2 %3%4|f%5").arg(m_sweep_profile.size()).arg(m_sweep_path.size()).arg(m_sweep_closed ? 1 : 0).arg(m_sweep_free ? "F" : "").arg(quintptr(built_tree.id()));
         key += QString("|r%1%2").arg(m_sweep_round_start ? 1 : 0).arg(m_sweep_round_end ? 1 : 0);              // (a dome or a flat end: not the same mesh)
         key += QString("|o%1%2").arg(m_sweep_offset ? 1 : 0).arg(m_sweep_across ? 1 : 0);                      // (offset or scaled sections, across the path or in their own plane: not the same mesh)
-        for (const auto* list : {&m_sweep_profile, &m_sweep_path})
+        std::vector<const std::vector<ControlPoint>*> sweepLists{&m_sweep_profile, &m_sweep_path};
+        for (const SweepBranch& b : m_sweep_branches)
+        {
+            sweepLists.push_back(&b.path);
+            key += QString("|branch %1 %2%3%4").arg(b.path.size()).arg(b.pathDefault ? 1 : 0).arg(b.roundStart ? 1 : 0).arg(b.roundEnd ? 1 : 0);        // (a piece that hangs from a node: its ends)
+        }
+        for (const auto* list : sweepLists)
         {
             for (const ControlPoint& c : *list)
             {
@@ -3047,7 +3218,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         const bool ready = sweepNow(run_flat_vars, sn);
         if (ready) m = sweepMesh(sn);
         if (std::getenv("FIELDEV_TIMING"))
-            fprintf(stderr, "[sweep] line %d: %s (%.0f ms into the level)\n", source_line + 1,
+            fprintf(stderr, "[at %lld ms] [sweep] line %d: %s (%.0f ms into the level)\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), source_line + 1,
                     m ? "drawn from the numbers of its points" : ready ? "its profile cannot be cut into triangles: its field is meshed" : "its numbers cannot be read: its field is meshed",
                     1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tLevel).count());
     }

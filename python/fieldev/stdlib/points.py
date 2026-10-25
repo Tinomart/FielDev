@@ -205,7 +205,7 @@ def point(x=0.0, y=0.0, z=0.0, smooth=None, radius=None):
     return Point(x, y, z, smooth, radius)
 
 
-def image_dot(source, xyz, rows, about, shift=(0.0, 0.0, 0.0), frozen=()):
+def image_dot(source, xyz, rows, about, shift=(0.0, 0.0, 0.0), frozen=(), index=None):
     ''' The dot of a point that is drawn somewhere else than the point is: the IMAGE of `source` under the map that takes a place to `about + rows * (place - about) + shift` (a turn or a
         mirror image, then a move), at `xyz` -- expressions of the numbers of `source`.  It is the point in every way that is seen: it is pressed, dragged, double clicked, and it is
         `source` that all of those change -- the numbers of `source`'s gizmo are what it is dragged by, taken back through the map (the viewport does it: `_symmetry`) --, so that the
@@ -214,6 +214,8 @@ def image_dot(source, xyz, rows, about, shift=(0.0, 0.0, 0.0), frozen=()):
     out = Point(xyz[0], xyz[1], xyz[2], smooth=getattr(source, '_smooth', None), radius=getattr(source, '_radius', None))
     out._kind = getattr(source, '_kind', 'point')
     out._symmetry_linear = rows
+    if index is not None:
+        out._image_index = index        # (which point of the outline it is the image of: a double click on it changes THAT point of the original -- see profile_edit.edit)
     g = getattr(source, '_gizmo', None)
     if g is not None:
         out._gizmo = g

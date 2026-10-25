@@ -206,7 +206,7 @@ void View::setShapes(QList<Shape*> new_shapes, int keepFromLine)
             fprintf(stderr, "[view] setShapes: the key of the shape of line %d took %.0f ms\n", s->sourceLine() + 1, ms);
     }
     if (std::getenv("FIELDEV_TIMING"))
-        fprintf(stderr, "[view] setShapes: %d new shapes keyed in %.0f ms\n", int(new_shapes.size()),
+        fprintf(stderr, "[at %lld ms] [view] setShapes: %d new shapes keyed in %.0f ms\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), int(new_shapes.size()),
                 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tKeys).count());
 
     // Erase all existing shapes that aren't in the new_shapes list
@@ -3583,6 +3583,28 @@ void View::placeArmatureNode(QPoint pos)
     if (!armatureCursor(pos, at)) return;
     if (m_arm.hasAnchorPos && (at - m_arm.anchorPos).length() < 1e-4f) return;          // (the second click of a double click)
     m_arm.busy = true;
+    // The armature is drawn with the node at once: the script is run with it a moment later (a few hundred milliseconds), and its shapes take the place of this picture
+    if (!m_arm.anchor.isEmpty() && m_scene)
+    {
+        Shape* anchorPoint = nullptr;
+        for (Shape* s : shapes)
+        {
+            if (s->isPoint() && s->sourceLine() >= 0 && m_scene->varAtLine(s->sourceLine()) == m_arm.anchor) { anchorPoint = s; break; }
+        }
+        QVector3D anchorAt;
+        if (anchorPoint && anchorPoint->dotPosition(anchorAt))
+        {
+            for (Shape* s : shapes)
+            {
+                if (s->hasSweep() && s->groupHas(anchorPoint, true))
+                {
+                    s->previewSweepNode(anchorAt, at, double(anchorPoint->armatureSize()) * double(m_arm.size));
+                    break;
+                }
+            }
+        }
+    }
+    if (std::getenv("FIELDEV_TIMING")) fprintf(stderr, "[at %lld ms] [armature] a node is asked for\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000));
     emit(armatureNodeRequested(m_arm.anchor, at, scaleAt(pos, at), m_arm.size));
 }
 
@@ -3593,6 +3615,8 @@ void View::armatureNodeDone(QString var, QVector3D at)
     if (!m_arm.on) return;
     if (var.isEmpty())
     {
+        // (nothing was written: the node that was drawn at the click is not coming)
+        for (Shape* s : shapes) s->clearSweepPreview();
         // (nothing was written -- the node the last one followed is gone from the script, or the text could not be read: the next click begins an armature)
         m_arm.anchor.clear();
         m_arm.hasAnchorPos = false;
@@ -4413,7 +4437,7 @@ void View::mouseDoubleClickEvent(QMouseEvent* event)
                 if (pointStyleOf(dot) != 0 && base->sourceLine() >= 0)
                 {
                     cancelPlacement();
-                    emit(pointToggleRequested(base->sourceLine()));
+                    emit(pointToggleRequested(base->sourceLine(), base == dot ? dot->imageIndex() : -1));
                     return;
                 }
             }
@@ -4429,7 +4453,7 @@ void View::mouseDoubleClickEvent(QMouseEvent* event)
         const Shape* base = (dot->gizmo().dotOnly && dot->followedShape()) ? dot->followedShape() : dot;
         if (pointStyleOf(dot) != 0 && base->sourceLine() >= 0)
         {
-            emit(pointToggleRequested(base->sourceLine()));
+            emit(pointToggleRequested(base->sourceLine(), base == dot ? dot->imageIndex() : -1));
             return;
         }
     }

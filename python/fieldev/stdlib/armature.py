@@ -24,7 +24,11 @@ that is a corner ends the armature flat, with the face of the cross-section.  Th
 A character joins its armatures with a blend as wide as each one is thick (`blend="auto"`, the default), so that a branch grows out of its parent the way a limb grows out of a body, whatever
 the size of the character; `blend=3` is 3 mm everywhere.
 
-The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  An armature
+A BRANCH is a list among the nodes: `armature([hip, knee, ankle, [toe_a, toe_b], heel_end])` -- it hangs from the node before it (the ankle), is swept from there with the same cross-section and the same
+sizes and joints lists, and is joined to the rest with a blend as wide as it is thick.  It is part of the armature: one profile, one cross-section, one skeleton.
+
+The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it (the first
+node of a branch: from the node it branches from).  An armature
 that begins on a node of another armature -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where an armature is joined
 when its first node is not on the other.  There is one root: the first node of the first armature.
 
@@ -48,10 +52,12 @@ _CORNER = 0.75
 
 
 class Armature:
-    ''' What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
-        sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in '''
+    ''' What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls, in the order the script lists them, the nodes of a branch
+        where the branch is written), the names of its joints, where it is joined, the sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first
+        node in.  `parents` says which node each hangs from (-1: the first), `chains` the nodes of every piece that is swept in one go: the chain from the first node, then each branch, a branch
+        beginning with the node it hangs from '''
 
-    def __init__(self, name, ctrls, joints, parent, sizes, profile=None, start=None, multipliers=None):
+    def __init__(self, name, ctrls, joints, parent, sizes, profile=None, start=None, multipliers=None, parents=None, chains=None):
         self.name = name
         self.ctrls = ctrls
         self.joints = joints
@@ -60,6 +66,8 @@ class Armature:
         self.multipliers = multipliers if multipliers is not None else [1.0] * len(ctrls)         # (how big the cross-section is at each node: see `sizes` of armature)
         self.profile = profile
         self.start = start
+        self.parents = parents if parents is not None else list(range(-1, len(ctrls) - 1))
+        self.chains = chains if chains is not None else [list(range(len(ctrls)))]
 
     def __repr__(self):
         return 'armature(%r, %d nodes)' % (self.name, len(self.ctrls))
@@ -93,22 +101,31 @@ def _profile_radius(shape):
         return 1.0
 
 
+_NATIVE = ('_sweep_ppos', '_sweep_prot', '_sweep_pflag', '_sweep_pscale', '_sweep_pradius', '_sweep_pdefault', '_sweep_qpos', '_sweep_qrot', '_sweep_qflag', '_sweep_qscale',
+           '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist', '_sweep_qsize')
+
+
+def _carry_native(target, sweep):
+    ''' What makes `sweep` a sweep that the viewport draws natively from the numbers of its points (path_extrude: `_sweep_*`), on to `target`, a shape made of it.  False when it is not one '''
+    if getattr(sweep, '_sweep_ppos', None) is None:
+        return False
+    from fieldev.stdlib.handles import _carry
+    _carry(target, sweep)
+    for name in _NATIVE:
+        setattr(target, name, getattr(sweep, name))
+    target._sweep_free = getattr(sweep, '_sweep_free', False)
+    for name in ('_sweep_round', '_sweep_offset', '_sweep_across', '_sweep_inner', '_sweep_place'):
+        if getattr(sweep, name, None) is not None:
+            setattr(target, name, getattr(sweep, name))
+    target._sweep_guard = list(getattr(sweep, '_sweep_guard', []))
+    return True
+
+
 def _placed_natively(placed, sweep, move):
     ''' `placed` is `sweep` moved by `move` (a new shape: its field).  A sweep that is drawn natively from the numbers of its points (path_extrude: `_sweep_*`) is placed natively as well, the way
         handles.gizmo places one: the viewport carries it by the numbers of the move, in a moment, and does not mesh the field of a sweep (thousands of terms: seconds at every node put down) '''
-    if getattr(sweep, '_sweep_ppos', None) is None:
-        return
-    from fieldev.stdlib.handles import _carry
-    _carry(placed, sweep)
-    for name in ('_sweep_ppos', '_sweep_prot', '_sweep_pflag', '_sweep_pscale', '_sweep_pradius', '_sweep_pdefault', '_sweep_qpos', '_sweep_qrot', '_sweep_qflag', '_sweep_qscale',
-                 '_sweep_qdefault', '_sweep_qclosed', '_sweep_twist', '_sweep_qsize'):
-        setattr(placed, name, getattr(sweep, name))
-    placed._sweep_free = getattr(sweep, '_sweep_free', False)
-    for name in ('_sweep_round', '_sweep_offset', '_sweep_across', '_sweep_inner'):
-        if getattr(sweep, name, None) is not None:
-            setattr(placed, name, getattr(sweep, name))
-    placed._sweep_guard = list(getattr(sweep, '_sweep_guard', []))
-    placed._sweep_place = ((0.0, 0.0, 0.0), tuple(Shape.wrap(x) for x in move), (Shape.wrap(0.0),) * 3, (Shape.wrap(1.0),) * 3)
+    if _carry_native(placed, sweep):
+        placed._sweep_place = ((0.0, 0.0, 0.0), tuple(Shape.wrap(x) for x in move), (Shape.wrap(0.0),) * 3, (Shape.wrap(1.0),) * 3)
 
 
 # how wide the blend of a character is, as a share of the thickness of the armature that is joined: about a third of it is added at the inside of the joint, which is what makes it grow out
@@ -137,15 +154,46 @@ def _joined(parts):
     return out
 
 
+def _node_tree(points):
+    ''' The nodes of an armature as the script lists them -- a list among them is a BRANCH, which hangs from the node before it -- and how they hang together: (nodes, parents, chains).
+        `nodes` are all of them in the order they are written, a branch's where it is written; `parents[i]` is the node i hangs from (-1: the first); `chains` are the pieces that are swept in
+        one go: the nodes of the main chain, then each branch, a branch beginning with the node it hangs from, so that it is swept from there '''
+    nodes, parents, chains = [], [], []
+
+    def walk(items, start):
+        chain = [] if start is None else [start]
+        chains.append(chain)
+        previous = start
+        for item in items:
+            if isinstance(item, list):
+                if previous is None:
+                    raise TypeError('armature: a list among the nodes is a branch and hangs from the node before it, so the first of the nodes cannot be one')
+                if not item:
+                    raise TypeError('armature: a branch is a list of nodes, one or more')
+                if all(isinstance(e, (int, float)) and not isinstance(e, bool) for e in item):
+                    raise TypeError('armature: a node is a point(x, y, z) or a tuple (x, y, z), not a list of numbers: a list among the nodes is a branch, a list of nodes that hangs from the node before it')
+                walk(item, previous)
+            else:
+                nodes.append(item)
+                parents.append(-1 if previous is None else previous)
+                previous = len(nodes) - 1
+                chain.append(previous)
+
+    walk(list(points), None)
+    return nodes, parents, chains
+
+
 def armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizes=None):
     ''' A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
             arm = armature([shoulder, elbow, hand], sizes=[1, 0.75, 0.58], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+            foot = armature([knee, ankle, [toe_a, toe_b], heel], name="foot")           # the toes branch from the ankle
 
-        points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a point's gizmo is how strongly the curve leaves it (its influence,
+        points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  A LIST among them is a branch: it hangs from the node before it and is swept from
+                 there with the same cross-section, as a part of this armature (a branch can have branches).  The scale of a point's gizmo is how strongly the curve leaves it (its influence,
                  1 by default: it shows when that point is selected); how thick the armature is at a node is `sizes`, not the point's scale
         radii    the size of the cross-section the armature is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or a list with one
-                 number for each node, the radius at that node
+                 number for each node, the radius at that node.  `radii`, `sizes` and `joints` list every node in the order it is written -- the nodes of a branch where the branch is written
         sizes    how big the cross-section is at each node, as a number of its own -- a list, one number (or var()) for each node, 1 the cross-section as it is -- on top of `radii`.  The circle round a
                  node, drawn with the armature's real radius there, is what changes it (drag it, or Shift + wheel over the node)
         profile  the cross-section: any 2D shape (a profile made of points, a polygon, a rectangle).  None: a square with spline points, made for the armature.  It is swept from the first
@@ -157,12 +205,12 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
         The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
-        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it '''
+        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from, and is
+        joined to the rest with a blend as wide as it is thick '''
     if not isinstance(points, (list, tuple)) or not points:
-        raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more')
-    if profile is not None and radii is not None:
-        raise ValueError('armature: radii is the size of the cross-section the armature makes for itself -- a profile of your own has its own size: change its points, or `sizes`')
-    n = len(points)
+        raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more; a list among them is a branch')
+    nodes, parents, chains = _node_tree(points)
+    n = len(nodes)
     number = 1.0
     shares = [1.0] * n              # (each node's share of the size of the cross-section, where a radius is given for each)
     if isinstance(radii, (list, tuple)):
@@ -181,11 +229,13 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         number = _radius(radii, 'armature: radii')
         if not isinstance(number, (int, float)) or isinstance(number, bool) or not number > 0:
             raise ValueError('armature: radii is a number above 0 (the size of the cross-section), or a list of them, one for each node, not %r' % (radii,))
+    if profile is not None and radii is not None:
+        raise ValueError('armature: radii is the size of the cross-section the armature makes for itself -- a profile of your own has its own size: change its points, or `sizes`')
     # How thick the armature is at each node: its radius (`radii`) times its size (`sizes`, a number of its own -- not the scale of the point, which is the influence of the point on the curve)
     from fieldev.stdlib.profile import _section_sizes
     node_sizes = _section_sizes(sizes, n, 'armature')[0]
     multipliers = [sh * sz for sh, sz in zip(shares, node_sizes)]
-    ctrls = C.controls(list(points))
+    ctrls = C.controls(nodes)
     thickness = [number * m for m in multipliers]
     label = str(name) if name else 'armature'
     if joints is None:
@@ -212,26 +262,45 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         from fieldev.stdlib import transforms
         from fieldev.stdlib.profile import path_extrude
         base = profile if profile is not None else _base_profile(number)
-        way = C.spline(list(points))
-        # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
-        # circle -- in the field and for the viewport by the same law)
-        rounds = (ctrls[0].flag != 0, ctrls[-1].flag != 0)
-        out = path_extrude(base, way, twist, ends=rounds, across=True, sizes=multipliers)
-        core = out
-        # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
-        # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)
-        shift = getattr(way, '_weld_shift', None)
-        if shift is not None:
-            sweep, back = out, C.sub((0.0, 0.0, 0.0), tuple(shift))
-            out = transforms.move(out, back)
-            _placed_natively(out, sweep, back)
-            for item in [way] + list(getattr(way, 'points', [])):
-                try:
-                    item._weld_shift = None
-                except AttributeError:
-                    pass
-        if len(way.vertices) > 1:
-            start = C.unit(C.sub(way.vertices[1], way.vertices[0]))
+        # (every chain of nodes that has two or more is swept from its first node: the main chain, and each branch from the node it hangs from.  The cross-section is the same for all of them)
+        swept = [chain for chain in chains if len(chain) > 1]
+        sweeps, placed, ways = [], [], []
+        for chain in swept:
+            way = C.spline([nodes[i] for i in chain])
+            # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
+            # circle -- in the field and for the viewport by the same law.  A branch begins round: its start is inside the node it hangs from)
+            rounds = (ctrls[0].flag != 0 if chain is chains[0] else True, ctrls[chain[-1]].flag != 0)
+            sweep = path_extrude(base, way, twist, ends=rounds, across=True, sizes=[multipliers[i] for i in chain])
+            moved = sweep
+            # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
+            # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)
+            shift = getattr(way, '_weld_shift', None)
+            if shift is not None:
+                back = C.sub((0.0, 0.0, 0.0), tuple(shift))
+                moved = transforms.move(sweep, back)
+                _placed_natively(moved, sweep, back)
+                for item in [way] + list(getattr(way, 'points', [])):
+                    try:
+                        item._weld_shift = None
+                    except AttributeError:
+                        pass
+            sweeps.append(sweep)
+            placed.append(moved)
+            ways.append(way)
+        core = sweeps[0]
+        out = placed[0]
+        if len(placed) > 1:
+            # (the branches are joined to the rest with a blend as wide as each is thick, so that a branch grows out of the armature the way a limb grows out of a body; the viewport draws the pieces
+            # as they are swept)
+            across_ref = _profile_radius(base)
+            for chain, one in zip(swept[1:], placed[1:]):
+                own = chain[1:]
+                mean = sum(max(C.value_of(Shape.wrap(multipliers[i])), 1e-3) for i in own) / len(own)
+                out = F.smooth_union(out, one, across_ref * mean * _BLEND)
+            if _carry_native(out, placed[0]):
+                out._sweep_branches = list(sweeps[1:])
+        if len(ways[0].vertices) > 1:
+            start = C.unit(C.sub(ways[0].vertices[1], ways[0].vertices[0]))
         # (the viewport draws the ring of every node of a selected armature as a circle of the armature's real radius there: the node's size times the size of the cross-section)
         factor = _profile_radius(base)
         inner = getattr(core, '_sweep_inner', 0.0)
@@ -262,7 +331,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         if hint is not None:
             out._render_hint = hint
     out._group_pos = [ctl.expr for ctl in ctrls]        # (the points it is made of: the viewport shares their gizmos when the armature is selected as a whole, as it does for a profile's)
-    out._armature = Armature(label, ctrls, list(joints), None if parent is None else str(parent), thickness, base, start, multipliers)
+    out._armature = Armature(label, ctrls, list(joints), None if parent is None else str(parent), thickness, base, start, multipliers, parents, chains)
+    out._kind = 'solid'                     # (an armature is a body: said here, so that nothing probes the field of a sweep -- thousands of terms -- to find it out)
     out._no_gizmo = True                    # (no gizmo() line with numbers of its own: its nodes have them, and the viewport shares them -- View::groupGizmo -- to move, turn and scale the armature)
     out._outline_gizmo = True               # (the model tree's gizmo button gives it a line without numbers, `x = gizmo(x, mode=...)`: when that shared gizmo is shown, off until said; the armature itself is returned)
     return out
@@ -280,6 +350,84 @@ def _euler(R):
         alpha = 0.0
         gamma = math.atan2(-R[0][1] * sy, R[1][1])
     return tuple(math.degrees(a) for a in (alpha, beta, gamma))
+
+
+def _live_placement(info, axes, middle, move, rotate):
+    ''' Where the cross-section shown at the first node is (`cut_face`), as EXPRESSIONS of the numbers of the nodes, so that it follows them while one of them is dragged: the script is not run again
+        until the drag is over, and numbers worked out when it ran would stay where they were.  The place is the first node, and the turn is the direction the armature leaves it in -- the chord to
+        the first point the kernel puts on the curve (`trace`), worked out here the way the kernel does it -- with the profile turned the least that puts it across that direction (`_across_frame`).
+        (move, rotate) as expressions; None where that cannot be done in the same way as the numbers are (a node that has a rotation, a profile that lies along the direction ...): the numbers of the
+        last run are used then.  The expressions are checked against the numbers (`move`, `rotate`) and used only where they are the same '''
+    from fieldev.stdlib.curves import PIECES
+    bu, bv, normal = axes
+    chain = next((c for c in info.chains if len(c) > 1), None)
+    if chain is None:
+        return None
+    ctl = [info.ctrls[i] for i in chain[:3]]
+    if any(c.turned for c in ctl[:2]):
+        return None
+    P = [c.expr for c in ctl]
+
+    def add(a, b):
+        return tuple(a[i] + b[i] for i in range(3))
+
+    def sub(a, b):
+        return tuple(a[i] - b[i] for i in range(3))
+
+    def mul(a, k):
+        return tuple(a[i] * k for i in range(3))
+
+    def dot(a, b):
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+    def cross(a, b):
+        return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+    smooth0, smooth1 = ctl[0].smooth(True), ctl[1].smooth(True)
+    chord = sub(P[1], P[0])
+    if not smooth0 and not smooth1:
+        d = chord                                   # (a straight piece: the next vertex is the next node)
+    else:
+        s0 = ctl[0].scale_expr if ctl[0].scale_expr is not None else ctl[0].scale
+        s1 = ctl[1].scale_expr if ctl[1].scale_expr is not None else ctl[1].scale
+        a_vec = mul(chord, s0) if smooth0 else chord                                      # (the tangent at the first node, or the chord)
+        if smooth1:
+            b_vec = mul(sub(P[2], P[0]), 0.5 * s1) if len(ctl) >= 3 else mul(chord, s1)
+        else:
+            b_vec = chord
+        step = 1.0 / PIECES
+        m = 1.0 - step
+        d = add(add(mul(a_vec, m * m * step), mul(sub(chord, mul(b_vec, 1.0 / 3.0)), 3.0 * m * step * step)), mul(chord, step ** 3))
+    length = dot(d, d).sqrt()
+    t0 = tuple(d[i] / length for i in range(3))
+    dd = dot(normal, t0)
+    value = C.value_of(dd)
+    if abs(value) < 0.1:
+        return None
+    sign = 1.0 if value > 0 else -1.0
+    target = mul(t0, sign)
+    c = dd * sign
+    a = cross(normal, target)
+
+    def turn(v):
+        return add(add(mul(v, c), cross(a, v)), mul(a, dot(a, v) / (c + 1.0)))
+    u0, w0 = turn(bu), turn(bv)
+    n0 = cross(u0, w0)
+    R = [[u0[i] * bu[j] + w0[i] * bv[j] + n0[i] * normal[j] for j in range(3)] for i in range(3)]
+    sy = R[2][0]
+    if abs(C.value_of(sy)) >= 1.0 - 1e-9:
+        return None
+    deg = 180.0 / math.pi
+    angles = (R[2][1].atan2(R[2][2]) * deg, sy.asin() * deg, R[1][0].atan2(R[0][0]) * deg)
+    shift = tuple(P[0][i] - middle[i] for i in range(3))
+    if max(abs(C.value_of(shift[i]) - move[i]) for i in range(3)) > 1e-6 * (1.0 + max(abs(v) for v in move)):
+        return None
+    if max(abs(C.value_of(angles[i]) - rotate[i]) for i in range(3)) > 1e-4:
+        return None
+    # (the turn as the gizmo makes it from the angles: what the images of the points of the cross-section are placed by, and what the viewport places its dots by)
+    from fieldev.stdlib.symmetries import _turn_matrix
+    turn = _turn_matrix(angles)
+    return shift, angles, tuple(Shape.wrap(turn[i][j]) for i in range(3) for j in range(3))
 
 
 def cut_face(one, node=0):
@@ -336,7 +484,20 @@ def cut_face(one, node=0):
     move = tuple(node0[i] - middle[i] for i in range(3))
     # (the angles of a gizmo are the ones the viewport itself writes for a turn -- Shape::gizmoRotation and gizmoEuler of the app: x, then y, then z, the x and z turns right-handed and the y turn the other way.  The
     # first version of this negated all three, which is right for a turn about y alone and wrong for an armature that leans in two directions: its face was tilted against the path, as a probe of such an armature showed)
-    return gizmo(instance(base), move=move, rotate=_euler(R))
+    rotate = _euler(R)
+    # (the place as expressions of the nodes' numbers, so that the cross-section follows a node that is dragged -- the script runs again when the drag is over -- where that can be done exactly)
+    live = _live_placement(info, (bu, bv, normal), middle, move, rotate)
+    matrix = None
+    if live is not None:
+        move, rotate, matrix = live
+    clone = gizmo(instance(base), move=move, rotate=rotate)
+    if matrix is not None:
+        # (the outline of the clone follows the nodes through the expressions; its dots are drawn through a map, which is numbers of the last run unless it is given as expressions too: the viewport
+        # works the map out from them while a node is dragged -- Shape::gizmoMap)
+        shift = tuple(Shape.wrap(v) for v in move)
+        for dot in getattr(clone, '_image_dots', None) or []:
+            dot._symmetry_live = (matrix, shift)
+    return clone
 
 
 def _own_region(body):
@@ -396,9 +557,10 @@ def character(armatures, blend="auto", symmetric=None):
 
 
 def skeleton_of(armatures, mirror=None, plane=0.0, join=None):
-    ''' The joints of the armatures, for `export_mesh(..., skeleton=...)`: a joint at each node, named by the armature's `joints`, each hanging from the one before it.  An armature whose first node is
-        within `join` mm of a joint already made (default: half a millimetre: the same point, or the same place typed again) is a branch of it: that joint is its first, and its other nodes hang from it.
-        An armature that is not on any joint hangs from the joint it names with `parent=`.  `mirror` ("x", "y" or "z"): the joints whose name ends with ".R" get a ".L" one across that plane '''
+    ''' The joints of the armatures, for `export_mesh(..., skeleton=...)`: a joint at each node, named by the armature's `joints`, each hanging from the one before it -- the first node of a branch
+        from the node it branches from.  An armature whose first node is within `join` mm of a joint already made (default: half a millimetre: the same point, or the same place typed again) is
+        a branch of it: that joint is its first, and its other nodes hang from it.  An armature that is not on any joint hangs from the joint it names with `parent=`.  `mirror` ("x", "y" or "z"):
+        the joints whose name ends with ".R" get a ".L" one across that plane '''
     out = []
     by_name = {}
     for k, one in enumerate(armatures):
@@ -426,16 +588,19 @@ def skeleton_of(armatures, mirror=None, plane=0.0, join=None):
         elif out:
             raise ValueError('skeleton_of: the armature %r begins at %s, which is not on a joint of an earlier armature: say where it is joined with parent="a joint name"' % (
                 info.name, tuple(round(c, 2) for c in first)))
-        previous = anchor
+        names = {}
+        if start == 1:
+            names[0] = anchor
         for index in range(start, len(info.ctrls)):
             name = info.joints[index]
             if name in by_name:
                 raise ValueError('skeleton_of: two joints are called %r' % name)
+            up = info.parents[index]
             tip = None
-            joint = Joint(name, tuple(float(c) for c in info.ctrls[index].pos), previous, tip, None)
+            joint = Joint(name, tuple(float(c) for c in info.ctrls[index].pos), anchor if up < 0 else names[up], tip, None)
             out.append(joint)
             by_name[name] = joint
-            previous = name
+            names[index] = name
     if mirror is not None:
         out = mirror_joints(out, axis=mirror, plane=plane)
     return out

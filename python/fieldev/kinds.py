@@ -59,7 +59,7 @@ def kind_of(value):
     from fieldev.shape import Shape
     if isinstance(value, Shape):
         k = getattr(value, '_kind', None)
-        if k in ('point', 'points', 'surface', 'field', 'profile', 'curve', 'symmetry'):
+        if k in ('solid', 'point', 'points', 'surface', 'field', 'profile', 'curve', 'symmetry'):       # (a model that says what it is: its field is not probed)
             return k
         if k == 'const':
             return 'field'

@@ -6400,6 +6400,7 @@ void ScenePanel::addArmatureNode(const QString& anchor, const QVector3D& at, dou
     request["factor"] = factor;
     QString error;
     const QString answer = m_support("profile_edit", QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)), &error);
+    if (std::getenv("FIELDEV_TIMING")) fprintf(stderr, "[at %lld ms] [armature] the text of the node is made\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000));
     if (answer.isEmpty())
     {
         notify(error.isEmpty() ? T("The node could not be placed") : error);

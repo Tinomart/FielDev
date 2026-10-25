@@ -60,6 +60,27 @@ def _owner_list(tree, name, before):
     return None, None
 
 
+def _original_of(tree, name, obj, line):
+    ''' A clone of a profile -- the cross-section an armature shows at its first node (`x_face = cut_face(x)`), a placed copy, an image in a symmetry -- is edited where the profile it is a clone
+        of is written: (the name of the variable that holds that profile, the profile).  The profile need not be shown anywhere (the cross-section of an armature the viewport writes is not): it is
+        found by the object the clone says it is a clone of, among the variables of the last run.  A model that is not a clone is its own '''
+    from fieldev import runner
+    root = obj
+    for _ in range(16):
+        before = getattr(root, '_instance_of', None)
+        if before is None:
+            before = getattr(root, '_symmetry_of', None)
+        if before is None:
+            break
+        root = before
+    if root is None or root is obj:
+        return name, obj
+    for n, v in runner.last_globals.items():
+        if v is root and _owner_list(tree, n, line)[0] is not None:
+            return n, root
+    return name, obj
+
+
 def _nearest_piece(vertices, closed, p):
     ''' (the number of the piece of the polyline that is nearest to p, the point of it) '''
     best, piece, at = None, 0, p
@@ -152,145 +173,137 @@ def _point_block(name, x, y, z, size='1'):
             '    scale=(var(%s), var(%s), var(%s)),' % (size, size, size), ')', name]
 
 
-def _armature_info(owner, anchor):
-    ''' What the last run knows of the armature `owner` and of its node `anchor`: (half the width of its cross-section, the scale of that node) -- None and 1.0 where it is not known '''
+def _node_size(owner, anchor):
+    ''' How thick the armature `owner` is at its node `anchor` in the last run (its size there: the circle round the node); 1.0 where it is not known '''
     try:
         from fieldev import runner
         from fieldev.stdlib import curves as C
+        from fieldev.shape import Shape
         info = getattr(runner.last_globals.get(owner), '_armature', None)
         if info is None or info.profile is None:
-            return None, 1.0
-        coords = []
-        for p in getattr(info.profile, 'points', None) or []:
-            xyz = getattr(p, 'xyz', None)
-            if xyz is None:
-                xyz = tuple(p) + (0.0,) * (3 - len(p))
-            coords.append(tuple(C.value_of(v) for v in xyz))
-        half = 0.5 * max(max(c[i] for c in coords) - min(c[i] for c in coords) for i in range(3)) if coords else None
+            return 1.0
         node = runner.last_globals.get(anchor)
-        from fieldev.shape import Shape
         k = next((i for i, c in enumerate(info.ctrls) if c.item is node), None)
-        scale = float(C.value_of(Shape.wrap(info.multipliers[k]))) if k is not None else 1.0         # (its size: how thick the armature is there)
-        return (half if half and half > 1e-9 else None), scale
+        return float(C.value_of(Shape.wrap(info.multipliers[k]))) if k is not None else 1.0
     except Exception:
-        return None, 1.0
+        return 1.0
+
+
+def _node_items(nodes):
+    ''' The nodes written in the list of an armature, in the order the call lists them -- the nodes of a branch (a list in the list) where the branch is written: (the element, the list it is in,
+        its place in that list).  This is the order `sizes` and `joints` follow '''
+    out = []
+    for i, e in enumerate(nodes.elts):
+        if isinstance(e, ast.List):
+            out.extend(_node_items(e))
+        else:
+            out.append((e, nodes, i))
+    return out
+
+
+def _armature_holding(tree, anchor):
+    ''' (the statement, the call, the nodes written in it) of the armature that has the variable `anchor` among its nodes -- a node of a branch too -- or None '''
+    for stmt in tree.body:
+        call = stmt.value if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) else None
+        if _call_name(call) == 'armature' and call.args and isinstance(call.args[0], ast.List):
+            items = _node_items(call.args[0])
+            if any(isinstance(e, ast.Name) and e.id == anchor for e, _holder, _at in items):
+                return stmt, call, items
+    return None
 
 
 def _armature_node(req):
-    ''' A node put down for an armature, as the viewport does it one click after another: `req['node']` is the variable of the node it follows, x, y, z where it goes, `scale` how big a
-        cross-section a new armature gets.  The node that is the last of its armature is followed by the new node (`armature([a, b])` becomes `armature([a, b, c])`).  A node anywhere else
-        has a new armature begin at it, the way an arm branches off a body: the same point is its first node and the new node its second '''
-    from fieldev import menu_catalog
+    ''' A node put down for an armature, as the viewport does it one click after another: `req['node']` is the variable of the node it follows, x, y, z where it goes.  The node that is the last
+        of its list is followed by the new node (`armature([a, b])` becomes `armature([a, b, c])`).  A node anywhere else has a BRANCH hang from it, inside the same call, the way an arm branches
+        off a body: `armature([a, b, c])` becomes `armature([a, b, [d], c])` -- the branch is a part of the armature, with its cross-section, its sizes and its joints '''
     source, anchor = req['source'], req['node']
     tree = ast.parse(source)
     lines = source.split('\n')
     x, y, z = (_num_text(float(req[c])) for c in 'xyz')
     factor = float(req.get('factor', 1.0) or 1.0)           # (Shift + wheel in the viewport: how thick the new node is against the one before it)
-    held = []
-    for stmt in tree.body:
-        call = stmt.value if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) else None
-        if _call_name(call) == 'armature' and call.args and isinstance(call.args[0], ast.List) \
-                and any(isinstance(e, ast.Name) and e.id == anchor for e in call.args[0].elts):
-            held.append(stmt)
-    if not held:
+    found = _armature_holding(tree, anchor)
+    if found is None:
         raise ValueError('%s is not a node of an armature' % anchor)
+    host, call, items = found
+    owner = host.targets[0].id
     taken = set(re.findall(r'[A-Za-z_]\w*', source))
-    ends = [s for s in held if isinstance(s.value.args[0].elts[-1], ast.Name) and s.value.args[0].elts[-1].id == anchor]
-    if ends:
-        host = ends[0]
-        owner, call = host.targets[0].id, host.value
-        nodes = call.args[0]
-        # (the nodes that are its own: a branch begins at a node of another armature, which is not counted)
-        k = 1 + sum(1 for e in nodes.elts if isinstance(e, ast.Name) and e.id.startswith(owner + '_p'))
-        while '%s_p%d' % (owner, k) in taken:
-            k += 1
-        new = '%s_p%d' % (owner, k)
-        # (the new node is as thick as the one before it; the one before it, once it is in the middle, is a corner: only the ends of an armature are spline points)
-        node_size = _num_text(_armature_info(owner, anchor)[1] * factor)
-        block = _point_block(new, x, y, z)
-        edits = [[host.lineno - 1, 0, host.lineno - 1, 0, ''.join(b + '\n' for b in block)]]
-        if len(nodes.elts) >= 2:
+    k = next(i for i, item in enumerate(items) if isinstance(item[0], ast.Name) and item[0].id == anchor)
+    element, holder, at = items[k]
+    goes_on = at == len(holder.elts) - 1                    # (the last of its list: the chain goes on from it)
+    j = 1 + sum(1 for e, _h, _a in items if isinstance(e, ast.Name) and e.id.startswith(owner + '_p'))
+    while '%s_p%d' % (owner, j) in taken:
+        j += 1
+    new = '%s_p%d' % (owner, j)
+    # (the new node is as thick as the one before it)
+    node_size = _num_text(_node_size(owner, anchor) * factor)
+    block = _point_block(new, x, y, z)
+    edits = [[host.lineno - 1, 0, host.lineno - 1, 0, ''.join(b + '\n' for b in block)]]
+    row, col = element.end_lineno - 1, _char_col(lines[element.end_lineno - 1], element.end_col_offset)
+    if goes_on:
+        # (the node it follows, once it is in the middle, is a corner: only the ends of an armature are spline points)
+        if holder is not call.args[0] or len(holder.elts) >= 2:
             before = next((a for a in tree.body if isinstance(a, ast.Assign) and len(a.targets) == 1 and isinstance(a.targets[0], ast.Name) and a.targets[0].id == anchor
                            and _call_name(a.value) == 'point'), None)
             if before is not None and not any(kw.arg == 'smooth' for kw in before.value.keywords):
                 row0, col0 = before.value.end_lineno - 1, _char_col(lines[before.value.end_lineno - 1], before.value.end_col_offset) - 1
                 edits.append([row0, col0, row0, col0, ', smooth=False'])
-        last = nodes.elts[-1]
-        row, col = last.end_lineno - 1, _char_col(lines[last.end_lineno - 1], last.end_col_offset)
         edits.append([row, col, row, col, ', ' + new])
-        # (how thick the armature is at the new node is its own number, in `sizes`: a var() the viewport drags; an armature without `sizes` gets them written out, 1 for each node it has)
-        sizes = next((kw.value for kw in call.keywords if kw.arg == 'sizes'), None)
-        if isinstance(sizes, ast.List) and sizes.elts:
-            end = sizes.elts[-1]
-            row, col = end.end_lineno - 1, _char_col(lines[end.end_lineno - 1], end.end_col_offset)
-            edits.append([row, col, row, col, ', var(%s)' % node_size])
-        elif sizes is None:
-            tail = max([call.args[-1]] + [kw.value for kw in call.keywords], key=lambda n: (n.end_lineno, n.end_col_offset))
-            row, col = tail.end_lineno - 1, _char_col(lines[tail.end_lineno - 1], tail.end_col_offset)
-            edits.append([row, col, row, col, ', sizes=[%s]' % ', '.join(['var(1)'] * len(nodes.elts) + ['var(%s)' % node_size])])
-        joints = next((kw.value for kw in call.keywords if kw.arg == 'joints'), None)
-        if isinstance(joints, ast.List) and joints.elts:
-            # (the names of the joints are written out: the new node gets one, named as a joint is by default)
-            label = next((kw.value.value for kw in call.keywords if kw.arg == 'name' and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str)), owner)
-            used = {e.value for e in joints.elts if isinstance(e, ast.Constant)}
-            j = len(joints.elts)
-            while '%s_%d' % (label, j) in used:
-                j += 1
-            end = joints.elts[-1]
-            row, col = end.end_lineno - 1, _char_col(lines[end.end_lineno - 1], end.end_col_offset)
-            edits.append([row, col, row, col, ', "%s_%d"' % (label, j)])
-        return json.dumps({'edits': edits, 'label': 'Add a node to %s' % owner, 'line': host.lineno - 1 + len(block) - 1, 'name': new, 'armature': owner})
-    # a node in the middle: the new armature is written under the one it branches from (and under its display line and cut face)
-    host = held[0]
-    owner = host.targets[0].id
-    stem = re.sub(r'[_\d]+$', '', owner) or 'armature'
-    n = 2
-    while any(t == '%s_%d' % (stem, n) or t.startswith('%s_%d_' % (stem, n)) for t in taken):
-        n += 1
-    var = '%s_%d' % (stem, n)
-    half, node_size = _armature_info(owner, anchor)
-    text = menu_catalog.armature_branch(var, anchor, (x, y, z), req.get('scale'), half, node_size * factor, node_size)
-    end = host
-    for stmt in tree.body[tree.body.index(host) + 1:]:
-        shows = isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name) and stmt.value.id in (owner, owner + '_face')
-        face = isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) \
-            and stmt.targets[0].id == owner + '_face' and _call_name(stmt.value) == 'cut_face'
-        if not (shows or face):
-            break
-        end = stmt
-    row = end.end_lineno - 1
-    col = len(lines[row])
-    return json.dumps({'edits': [[row, col, row, col, '\n\n' + text]], 'label': 'New armature from %s' % anchor, 'line': -1, 'name': var + '_p1', 'armature': var})
+    else:
+        edits.append([row, col, row, col, ', [%s]' % new])
+    # (how thick the armature is at the new node is its own number, in `sizes`: a var() the viewport drags; an armature without `sizes` gets them written out, 1 for each node it has.  The new
+    # node comes right after the one it follows in the order the nodes are written, which is the order of `sizes` and `joints`)
+    sizes = next((kw.value for kw in call.keywords if kw.arg == 'sizes'), None)
+    if isinstance(sizes, ast.List) and sizes.elts:
+        end = sizes.elts[min(k, len(sizes.elts) - 1)]
+        r, c = end.end_lineno - 1, _char_col(lines[end.end_lineno - 1], end.end_col_offset)
+        edits.append([r, c, r, c, ', var(%s)' % node_size])
+    elif sizes is None:
+        tail = max([call.args[-1]] + [kw.value for kw in call.keywords], key=lambda n: (n.end_lineno, n.end_col_offset))
+        r, c = tail.end_lineno - 1, _char_col(lines[tail.end_lineno - 1], tail.end_col_offset)
+        entries = ['var(1)'] * (len(items) + 1)
+        entries[k + 1] = 'var(%s)' % node_size
+        edits.append([r, c, r, c, ', sizes=[%s]' % ', '.join(entries)])
+    joints = next((kw.value for kw in call.keywords if kw.arg == 'joints'), None)
+    if isinstance(joints, ast.List) and joints.elts:
+        # (the names of the joints are written out: the new node gets one, named as a joint is by default)
+        label = next((kw.value.value for kw in call.keywords if kw.arg == 'name' and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str)), owner)
+        used = {e.value for e in joints.elts if isinstance(e, ast.Constant)}
+        n = len(joints.elts)
+        while '%s_%d' % (label, n) in used:
+            n += 1
+        end = joints.elts[min(k, len(joints.elts) - 1)]
+        r, c = end.end_lineno - 1, _char_col(lines[end.end_lineno - 1], end.end_col_offset)
+        edits.append([r, c, r, c, ', "%s_%d"' % (label, n)])
+    return json.dumps({'edits': edits, 'label': ('Add a node to %s' if goes_on else 'Branch %s from a node') % owner, 'line': host.lineno - 1 + len(block) - 1, 'name': new, 'armature': owner})
 
 
 def _armature_sizes(req):
-    """ The sizes of an armature made draggable: `req['node']` is a node of it.  An armature without `sizes` gets `sizes=[var(1), ...]`, one for each node; one that has them written as plain
-        numbers gets a var() round each.  The circle round a node and the wheel over it change a var(), which is written back into the script when the drag ends """
+    """ The sizes of an armature made draggable: `req['node']` is a node of it.  An armature without `sizes` gets `sizes=[var(1), ...]`, one for each node (a branch's too, in the order they are
+        written); one that has them written as plain numbers gets a var() round each.  The circle round a node and the wheel over it change a var(), which is written back into the script when the
+        drag ends """
     source, anchor = req['source'], req['node']
     tree = ast.parse(source)
     lines = source.split('\n')
-    for stmt in tree.body:
-        call = stmt.value if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name) else None
-        if not (_call_name(call) == 'armature' and call.args and isinstance(call.args[0], ast.List)
-                and any(isinstance(e, ast.Name) and e.id == anchor for e in call.args[0].elts)):
+    found = _armature_holding(tree, anchor)
+    if found is None:
+        raise ValueError('%s is not a node of an armature' % anchor)
+    stmt, call, items = found
+    owner, count = stmt.targets[0].id, len(items)
+    sizes = next((kw.value for kw in call.keywords if kw.arg == 'sizes'), None)
+    label = 'Make the sizes of %s draggable' % owner
+    if sizes is None:
+        tail = max([call.args[-1]] + [kw.value for kw in call.keywords], key=lambda n: (n.end_lineno, n.end_col_offset))
+        row, col = tail.end_lineno - 1, _char_col(lines[tail.end_lineno - 1], tail.end_col_offset)
+        return json.dumps({'edits': [[row, col, row, col, ', sizes=[%s]' % ', '.join(['var(1)'] * count)]], 'label': label, 'line': -1, 'name': ''})
+    if not isinstance(sizes, ast.List):
+        raise ValueError('the sizes of %s are not written as a list: write sizes=[var(1), ...] in its call' % owner)
+    edits = []
+    for e in sizes.elts:
+        number = _number_of(e)
+        if number is None or e.lineno != e.end_lineno:
             continue
-        owner, count = stmt.targets[0].id, len(call.args[0].elts)
-        sizes = next((kw.value for kw in call.keywords if kw.arg == 'sizes'), None)
-        label = 'Make the sizes of %s draggable' % owner
-        if sizes is None:
-            tail = max([call.args[-1]] + [kw.value for kw in call.keywords], key=lambda n: (n.end_lineno, n.end_col_offset))
-            row, col = tail.end_lineno - 1, _char_col(lines[tail.end_lineno - 1], tail.end_col_offset)
-            return json.dumps({'edits': [[row, col, row, col, ', sizes=[%s]' % ', '.join(['var(1)'] * count)]], 'label': label, 'line': -1, 'name': ''})
-        if not isinstance(sizes, ast.List):
-            raise ValueError('the sizes of %s are not written as a list: write sizes=[var(1), ...] in its call' % owner)
-        edits = []
-        for e in sizes.elts:
-            number = _number_of(e)
-            if number is None or e.lineno != e.end_lineno:
-                continue
-            edits.append([e.lineno - 1, _char_col(lines[e.lineno - 1], e.col_offset), e.end_lineno - 1, _char_col(lines[e.end_lineno - 1], e.end_col_offset), 'var(%s)' % _num_text(number)])
-        return json.dumps({'edits': edits, 'label': label, 'line': -1, 'name': ''})
-    raise ValueError('%s is not a node of an armature' % anchor)
+        edits.append([e.lineno - 1, _char_col(lines[e.lineno - 1], e.col_offset), e.end_lineno - 1, _char_col(lines[e.end_lineno - 1], e.end_col_offset), 'var(%s)' % _num_text(number)])
+    return json.dumps({'edits': edits, 'label': label, 'line': -1, 'name': ''})
 
 
 def edit(arg):
@@ -312,7 +325,20 @@ def edit(arg):
         raise ValueError('nothing is displayed on that line')
     obj = runner.last_globals.get(name)
     if op == 'toggle':
+        index = int(req.get('index', -1))
+        if getattr(obj, '_curve_smooth', None) is None and index >= 0:
+            # (a double click on the dot of a placed copy of an outline -- the cross-section shown at an armature: the dot is the image of a point of the original, which is the one that changes)
+            name, root = _original_of(tree, name, obj, line)
+            points = list(getattr(root, 'points', []))
+            if index >= len(points):
+                raise ValueError('the outline has no point %d' % index)
+            point = points[index]
+            names = [n for n, v in runner.last_globals.items() if v is point]
+            if not names:
+                raise ValueError('that point is not a model of its own: it cannot be changed from here')
+            return _toggle(tree, lines, names[0], line, point)
         return _toggle(tree, lines, name, line, obj)
+    name, obj = _original_of(tree, name, obj, line)
     if op == 'radius':
         return _radius_var(tree, lines, name, line, int(req['index']))
     if obj is None or not hasattr(obj, 'vertices') or not hasattr(obj, '_owners'):

@@ -628,9 +628,7 @@
  "New armature": "新しいアーマチュア",
  "New character": "新しいキャラクター",
  "Branch from a node": "ノードから枝分かれ",
- "Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a new armature branches off it: that is how an arm grows out of a body.": "ノードをクリックすると、そこから続けられます。アーマチュアの途中のノードの隣の何もない場所をクリックすると、そこから新しいアーマチュアが枝分かれします。腕が体から生えるのはこの仕組みです。",
  "A right click goes back a step: out of the branch, then out of placing. Or press Show me.": "右クリックで一段階戻ります: 枝から出て、次に配置から出ます。または「実演」を押してください。",
- "Nice. The branch shares its first node with the armature it grows from.": "いいですね。枝は、生えもとのアーマチュアと最初のノードを共有します。",
  "Faces and details": "顔とディテール",
  "Faces and other details are made with feature models: rings of points stitched into a surface and mirrored across the middle. Right-click empty space, choose Characters ▸ New feature model.": "顔などの細部は特徴モデルで作ります: 点のリングを縫い合わせて面にし、中央で鏡映します。何もない場所を右クリックして キャラクター ▸ 新しい特徴モデル を選んでください。",
  "It starts as half a face: drag its points, add loops. Or press Show me.": "最初は顔の半分です。点をドラッグし、ループを追加してください。または「実演」を押してください。",
@@ -1063,7 +1061,6 @@
  "A set of lines through points.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  Press the line and drag to pull a point out of it; double-click a point to make it a corner or a spline point": "点を通る線分の集まり。点を選択している場合: 選択した順にその点から作ります。選択がない場合: ドラッグできる新しい点を 3 つ作ります。線を押してドラッグするとそこから点を引き出せ、点をダブルクリックすると角とスプライン点が切り替わります",
  "A smooth curve through points.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  Press the curve and drag to pull a point out of it; double-click a point to make it a corner or a spline point": "点を通る滑らかな曲線。点を選択している場合: 選択した順にその点から作ります。選択がない場合: ドラッグできる新しい点を 3 つ作ります。曲線を押してドラッグするとそこから点を引き出せ、点をダブルクリックすると角とスプライン点が切り替わります",
  "An armature through points: a round cone between each two, thick where the point is big.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the armature is there": "点を通るアーマチュア: 隣り合う二点の間に丸い円錐。点が大きいところで太くなります。点を選択している場合: 選択した順にそれらから作られます。選択がない場合: ドラッグできる新しい点が三つ。点の大きさ -- ギズモの金色のリング -- が、そこでのアーマチュアの太さです",
- "A part of a character: a smooth path through points, thick where its size is big (a path extrude), and the joints of its skeleton.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  The circle round a point is how thick the armature is there (drag it, or Shift + wheel over the point); the gold ring of its gizmo is how strongly the path leaves it; an armature that begins on a point of another armature is a branch of it": "キャラクターの一部: 点を通る滑らかなパス。サイズが大きいところで太くなります(パス押し出し)。スケルトンのジョイントも持ちます。点を選択している場合: 選択した順にそれらから作られます。選択がない場合: ドラッグできる新しい点が三つ。点を囲む円が、そこでのアーマチュアの太さです(ドラッグするか、点の上で Shift + ホイール)。ギズモの金色のリングは、パスがその点からどれだけ強く離れるかです。別のアーマチュアの点から始まるアーマチュアは、その枝になります",
  "A name for a number, a text or any value: it is used by its name further down": "数値・文字列・任意の値に付ける名前。以降はその名前で使います",
  "Runs the code under it only when the condition is true": "条件が真のときだけ、その下のコードを実行します",
  "One code when the condition is true, another when it is not": "条件が真のときと偽のときで、別々のコードを実行します",
@@ -1186,5 +1183,8 @@
  "qt:QWidgetTextControl|Select All": "すべて選択",
  "qt:QDialogButtonBox|OK": "OK",
  "qt:QDialogButtonBox|Cancel": "キャンセル",
- "qt:QDialogButtonBox|Close": "閉じる"
+ "qt:QDialogButtonBox|Close": "閉じる",
+ "A part of a character: a smooth path through points, thick where its size is big (a path extrude), and the joints of its skeleton.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  The circle round a point is how thick the armature is there (drag it, or Shift + wheel over the point); the gold ring of its gizmo is how strongly the path leaves it; click a point in the middle of an armature and place a node to branch from it": "キャラクターの一部: 点を通る滑らかなパス。サイズが大きいところで太くなります(パス押し出し)。スケルトンのジョイントも持ちます。点を選択している場合: 選択した順にそれらから作られます。選択がない場合: ドラッグできる新しい点が三つ。点を囲む円が、そこでのアーマチュアの太さです(ドラッグするか、点の上で Shift + ホイール)。ギズモの金色のリングは、パスがその点からどれだけ強く離れるかです。アーマチュアの途中の点をクリックしてノードを置くと、そこから枝分かれします",
+ "Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a branch grows from it as a part of the same armature: that is how an arm grows out of a body.": "ノードをクリックすると、そこから続けられます。アーマチュアの途中のノードの隣の何もない場所をクリックすると、同じアーマチュアの一部として、そこから枝が伸びます。腕が体から生えるのはこの仕組みです。",
+ "Nice. The branch is a list inside the armature's list: one armature, one cross-section.": "いいですね。枝はアーマチュアのリストの中のリストです。アーマチュアも断面も一つだけです。"
 }

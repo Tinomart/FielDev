@@ -83,8 +83,21 @@ class SurfaceProfile(Shape):
         return out
 
 
+@functools.lru_cache(maxsize=64)
+def _polygon_field_of(loop, frame, arcs):
+    return C.polygon_field(list(loop), frame, list(arcs))
+
+
 def _polygon_field(loop, frame, arcs=None):
-    return C.owned(C.polygon_field(loop, frame, arcs))
+    ''' The field of an outline of numbers.  The same outline is the same field, so it is made once and the script that runs again -- at every node put down, every point added -- takes it
+        from where it was made: the thousands of operations of a profile's distance field were more than half of a run '''
+    try:
+        key = (tuple((float(q[0]), float(q[1])) for q in loop),
+               None if frame is None else tuple(tuple(float(c) for c in axis) for axis in frame),
+               tuple((tuple(float(c) for c in a), tuple(float(c) for c in b), tuple(float(c) for c in m), float(r)) for a, b, m, r in (arcs or [])))
+    except (TypeError, ValueError):
+        return C.owned(C.polygon_field(loop, frame, arcs))
+    return C.owned(_polygon_field_of(*key))
 
 
 def _from_surface(selection):

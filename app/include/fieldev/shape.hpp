@@ -221,6 +221,18 @@ public:
      *  ends round at a node that is a spline point)  */
     void setSweepRound(bool atStart, bool atEnd) { m_sweep_round_start = atStart; m_sweep_round_end = atEnd; }
     void setSweepOffset(bool offset, bool across) { m_sweep_offset = offset; m_sweep_across = across; }          // (a thickness offsets the outline, not scales it; the first section is across the path)
+    /*  The BRANCHES of an armature: pieces of its path that hang from a node of it -- each a path of its own whose first point is the node it hangs from -- swept with the profile of the sweep, drawn
+     *  in the one mesh with it and placed with it.  `roundStart` / `roundEnd`: the ends of the piece that are domes  */
+    struct SweepBranch
+    {
+        std::vector<ControlPoint> path;
+        bool pathDefault = false, roundStart = false, roundEnd = false;
+    };
+    void setSweepBranches(std::vector<SweepBranch> branches) { m_sweep_branches = std::move(branches); }
+    /*  A node that has just been put down for an armature, drawn before the script has run with it (the run takes a moment): the sweep is drawn with a node more -- the path that ends at `anchor` goes on
+     *  to `at`; from anywhere else on the sweep a branch hangs from the node at `anchor` -- `size` thick.  It is gone with the shape: the run that has the node in the script makes another one  */
+    void previewSweepNode(const QVector3D& anchor, const QVector3D& at, double size);
+    void clearSweepPreview();
     bool hasSweep() const { return !m_sweep_path.empty() && !m_sweep_profile.empty(); }
     /*  The one number (var) an expression of the script's numbers is made of, or null when it has none or several: what moves a point along an axis  */
     static libfive::Tree::Id soleVarOf(const libfive::Tree& expression);
@@ -452,6 +464,11 @@ public:
         // A dot that is the image of a point of a path, drawn with the images of the sweep along it (symmetry_images): its dot is pressed and dragged -- the numbers it moves are the
         // original point's -- but it has no gizmo of its own to show, whatever is selected
         bool dotOnly = false;
+        // The map of an image that is made of numbers of the script -- the cross-section shown at an armature: where it is is the first node and the way the armature leaves it, which follow the nodes while
+        // one is dragged -- as the nine numbers of its matrix and the three of its move, expressions of the script's numbers, worked out when the map is asked for (gizmoMap): `map` is what they were when
+        // the script ran.  liveAbout is the centre the matrix turns about
+        std::vector<libfive::Tree> liveLinear, liveShift;
+        QVector3D liveAbout;
     };
     void setGizmo(const Gizmo& h) { m_gizmo = h; }
     /*  When the gizmo of a profile, a polyline or a spline is shown (`x = gizmo(x, mode='click')`, which has no numbers: the outline's gizmo is the shared one of its points,
@@ -530,6 +547,9 @@ public:
         shown: the shape then meshes itself, as ever)  */
     enum Follow { FOLLOW_NONE = 0, FOLLOW_IMAGE = 1, FOLLOW_COPY = 2 };
     void setFollows(int kind, libfive::Tree::Id of) { m_followKind = kind; m_followId = of; }
+    /*  The dot of a point of an outline that is drawn somewhere else -- on the placed copy of the outline: the cross-section shown at an armature -- knows which point of the outline it is the image of (-1: it is none)  */
+    void setImageIndex(int i) { m_imageIndex = i; }
+    int imageIndex() const { return m_imageIndex; }
     libfive::Tree::Id sourceId() const { return m_sourceId; }
     libfive::Tree::Id followId() const { return m_followKind != FOLLOW_NONE ? m_followId : libfive::Tree::Id(); }
     void linkSource(Shape* source);
@@ -540,11 +560,13 @@ public:
     /*  How much each number of the shape resists a drag of one of its surfaces (see libfive::dragWeights): the centre of a round feature stays  */
     std::map<libfive::Tree::Id, float> dragWeights() const;
     /*  Where the part turns after the move: the pivot the gizmo sits at  */
-    QVector3D gizmoPivot() const { const QVector3D p = m_gizmo.about + gizmoMove(); return m_gizmo.present && m_gizmo.mapped ? m_gizmo.map.map(p) : p; }
+    QVector3D gizmoPivot() const { const QVector3D p = m_gizmo.about + gizmoMove(); return m_gizmo.present && m_gizmo.mapped ? gizmoMap().map(p) : p; }
     /*  The gizmo is an image's (the numbers of the original); the turns and mirror images of the way it was made (without the shift), whether it turns the way round (+1, -1),
         and the part's own axes as the image has them (the original's, taken through the symmetry)  */
     bool gizmoMapped() const { return m_gizmo.present && m_gizmo.mapped; }
     QMatrix4x4 gizmoMapLinear() const;
+    /*  The map of an image to its original's places as it is now: the numbers `m_gizmo.map` has from the last run, or -- for an image whose place is made of numbers of the script -- worked out from them  */
+    QMatrix4x4 gizmoMap() const;
     float gizmoMapSign() const;
     QMatrix4x4 gizmoOrientation() const;
     /*  The rotation the angles make (the library's rotate_x/y/z, x first)  */
@@ -740,6 +762,7 @@ protected:
                                  const Shape* owner);
     struct SweepNumbers;
     std::vector<ControlPoint> m_sweep_profile, m_sweep_path;
+    std::vector<SweepBranch> m_sweep_branches;
     bool m_sweep_profile_default = false, m_sweep_path_default = false, m_sweep_closed = false, m_sweep_placed = false, m_sweep_free = false;
     std::vector<std::pair<libfive::Tree::Id, float>> m_sweep_guard;
     bool m_sweep_round_start = false, m_sweep_round_end = false;
@@ -751,6 +774,11 @@ protected:
     libfive::Tree m_sweep_scale[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
     bool sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& out) const;
     static std::unique_ptr<libfive::Mesh> sweepMesh(const SweepNumbers& in);
+    static std::unique_ptr<libfive::Mesh> sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed);
+    struct SweepPreviewNode { QVector3D anchor, at; double size = 1; };
+    std::vector<SweepPreviewNode> m_sweepPreview;           // (read by the render thread, changed by the GUI's: m_previewMutex)
+    mutable std::mutex m_previewMutex;
+    void applySweepPreview(SweepNumbers& s) const;
     std::vector<ControlPoint> m_prism_points;
     bool m_prism_default = false;
     libfive::Tree m_prism_a = libfive::Tree::invalid(), m_prism_b = libfive::Tree::invalid();
@@ -918,6 +946,7 @@ protected:
     // Following another shape's mesh (see setFollows)
     libfive::Tree::Id m_sourceId = libfive::Tree::Id();         // (the tree the script made this shape from: what the shapes that follow it name)
     libfive::Tree::Id m_followId = libfive::Tree::Id();
+    int m_imageIndex = -1;
     int m_followKind = FOLLOW_NONE;
     QPointer<Shape> m_follows;
     QMetaObject::Connection m_followConnection;
@@ -988,6 +1017,9 @@ protected:
     struct GizmoNumbers { QVector3D move, rotate, scale{1, 1, 1}; };
     GizmoNumbers m_meshGizmo, m_runGizmo;
     QMatrix4x4 m_previewXform;
+    mutable size_t m_liveHash = 0;                                // (the numbers gizmoMap last worked the map out from, and the map)
+    mutable bool m_liveHashed = false;
+    mutable QMatrix4x4 m_liveMap;
     bool m_previewShown = false;                 // the mesh is shown moved (m_previewXform is not the identity)
     GizmoNumbers gizmoNumbersIn(const std::map<libfive::Tree::Id, float>& v) const;
     void refreshPreview();                       // the matrix from what the mesh was made with to the numbers now

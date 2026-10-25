@@ -368,10 +368,10 @@ def _placed_outline(shape, move, rotate, mode, about=None):
     shift = tuple(value_of(v) for v in move)
     frozen = [v for v in move + rotate if isinstance(v, Shape)]
     dots, shown = [], []
-    for p, xyz in places:
+    for index, (p, xyz) in enumerate(places):
         x, y, z = _placed_point(xyz, c, move, rotate)
         if hasattr(p, 'xyz'):
-            dot = image_dot(p, (x, y, z), rows, c, shift, frozen)     # (it is drawn with the outline: the points are part of what is placed)
+            dot = image_dot(p, (x, y, z), rows, c, shift, frozen, index)     # (it is drawn with the outline: the points are part of what is placed)
             shown.append(dot)
         else:
             dot = Point(x, y, z)                                      # (a point that is only numbers has no dot to draw)

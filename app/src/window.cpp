@@ -1489,7 +1489,7 @@ Window::Window(Arguments args)
             view->setFocus(Qt::MouseFocusReason);
         });
         connect(view, &View::outlineInsertRequested, scene, [=](int line, QVector3D press, QVector3D at) { scene->editPoints("insert", line, press, at); });
-        connect(view, &View::pointToggleRequested, scene, [=](int line) { scene->editPoints("toggle", line, QVector3D(), QVector3D()); });
+        connect(view, &View::pointToggleRequested, scene, [=](int line, int index) { scene->editPoints("toggle", line, QVector3D(), QVector3D(), index); });
         connect(view, &View::radiusVarRequested, scene, [=](int line, int control) { scene->editPoints("radius", line, QVector3D(), QVector3D(), control); });
         connect(scene, &ScenePanel::pointEditDone, view, &View::expectNewPoint);
         connect(view, &View::armatureNodeRequested, scene, &ScenePanel::addArmatureNode);

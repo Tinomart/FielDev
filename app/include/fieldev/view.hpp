@@ -449,7 +449,7 @@ signals:
     void radiusVarRequested(int line0, int control);
 
     /*  A double click on the dot of a point of a profile or a curve: it is to change between a corner and a spline point (the 0-based line that displays it)  */
-    void pointToggleRequested(int line0);
+    void pointToggleRequested(int line0, int index);
 
     /*
      *  The menu of a right-click on a shape was confirmed: select the surface of the shape displayed by

@@ -1557,7 +1557,11 @@ that is a corner ends the armature flat, with the face of the cross-section.  Th
 A character joins its armatures with a blend as wide as each one is thick (`blend="auto"`, the default), so that a branch grows out of its parent the way a limb grows out of a body, whatever
 the size of the character; `blend=3` is 3 mm everywhere.
 
-The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it.  An armature
+A BRANCH is a list among the nodes: `armature([hip, knee, ankle, [toe_a, toe_b], heel_end])` -- it hangs from the node before it (the ankle), is swept from there with the same cross-section and the same
+sizes and joints lists, and is joined to the rest with a blend as wide as it is thick.  It is part of the armature: one profile, one cross-section, one skeleton.
+
+The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it (the first
+node of a branch: from the node it branches from).  An armature
 that begins on a node of another armature -- its first node is within a few millimetres of one -- is a branch of it, and hangs from that joint; `parent="chest"` says where an armature is joined
 when its first node is not on the other.  There is one root: the first node of the first armature.
 
@@ -1567,19 +1571,23 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ### `Armature`
 
-What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls), the names of its joints, where it is joined, the
-sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first node in
+What an armature knows of itself, for the skeleton, the UV map and the cross-section it shows: its name, the nodes (as controls, in the order the script lists them, the nodes of a branch
+where the branch is written), the names of its joints, where it is joined, the sizes of its nodes, the profile it is swept from (None for a ball) and the direction it leaves its first
+node in.  `parents` says which node each hangs from (-1: the first), `chains` the nodes of every piece that is swept in one go: the chain from the first node, then each branch, a branch
+beginning with the node it hangs from
 
 ### `armature(points, radii=None, profile=None, name=None, joints=None, parent=None, twist=0, sizes=None)`
 
 A part of a character: a cross-section swept along a smooth path through the nodes (a path extrude), thick or thin at each node.
 
     arm = armature([shoulder, elbow, hand], sizes=[1, 0.75, 0.58], name="arm.R", joints=["shoulder.R", "elbow.R", "hand.R"])
+    foot = armature([knee, ankle, [toe_a, toe_b], heel], name="foot")           # the toes branch from the ankle
 
-points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  The scale of a point's gizmo is how strongly the curve leaves it (its influence,
+points   the nodes, in order: points (`point(x, y, z)`, dragged with their gizmos) or tuples of numbers.  A LIST among them is a branch: it hangs from the node before it and is swept from
+         there with the same cross-section, as a part of this armature (a branch can have branches).  The scale of a point's gizmo is how strongly the curve leaves it (its influence,
          1 by default: it shows when that point is selected); how thick the armature is at a node is `sizes`, not the point's scale
 radii    the size of the cross-section the armature is given when it has no profile of its own (a number: the radius of the rounded square, 1 by default); or a list with one
-         number for each node, the radius at that node
+         number for each node, the radius at that node.  `radii`, `sizes` and `joints` list every node in the order it is written -- the nodes of a branch where the branch is written
 sizes    how big the cross-section is at each node, as a number of its own -- a list, one number (or var()) for each node, 1 the cross-section as it is -- on top of `radii`.  The circle round a
          node, drawn with the armature's real radius there, is what changes it (drag it, or Shift + wheel over the node)
 profile  the cross-section: any 2D shape (a profile made of points, a polygon, a rectangle).  None: a square with spline points, made for the armature.  It is swept from the first
@@ -1591,7 +1599,8 @@ The cross-section says how the size of a node sizes it: `sizing=` of the 2D shap
 nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
 The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
-last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it
+last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from, and is
+joined to the rest with a blend as wide as it is thick
 
 ### `character(armatures, blend='auto', symmetric=None)`
 
@@ -1614,9 +1623,10 @@ The profile must be made of points (`profile([...])`) for it to have dots; the c
 
 ### `skeleton_of(armatures, mirror=None, plane=0.0, join=None)`
 
-The joints of the armatures, for `export_mesh(..., skeleton=...)`: a joint at each node, named by the armature's `joints`, each hanging from the one before it.  An armature whose first node is
-within `join` mm of a joint already made (default: half a millimetre: the same point, or the same place typed again) is a branch of it: that joint is its first, and its other nodes hang from it.
-An armature that is not on any joint hangs from the joint it names with `parent=`.  `mirror` ("x", "y" or "z"): the joints whose name ends with ".R" get a ".L" one across that plane
+The joints of the armatures, for `export_mesh(..., skeleton=...)`: a joint at each node, named by the armature's `joints`, each hanging from the one before it -- the first node of a branch
+from the node it branches from.  An armature whose first node is within `join` mm of a joint already made (default: half a millimetre: the same point, or the same place typed again) is
+a branch of it: that joint is its first, and its other nodes hang from it.  An armature that is not on any joint hangs from the joint it names with `parent=`.  `mirror` ("x", "y" or "z"):
+the joints whose name ends with ".R" get a ".L" one across that plane
 
 ## Feature models
 

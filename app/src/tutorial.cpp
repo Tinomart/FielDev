@@ -1977,7 +1977,7 @@ void Tutorial::buildSteps()
     {
         Step s;
         s.title = T("Branch from a node");
-        s.text = T("Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a new armature branches off it: that is how an arm grows out of a body.");
+        s.text = T("Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a branch grows from it as a part of the same armature: that is how an arm grows out of a body.");
         s.hint = T("A right click goes back a step: out of the branch, then out of placing. Or press Show me.");
         s.code = linesWith("^\\w+ = armature\\(");
         s.holes = holesOf(viewWidget);
@@ -2003,8 +2003,12 @@ void Tutorial::buildSteps()
                 after(have ? 100 : 800, [this] { m_view->startArmaturePlacing(); });
             });
         };
-        s.done = [this] { return m_editor->getScript().count(QRegularExpression(R"(=\s*armature\()")) >= 2; };
-        s.doneNote = T("Nice. The branch shares its first node with the armature it grows from.");
+        s.done = [this] {
+            // (a branch is a list among the nodes of the call: armature([a, b, [c], d]))
+            static const QRegularExpression branch(R"(=\s*armature\(\s*\[[^\]]*\[)");
+            return m_editor->getScript().contains(branch);
+        };
+        s.doneNote = T("Nice. The branch is a list inside the armature's list: one armature, one cross-section.");
         s.show = [this](std::function<void()> over) {
             // (the middle node, then the empty space beside it)
             fakeClick(m_view, m_view->screenPoint(QVector3D(4, 0, -2)), Qt::LeftButton, [this, over] {

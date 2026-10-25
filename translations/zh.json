@@ -628,9 +628,7 @@
  "New armature": "新建骨架",
  "New character": "新建角色",
  "Branch from a node": "从节点分支",
- "Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a new armature branches off it: that is how an arm grows out of a body.": "点击一个节点即可从它继续。点击骨架中间某个节点旁边的空白处，就会从那里分出一个新骨架：手臂就是这样从身体上长出来的。",
  "A right click goes back a step: out of the branch, then out of placing. Or press Show me.": "右键单击后退一步：先退出分支，再退出放置。或按“演示”。",
- "Nice. The branch shares its first node with the armature it grows from.": "很好。分支与它所生长的骨架共用第一个节点。",
  "Faces and details": "脸部与细节",
  "Faces and other details are made with feature models: rings of points stitched into a surface and mirrored across the middle. Right-click empty space, choose Characters ▸ New feature model.": "脸部和其他细节用特征模型制作：把点环缝合成一个表面，并沿中线镜像。在空白处右键单击，选择 角色 ▸ 新建特征模型。",
  "It starts as half a face: drag its points, add loops. Or press Show me.": "它一开始是半张脸：拖动它的点，添加环。或按“演示”。",
@@ -1063,7 +1061,6 @@
  "A set of lines through points.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  Press the line and drag to pull a point out of it; double-click a point to make it a corner or a spline point": "穿过点的一组线段。选中了点时:按选择顺序用这些点生成。没有选中时:生成三个可拖动的新点。按住线并拖动可从中拉出一个点;双击某个点可将其切换为拐角或样条点",
  "A smooth curve through points.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  Press the curve and drag to pull a point out of it; double-click a point to make it a corner or a spline point": "穿过点的平滑曲线。选中了点时:按选择顺序用这些点生成。没有选中时:生成三个可拖动的新点。按住曲线并拖动可从中拉出一个点;双击某个点可将其切换为拐角或样条点",
  "An armature through points: a round cone between each two, thick where the point is big.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  The size of a point -- the gold ring of its gizmo -- is how thick the armature is there": "穿过各点的骨架：每两点之间一个圆锥，点越大的地方越粗。选中了点时：按选择顺序用它们生成。没有选中时：三个可拖动的新点。点的大小——其操纵器的金色圆环——决定骨架在该处的粗细",
- "A part of a character: a smooth path through points, thick where its size is big (a path extrude), and the joints of its skeleton.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  The circle round a point is how thick the armature is there (drag it, or Shift + wheel over the point); the gold ring of its gizmo is how strongly the path leaves it; an armature that begins on a point of another armature is a branch of it": "角色的一部分：穿过各点的平滑路径，尺寸越大的地方越粗（路径拉伸），并带有其骨骼的关节。选中了点时：按选择顺序用它们生成。没有选中时：三个可拖动的新点。点周围的圆就是骨架在该处的粗细（拖动它，或在点上按 Shift + 滚轮）；其操纵器的金色圆环决定路径从该点离开时的力度；从另一个骨架的点开始的骨架是它的分支",
  "A name for a number, a text or any value: it is used by its name further down": "给数字、文本或任意值起的名字：下面通过名字使用它",
  "Runs the code under it only when the condition is true": "仅当条件为真时才运行其下的代码",
  "One code when the condition is true, another when it is not": "条件为真时运行一段代码，否则运行另一段",
@@ -1186,5 +1183,8 @@
  "qt:QWidgetTextControl|Select All": "全选",
  "qt:QDialogButtonBox|OK": "确定",
  "qt:QDialogButtonBox|Cancel": "取消",
- "qt:QDialogButtonBox|Close": "关闭"
+ "qt:QDialogButtonBox|Close": "关闭",
+ "A part of a character: a smooth path through points, thick where its size is big (a path extrude), and the joints of its skeleton.  With points selected: made from them, in the order you selected them.  With none: three new points to drag.  The circle round a point is how thick the armature is there (drag it, or Shift + wheel over the point); the gold ring of its gizmo is how strongly the path leaves it; click a point in the middle of an armature and place a node to branch from it": "角色的一部分：穿过各点的平滑路径，尺寸越大的地方越粗（路径拉伸），并带有其骨骼的关节。选中了点时：按选择顺序用它们生成。没有选中时：三个可拖动的新点。点周围的圆就是骨架在该处的粗细（拖动它，或在点上按 Shift + 滚轮）；其操纵器的金色圆环决定路径从该点离开时的力度；点击骨架中间的某个点并放置节点，即可从该点分出分支",
+ "Click a node to go on from it. Click empty space next to a node in the middle of an armature, and a branch grows from it as a part of the same armature: that is how an arm grows out of a body.": "点击一个节点即可从它继续。点击骨架中间某个节点旁边的空白处，就会从那里长出一个分支，它是同一个骨架的一部分：手臂就是这样从身体上长出来的。",
+ "Nice. The branch is a list inside the armature's list: one armature, one cross-section.": "很好。分支是骨架列表里的一个列表：一个骨架，一个截面。"
 }

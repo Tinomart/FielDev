@@ -554,7 +554,7 @@ void Editor::onInterpreterDone(Result r)
 {
     m_scriptRunning = false;
     if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
-        std::cerr << "[run] done: okay=" << r.okay << " replaced=" << r.replaced << " discard=" << m_discardResults
+        std::cerr << "[at " << QDateTime::currentMSecsSinceEpoch() % 100000000 << " ms] [run] done: okay=" << r.okay << " replaced=" << r.replaced << " discard=" << m_discardResults
                   << " terminating=" << m_terminating << " shapes=" << r.shapes.size() << std::endl;
     // (the model tree is read from the text again once what is below has been set: what the run found out is laid over its rows)
     QTimer::singleShot(0, this, [this] { refreshOutline(true); emit(runFinished()); });
@@ -1317,7 +1317,7 @@ void Editor::applyEditsNoted(QList<TextEdit> edits, const QString& description, 
         m_readyCount = 0;
     }
     if (qEnvironmentVariableIsSet("FIELDEV_TIMING"))
-        std::cerr << "[edit] " << description.toStdString() << " (revision " << script_doc->revision() << ", " << m_readyCount << " of the program's own)" << std::endl;
+        std::cerr << "[at " << QDateTime::currentMSecsSinceEpoch() % 100000000 << " ms] [edit] " << description.toStdString() << " (revision " << script_doc->revision() << ", " << m_readyCount << " of the program's own)" << std::endl;
 }
 
 void Editor::applyEditsAs(QList<TextEdit> edits, bool live)

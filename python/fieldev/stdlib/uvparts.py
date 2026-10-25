@@ -217,7 +217,9 @@ def _describe(part):
     info = getattr(part, '_armature', None)
     if info is not None:
         nodes = [tuple(c.pos) for c in info.ctrls]
-        return info.name, nodes, 'armature', nodes
+        # (the pieces that are swept in one go: the main chain and each branch, as places.  An armature of one node is a ball)
+        chains = [[nodes[i] for i in chain] for chain in info.chains if len(chain) > 1] or [nodes[:1]]
+        return info.name, chains, 'armature', nodes
     info = getattr(part, '_feature_model', None)
     if info is not None:
         return info.name, info, 'feature_model', info.surface.vertices
@@ -241,6 +243,7 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
                 and not (d[2] == 'feature_model' and any(p[axis] > 1e-6 for p in d[3]) and any(p[axis] < -1e-6 for p in d[3])) for d in described]
     values = [_eval_at(p, folded if m else xyz, nv) for p, m in zip(parts, mirrored)]
     owner = [min(range(len(parts)), key=lambda k: values[k][i]) for i in range(nv)]
+    tubes = [[_Tube(_spine(c)) for c in d[1]] if d[2] == 'armature' and all(len(c) > 1 for c in d[1]) else [] for d in described]
     groups = {}
     for t in range(nt):
         corners = [tri[3 * t + k] for k in range(3)]
@@ -262,9 +265,16 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
             n = _cross(_sub(q[1], q[0]), _sub(q[2], q[0]))
             facing = _dot(n, described[k][1].surface.view[2]) * (-1.0 if mirrored[k] and side == 1 else 1.0)
             back = 0 if facing >= 0.0 else 1
-        groups.setdefault((k, side, back), []).append(t)
+        piece = 0
+        if described[k][2] == 'armature' and len(tubes[k]) > 1:
+            # (an armature with branches is unwrapped piece by piece, each by the tube of its own chain: a triangle belongs to the chain it is nearest to)
+            mid = tuple(sum(xyz[3 * c + a] for c in corners) / 3.0 for a in range(3))
+            if mirrored[k] and side == 1:
+                mid = tuple(-mid[a] if a == axis else mid[a] for a in range(3))
+            piece = min(range(len(tubes[k])), key=lambda j: tubes[k][j].where(mid)[1])
+        groups.setdefault((k, side, back, piece), []).append(t)
     islands, names = [], []
-    for (k, side, back), members in sorted(groups.items()):
+    for (k, side, back, piece), members in sorted(groups.items()):
         name, data, kind, _ = described[k]
         used = sorted({tri[3 * t + c] for t in members for c in range(3)})
         pts = {}
@@ -275,7 +285,7 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
             pts[i] = q
         uv = []
         if kind == 'armature':
-            par = _tube_params(pts, data)
+            par = _tube_params(pts, data[piece])
             for t in members:
                 corners = [tri[3 * t + c] for c in range(3)]
                 angles = [par[c][0] for c in corners]
@@ -294,7 +304,7 @@ def unwrap_parts(xyz, tri, parts, margin, size, axis=None):
         uv = [(u - lu, v - lv) for u, v in uv]
         width, height = max(u for u, v in uv), max(v for u, v in uv)
         islands.append((members, uv, width, height))
-        names.append(name + (' (back)' if back else '') + (' (mirrored)' if side else ''))
+        names.append(name + (' (branch %d)' % piece if piece else '') + (' (back)' if back else '') + (' (mirrored)' if side else ''))
     margin_uv = float(margin) / float(size)
     scale, place = U._pack(islands, margin_uv, False)
     out = array('f', [0.0]) * (6 * nt)
