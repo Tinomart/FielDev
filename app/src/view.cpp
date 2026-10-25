@@ -58,6 +58,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "fieldev/scenetree.hpp"
 #include "fieldev/shader.hpp"
 #include "fieldev/typeicons.hpp"
+#include "fieldev/materialspanel.hpp"
 
 #include "libfive/solve/solver.hpp"
 
@@ -94,6 +95,7 @@ View::View(QWidget* parent)
       settings(Settings::defaultSettings())
 {
     setMouseTracking(true);
+    setAcceptDrops(true);                   // (the materials card's swatches are let go over a model)
     qApp->installEventFilter(this);             // (Shift swaps the gizmo's arrows for planes: the keys are seen wherever the focus is)
 
     connect(&busy, &Busy::redraw, this, &View::update);
@@ -481,6 +483,7 @@ void View::highlightLines(QList<int> lines0)
 void View::forgetRemoved(Shape* s)
 {
     if (m_outlineHover == s) m_outlineHover = nullptr;
+    if (m_dropTarget == s) m_dropTarget = nullptr;
     if (m_pullShape == s) m_pullShape = nullptr;
     if (m_faceShape == s) m_faceShape = nullptr;
     if (press_target == s) press_target = nullptr;
@@ -2330,6 +2333,80 @@ void View::mousePressEvent(QMouseEvent* event)
 static int editRootLine(const Shape* s)
 {
     return s->editLine() >= 0 ? s->editLine() : s->sourceLine();
+}
+
+// ---- A material let go over a model: the swatches of the materials card are dragged here (what is dragged is the name of the preset)
+
+Shape* View::shapeUnder(QPoint pos)
+{
+    if (pointDotAt(pos)) return nullptr;
+    syncPicker();
+    const auto picked = pick_img.valid(pos) ? (pick_img.pixel(pos) & 0xFFFFFF) : 0;
+    if (!picked || int(picked) > shapes.size()) return nullptr;
+    Shape* target = shapes.at(picked - 1);
+    return target->sourceLine() >= 0 ? target : nullptr;
+}
+
+void View::setDropTarget(Shape* s)
+{
+    if (s == m_dropTarget) return;
+    if (m_dropTarget && shapes.contains(m_dropTarget)) m_dropTarget->setHover(false);
+    m_dropTarget = s;
+    if (m_dropTarget) m_dropTarget->setHover(true);
+    m_overlay->update();
+}
+
+void View::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (!event->mimeData()->hasFormat(MaterialsPanel::mimeType()))
+    {
+        event->ignore();                    // (a file is the window's: it opens it)
+        return;
+    }
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+}
+
+void View::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (!event->mimeData()->hasFormat(MaterialsPanel::mimeType()))
+    {
+        event->ignore();
+        return;
+    }
+    Shape* target = shapeUnder(event->pos());
+    setDropTarget(target);
+    event->setDropAction(Qt::CopyAction);
+    if (target) event->accept();
+    else event->ignore();
+}
+
+void View::dragLeaveEvent(QDragLeaveEvent* event)
+{
+    setDropTarget(nullptr);
+    event->accept();
+}
+
+void View::dropEvent(QDropEvent* event)
+{
+    if (!event->mimeData()->hasFormat(MaterialsPanel::mimeType()))
+    {
+        event->ignore();
+        return;
+    }
+    const QString preset = QString::fromUtf8(event->mimeData()->data(MaterialsPanel::mimeType()));
+    Shape* target = shapeUnder(event->pos());
+    setDropTarget(nullptr);
+    if (!target)
+    {
+        event->ignore();
+        return;
+    }
+    if (std::getenv("FIELDEV_TIMING"))
+        fprintf(stderr, "[at %lld ms] [material] '%s' dropped on the shape of line %d\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), preset.toUtf8().constData(), dotLine(target));
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+    emit(materialDropped(dotLine(target), preset));
 }
 
 void View::mouseReleaseEvent(QMouseEvent* event)

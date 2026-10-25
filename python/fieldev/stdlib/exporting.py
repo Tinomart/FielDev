@@ -389,7 +389,7 @@ def _half_of(symmetric):
 
 
 def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None,
-                skeleton=None, skin_falloff=None, pivot=None, normals=None, textures=None, uv_layout=None, max_influences=4):
+                skeleton=None, skin_falloff=None, pivot=None, normals=None, textures=None, uv_layout=None, max_influences=4, model_unit=None):
     ''' Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
             .stl (binary; ascii=True for text), .obj, .ply, .3mf, .glb, .gltf, .fbx (Autodesk FBX, ASCII 7.4: see fbx.py), .off, .dxf (3DFACE)
@@ -424,6 +424,9 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         max_influences  the most joints that move a vertex: 4 (what the engines run), up to 8
         pivot       where the origin of the file is: "origin" (default: as modelled), "base" (the middle of the bottom of the model: a character stands on the ground, its feet
                     at 0), "center" (the middle of its box), or a place (x, y, z) of the model.  The skeleton moves with it
+
+        model_unit  what one number of the model is: "mm" (default: the numbers are millimetres), "cm", "m" or "in".  A level modelled in metres is exported with `model_unit="m"`: a
+                    wall 4 long is 4 metres in a glTF and 4000 millimetres in a file that has no unit (with `units="m"` it is 4 there).  Not for a skeleton
 
         Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
         (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path. '''
@@ -527,6 +530,13 @@ def export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False
         xyz = _shifted(xyz, shift)
         if skin is not None:
             skin = ([Joint(j.name, tuple(j.position[c] - shift[c] for c in range(3)), j.parent, j.tip) for j in skin[0]], skin[1], skin[2], skin[3])
+    if model_unit is not None and model_unit != 'mm':
+        if model_unit not in UNITS:
+            raise ValueError('export_mesh: model_unit={!r} -- one of {}'.format(model_unit, ', '.join(UNITS)))
+        if skin is not None:
+            raise ValueError('export_mesh: model_unit is not for a skeleton: give its joints in millimetres')
+        factor = UNITS[model_unit]
+        xyz = array('f', [v * factor for v in xyz])           # (the model's numbers are metres, centimetres or inches: they are made millimetres, which is what the writers start from)
     if with_normals:
         extra['normals'] = vertex_normals
     if tangents is not None and 'normal' in extra['baked']:

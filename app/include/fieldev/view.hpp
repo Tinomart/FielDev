@@ -35,6 +35,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <QFutureWatcher>
 #include <QPointer>
 #include <QOpenGLWidget>
+#include <QDropEvent>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLTexture>
 
@@ -356,6 +357,7 @@ signals:
     /*  The sizes of the armature this node belongs to are to be written into its call as var()s (the circle round a node and the wheel over it change them): the variable of the node  */
     void armatureSizesRequested(QString node);
     void armaturePlacingChanged(bool on);
+    void materialDropped(int line, QString preset);       // (a swatch of the materials card let go over a model: the line of the model, and the name of the preset)
 
     /*
      *  Called to kick off a render and start the busy spinner running
@@ -553,6 +555,9 @@ protected:
     QPoint m_dotPressPos;
     QString m_armNodePress;                 // the variable of the armature node whose dot is pressed while the armature mode is off: let go without a move, the press puts the mode back on, going on from it
     QPoint m_armNodePressPos;
+    Shape* m_dropTarget = nullptr;          // (the model a material that is being dragged is over: lit)
+    Shape* shapeUnder(QPoint pos);          // (the model under the cursor by the picking picture -- not the dot of a point -- that has a line)
+    void setDropTarget(Shape* s);
     /*  The copy of a point that was pressed (the dot of a placed copy, of an image in a symmetry): the row of the point it is a copy of, and which of the copies of that point it is, in
         the order they are drawn.  The point is selected by the press (it is the original's row that is selected), and that copy -- and only that one -- shows the point's gizmo (its arrows,
         its ring, the ring that sizes its influence), at the copy, taken through the map of the copy; dragging it changes the original's numbers  */
@@ -591,6 +596,10 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dragLeaveEvent(QDragLeaveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     bool event(QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;

@@ -99,6 +99,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "fieldev/shape.hpp"
 #include "fieldev/shortcuts.hpp"
 #include "fieldev/view.hpp"
+#include "fieldev/materialspanel.hpp"
 
 #include "libfive.h"
 
@@ -1057,6 +1058,23 @@ Window::Window(Arguments args)
         connect(panel, &SymmetryPanel::centreChanged, view, &View::setSymmetryCentre);
         connect(panel, &SymmetryPanel::centreRequested, view, &View::setSymmetryCentreFrom);
         connect(panel, &SymmetryPanel::closeRequested, this, [=] { view->setSymmetryInUse(false); });
+    }
+
+    {   // The materials: a card with a swatch for each preset of the library, to drag onto a model of the viewport; a click gives the material to the models that are selected
+        auto panel = new MaterialsPanel(view);
+        panel->hide();
+        auto scene = view->scenePanel();
+        auto matAction = view_menu->addAction(T("Materials"));
+        matAction->setCheckable(true);
+        matAction->setToolTip(T("The card of materials: drag one onto a model to give it that material (it is written into the script as with_materials), or click one to give it to the models that are selected"));
+        connect(matAction, &QAction::toggled, panel, [=](bool on) {
+            panel->setVisible(on);
+            if (on) panel->raise();
+        });
+        connect(panel, &MaterialsPanel::closeRequested, matAction, [=] { matAction->setChecked(false); });
+        connect(panel, &MaterialsPanel::presetsRequested, this, [=] { panel->setPresets(scene->materialPresets()); });
+        connect(panel, &MaterialsPanel::applyRequested, scene, &ScenePanel::applyMaterialToSelection);
+        connect(view, &View::materialDropped, scene, &ScenePanel::applyMaterial);
     }
 
     {   // Standard views; single keys, so they only act while the viewport
@@ -2028,6 +2046,30 @@ Window::Window(Arguments args)
             std::cerr << "automation: winmouse " << p[0].toStdString() << " reached " << target->metaObject()->className() << " " << target->objectName().toStdString() << std::endl;
         });
         // viewwheel <x> <y> <delta> [shift|ctrl|shift+ctrl]: a turn of the mouse wheel over the viewport (120 is one notch), with Shift and/or Ctrl held when asked
+        // dropmaterial <preset> <x> <y>: a swatch of the materials card let go over the viewport at (x, y) -- the events of a real drag: it enters, moves and is dropped
+        a->add("dropmaterial", [=](const QString& args){
+            const auto p = args.split(' ', Qt::SkipEmptyParts);
+            if (p.size() < 3) return;
+            QMimeData mime;
+            mime.setData(MaterialsPanel::mimeType(), p[0].toUtf8());
+            const QPoint at(p[1].toInt(), p[2].toInt());
+            QDragEnterEvent enter(at, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(view, &enter);
+            QDragMoveEvent move(at, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(view, &move);
+            QDropEvent drop(QPointF(at), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(view, &drop);
+        });
+        // materialclick <preset>: the swatch of the materials card is clicked (the models that are selected get the material)
+        a->add("materialclick", [=](const QString& what){
+            if (auto card = view->findChild<MaterialsPanel*>("MaterialsPanel"))
+                for (auto b : card->findChildren<QToolButton*>("MaterialSwatch"))
+                    if (b->property("preset").toString() == what.trimmed()) b->click();
+        });
+        // materialscard <on|off>: the card of materials is shown or put away
+        a->add("materialscard", [=](const QString& what){
+            if (auto card = view->findChild<MaterialsPanel*>("MaterialsPanel")) card->setVisible(what.trimmed().toLower() == "on");
+        });
         a->add("viewwheel", [=](const QString& args){
             const auto p = args.split(' ', Qt::SkipEmptyParts);
             if (p.size() < 3) return;
@@ -2040,6 +2082,26 @@ Window::Window(Arguments args)
         });
         // treeclick <none|ctrl|shift> <text prefix>: a real click (mouse events, with the modifier held) on the name of a
         // model-tree row, so that Ctrl and Shift select several rows as they do for a user
+        // dropmaterialrow <preset> <text prefix>: a swatch of the materials card let go over the row of the model tree that begins with the text
+        a->add("dropmaterialrow", [=](const QString& args){
+            const QString preset = args.section(' ', 0, 0);
+            auto row = findRow(args.section(' ', 1));
+            if (!row) { std::cerr << "automation: no tree row " << args.toStdString() << "\n"; return; }
+            auto tree = row->treeWidget();
+            tree->scrollToItem(row);
+            QApplication::processEvents();
+            row = findRow(args.section(' ', 1));
+            if (!row) { std::cerr << "automation: no tree row " << args.toStdString() << "\n"; return; }
+            const QPoint at(tree->columnViewportPosition(0) + tree->columnWidth(0) / 2, tree->visualItemRect(row).center().y());
+            QMimeData mime;
+            mime.setData(MaterialsPanel::mimeType(), preset.toUtf8());
+            QDragEnterEvent enter(at, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(tree->viewport(), &enter);
+            QDragMoveEvent move(at, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(tree->viewport(), &move);
+            QDropEvent drop(QPointF(at), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(tree->viewport(), &drop);
+        });
         a->add("treeclick", [=](const QString& args){
             const QString m = args.section(' ', 0, 0).toLower();
             Qt::KeyboardModifiers mods = Qt::NoModifier;

@@ -51,6 +51,8 @@ of the License, or (at your option) any later version.
 #include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QDropEvent>
+#include <QSet>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -924,7 +926,7 @@ public:
     SceneTree()
     {
         setDragEnabled(false);
-        setAcceptDrops(false);
+        setAcceptDrops(true);                           // (only for the swatches of the materials card: see dragEnterEvent; the tree's own drag of models is not Qt's)
         setExpandsOnDoubleClick(false);                 // (a double click renames a variable)
     }
 
@@ -932,6 +934,9 @@ public:
     std::function<bool(QTreeWidgetItem*, QString*, QIcon*, bool, bool)> beginDrag;      // (Ctrl was down; the row was selected)
     // can the dragged models be dropped here (bool: as a copy); when not, the reason goes in the string (it is shown at the mouse)
     std::function<bool(QTreeWidgetItem*, int, bool, QString*)> accepts;
+    // a swatch of the materials card let go over a row: which (0-based) line of the script the row's model is on (-1: the row is no model), and what the panel does with the preset
+    std::function<int(QTreeWidgetItem*)> materialLine;
+    std::function<void(int, const QString&)> materialDropped;
     std::function<bool(QTreeWidgetItem*)> takesOn;           // can a drop be ON this row (else above or below it only)
     std::function<void(QTreeWidgetItem*, int, QPoint, bool)> dropped;
     std::function<void()> dragEnded;
@@ -982,6 +987,42 @@ protected:
         }
         return QTreeWidget::viewportEvent(e);
     }
+    // (a swatch of the materials card: the card's drag is Qt's, so the tree takes it as Qt's drop -- onto the row of a model)
+    void dragEnterEvent(QDragEnterEvent* e) override
+    {
+        if (!e->mimeData()->hasFormat(MaterialsPanel::mimeType()))
+        {
+            e->ignore();
+            return;
+        }
+        e->setDropAction(Qt::CopyAction);
+        e->accept();
+    }
+    void dragMoveEvent(QDragMoveEvent* e) override
+    {
+        QTreeWidgetItem* row = e->mimeData()->hasFormat(MaterialsPanel::mimeType()) ? itemAt(e->pos()) : nullptr;
+        if (!row || !materialLine || materialLine(row) < 0)
+        {
+            e->ignore();
+            return;
+        }
+        e->setDropAction(Qt::CopyAction);
+        e->accept();
+    }
+    void dropEvent(QDropEvent* e) override
+    {
+        QTreeWidgetItem* row = e->mimeData()->hasFormat(MaterialsPanel::mimeType()) ? itemAt(e->pos()) : nullptr;
+        const int line = row && materialLine ? materialLine(row) : -1;
+        if (line < 0 || !materialDropped)
+        {
+            e->ignore();
+            return;
+        }
+        e->setDropAction(Qt::CopyAction);
+        e->accept();
+        materialDropped(line, QString::fromUtf8(e->mimeData()->data(MaterialsPanel::mimeType())));
+    }
+
     void mousePressEvent(QMouseEvent* e) override
     {
         // A press on the circle that shows between two rows (a + in a circle, when the mouse is in the gap) starts a section there; a press anywhere else in the gap is
@@ -1549,6 +1590,11 @@ ScenePanel::ScenePanel(QWidget* parent)
             return beginDrag(row, text, icon, ctrl, wasSelected);
         };
         tree->accepts = [this](QTreeWidgetItem* over, int at, bool copy, QString* why) { return canDrop(over, at, copy, why); };
+        tree->materialLine = [](QTreeWidgetItem* row) -> int {
+            const QJsonObject it = row->data(COL_NAME, ROLE_ITEM).toJsonObject();
+            return it.contains("var") && it["line"].toInt() > 0 ? it["line"].toInt() - 1 : -1;
+        };
+        tree->materialDropped = [this](int line0, const QString& preset) { applyMaterial(line0, preset); };
         tree->takesOn = [this](QTreeWidgetItem* row) {
             const QString type = row->data(COL_NAME, ROLE_TYPE).toString();
             if (type == "hole" || type == "dep") return true;     // (a model goes on a placeholder, or takes the place of a shadow)
@@ -7397,6 +7443,97 @@ void ScenePanel::createSymmetry(FielDev::Symmetry s)
     m_symdefRequest["first"] = vec(s.a);
     createFromMenu("primitive", "symmetry_planes", s.centre, 10.0, -1, -1);
     m_symdefRequest = QJsonObject();
+}
+
+QList<MaterialPreset> ScenePanel::materialPresets() const
+{
+    QList<MaterialPreset> out;
+    if (!m_support) return out;
+    QString error;
+    const QString answer = m_support("material_presets", QString(), &error);
+    if (answer.isEmpty()) return out;
+    for (const auto v : QJsonDocument::fromJson(answer.toUtf8()).array())
+    {
+        const auto o = v.toObject();
+        MaterialPreset p;
+        p.name = o["name"].toString();
+        p.color = QColor(o["color"].toString());
+        p.metallic = o["metallic"].toDouble();
+        p.roughness = o["roughness"].toDouble();
+        p.clear = o["clear"].toBool();
+        p.glow = o["glow"].toBool();
+        if (!p.name.isEmpty()) out << p;
+    }
+    return out;
+}
+
+void ScenePanel::applyMaterial(int line0, QString preset)
+{
+    if (!m_support || !m_source) return;
+    QJsonObject target;
+    QString source;
+    int after = 0;
+    if (line0 < 0 || !resolveModel(line0, &target, &source, &after) || !target.contains("var"))
+    {
+        notify(T("Drop a material on a model."));
+        return;
+    }
+    // A model that is made with `with_materials` has the materials of that call replaced, where they stand
+    QJsonObject request;
+    request["source"] = m_source();
+    request["var"] = target["var"].toString();
+    request["line"] = target["line"].toInt();
+    request["preset"] = preset;
+    QString error;
+    const QString answer = m_support("material_edit", QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)), &error);
+    if (answer.isEmpty() && !error.isEmpty())
+    {
+        notify(error);
+        return;
+    }
+    QList<TextEdit> edits;
+    for (const auto v : QJsonDocument::fromJson(answer.toUtf8()).object()["edits"].toArray())
+    {
+        const auto a = v.toArray();
+        if (a.size() == 5) edits << TextEdit{a[0].toInt(), a[1].toInt(), a[2].toInt(), a[3].toInt(), a[4].toString()};
+    }
+    if (std::getenv("FIELDEV_TIMING"))
+        fprintf(stderr, "[material] '%s' on '%s': %s\n", preset.toUtf8().constData(), target["var"].toString().toUtf8().constData(), edits.isEmpty() ? "a statement that takes it again is written under it" : "the material of its call is replaced");
+    if (!edits.isEmpty())
+    {
+        emit(editScript(edits, "Material " + preset));
+        return;
+    }
+    // Any other model is given them by a statement under it that takes the model again -- `rock = with_materials(rock, material_preset("gold"))`, as a gizmo or a lock does: the model is
+    // still one, and what is shown and picked is what it has been made into
+    const QString var = target["var"].toString();
+    const QString indent = indentOf(lineText(target["line"].toInt() - 1));
+    const QString last = lineText(after);
+    QList<TextEdit> insert;
+    insert << TextEdit{after, int(last.size()), after, int(last.size()), "\n" + indent + var + " = with_materials(" + var + ", material_preset(\"" + preset + "\"))"};
+    emit(editScript(insert, "Material " + preset));
+}
+
+void ScenePanel::applyMaterialToSelection(QString preset)
+{
+    QList<int> lines = selectedLines();
+    if (lines.isEmpty())
+    {
+        notify(T("Select a model to give it a material, or drag a material onto one."));
+        return;
+    }
+    // (from the last to the first, so that what is written under one does not move the lines of the ones above it; a model is given it once)
+    std::sort(lines.begin(), lines.end(), [](int a, int b) { return a > b; });
+    QSet<QString> seen;
+    for (int line : lines)
+    {
+        QJsonObject target;
+        QString source;
+        int after = 0;
+        if (!resolveModel(line, &target, &source, &after) || !target.contains("var") || seen.contains(target["var"].toString())) continue;
+        seen.insert(target["var"].toString());
+        applyMaterial(line, preset);
+    }
 }
 
 void ScenePanel::setSymmetryArguments(QStringList names, QStringList values)

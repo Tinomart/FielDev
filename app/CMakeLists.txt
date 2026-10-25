@@ -46,6 +46,7 @@ set(SRCS
     src/shortcuts.cpp
     src/shape.cpp
     src/symmetry.cpp
+    src/materialspanel.cpp
     src/syntax.cpp
     src/theme.cpp
     src/tutorial.cpp
@@ -82,6 +83,7 @@ set(QOBJECTS
     include/fieldev/shape.hpp
     include/fieldev/shortcuts.hpp
     include/fieldev/symmetry.hpp
+    include/fieldev/materialspanel.hpp
     include/fieldev/syntax.hpp
     include/fieldev/tutorial.hpp
     include/fieldev/view.hpp

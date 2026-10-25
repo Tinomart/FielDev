@@ -5,6 +5,18 @@ What FielDes did before the fork is in the git history of this repository (this 
 
 ## 1.0.0 (not released)
 
+### Game assets: materials by drag and drop, terrain, levels, props, modular kits
+All of this was seen only in a virtual display (software rendering, a Linux machine), not on a real screen and not on Windows; `docs/gamedev.md` says what each is, `docs/gamedev-decisions.md` what was decided and what is open.
+- **A card of materials** (*View > Materials*): a swatch for each of the 24 presets, drawn as a ball in its colour, shine and roughness.  **Drag a swatch onto a model** in the viewport, or onto its row in the model tree, and a line is written under the model --
+  `rock = with_materials(rock, material_preset("stone"))` --; a second drop on the same model replaces the material in that line; a click on a swatch gives the material to the models that are selected.
+- **Terrain** (`terrain`, `.raised`, `.flattened`, `.road`, `.river`, `.cave`, `.add`, `.cut`, `.chunk`, `.textured`, `water`, `export_terrain_chunks`): the ground is a field -- a solid slab under a height made of noise --, so a road keeps its width over any hill, a river's banks slope into the
+  ground, a cave is a cut of the solid, and chunks cut from it meet exactly.  Its materials follow its slope and height (grass, rock, sand, snow) and its paths (road, river bed).
+- **Levels** (`room`, `corridor`, `doorway`, `window_opening`, `pillar`, `staircase`, `wall_segment`, `build_level`): you say where the empty space is and the walls are what is left round it -- the same thickness everywhere, a corridor that ends inside a room opens into it.
+- **Props** (`rock`, `tree` (round, pine, bush), `crate`, `barrel`, `placed`, `merge`, `scatter`, `export_scatter`): each in its own materials; `scatter` stands them on the ground where it is flat enough and a rule allows, and `export_scatter` writes the variants once and a list of places.
+- **Modular kits** (`kit(cell, wall, floor)`): pieces that end exactly on their cell (floor, ceiling, walls with a door, an arch or a window, a corner, a post, stairs), a plan builder (`build`), `seam` and `check` (what is solid on the face two pieces share), and `export` (each piece once, and `kit.json`: what stands in which cell, turned how).
+- `export_mesh(..., model_unit="m")`: what one number of the model is (millimetres by default, as before).  The game exports use metres.
+- The right-click menu has a **Game** group (under *Parametric shapes*): terrain, room, kit, rock, tree, crate, barrel.  Examples `42_terrain.py`, `43_level_and_kit.py`, `44_props.py`, `45_game_world.py`.
+
 ### After a click nothing flickers; a node brings the armature mode back; closing does not wait for a heavy render
 - **No flicker on a click (seen in a virtual display with software rendering, not on a real screen, not on Windows).** Four causes, found by recording every frame: (1) the shapes a run replaced were deleted before the new ones had a mesh, so the rings, dots and tube
   vanished for a few frames -- they now stay in the picture until the shape that replaces them has its mesh; (2) the model tree lit shapes by the line numbers of the new text while the viewport still held the old ones, so the selection dropped for up to half a second --

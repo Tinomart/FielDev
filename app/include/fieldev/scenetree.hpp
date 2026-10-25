@@ -26,6 +26,7 @@ of the License, or (at your option) any later version.
 #include <QVector3D>
 
 #include "fieldev/symmetry.hpp"
+#include "fieldev/materialspanel.hpp"
 
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -185,6 +186,13 @@ public slots:
      *  or "operation" (on the model displayed by the (0-based) line `line0`, or, for a negative line, the
      *  selected model; written under its definition)  */
     void createFromMenu(QString kind, QString name, QVector3D point, double scale, int line0, int generation = -1);
+    /*  A material of the library given to the model that the (0-based) line `line0` shows -- a swatch of the materials card dropped on a shape of the viewport or a row of the tree.  A model that is
+        made with `with_materials` has the materials of that call replaced where they stand; any other gets the statement the Materials entry of the menu writes, under it  */
+    void applyMaterial(int line0, QString preset);
+    /*  The same for each of the models that are selected (a swatch of the card that is clicked)  */
+    void applyMaterialToSelection(QString preset);
+    /*  The presets of the library, for the swatches of the materials card  */
+    QList<MaterialPreset> materialPresets() const;
     /*  The work plane, while its view is open: what the menu makes at a place is made in its axes (a profile's points are in the plane, not horizontal); `step` is
         the grid the places snap to, 0 when they do not  */
     void setWorkPlane(bool active, QVector3D origin, QVector3D u, QVector3D v, float step);

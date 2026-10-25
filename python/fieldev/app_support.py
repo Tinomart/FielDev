@@ -1714,6 +1714,49 @@ def call_edit(arg):
     return json.dumps({'edits': [position(a) + position(b) + [text] for a, b, text in edits]})
 
 
+def material_presets(_arg=''):
+    ''' The presets of `material_preset`, for the swatches of the materials card: JSON [{name, color ("#rrggbb" as a screen shows it), metallic, roughness, clear (see-through), glow}, ...] '''
+    from fieldev.stdlib import materials
+    out = []
+    for name in materials.material_presets():
+        m = materials.material_preset(name)
+        rgb = ''.join('%02x' % int(round(255 * materials._as_shown(c))) for c in m.color)
+        out.append({'name': name, 'color': '#' + rgb, 'metallic': float(m.metallic), 'roughness': float(m.roughness),
+                    'clear': bool(m.transmission > 0.0 or float(m.opacity) < 1.0), 'glow': m.emissive is not None})
+    return json.dumps(out)
+
+
+def material_edit(arg):
+    ''' The edits that give a model that already has materials another: `arg` is JSON {source, var, preset} -- the last statement `var = with_materials(model, materials)` of the script has its
+        `materials` replaced by `material_preset("preset")`.  The answer is JSON {"edits": [[line, column, end line, end column, text], ...]} (0-based, as call_edit gives them): one edit, or
+        none when the model has no such statement (the drop writes one under the model then) '''
+    req = json.loads(arg)
+    source = req['source']
+    preset = str(req['preset'])
+    from fieldev.stdlib.materials import material_presets
+    if preset not in material_presets():
+        raise ValueError('there is no material called %s' % preset)
+    lines = source.split('\n')
+
+    def col(line, byte_col):
+        return len(lines[line - 1].encode('utf-8')[:byte_col].decode('utf-8', 'replace'))
+
+    found = None
+    for st in ast.parse(source).body:
+        targets = getattr(st, 'targets', None) or []
+        value = getattr(st, 'value', None)
+        if not any(isinstance(t, ast.Name) and t.id == req['var'] for t in targets):
+            continue
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == 'with_materials':
+            node = value.args[1] if len(value.args) >= 2 else next((k.value for k in value.keywords if k.arg == 'materials'), None)
+            if node is not None:
+                found = node
+    if found is None:
+        return json.dumps({'edits': []})
+    edit = [found.lineno - 1, col(found.lineno, found.col_offset), found.end_lineno - 1, col(found.end_lineno, found.end_col_offset), 'material_preset("%s")' % preset]
+    return json.dumps({'edits': [edit]})
+
+
 def profile_edit(arg):
     ''' The edits that put a point on the outline of a profile or a curve, or toggle one of its points between a corner and a spline point (see fieldev.profile_edit) '''
     from fieldev import profile_edit as _edit

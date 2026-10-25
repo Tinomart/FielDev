@@ -171,6 +171,14 @@ PRIMITIVES = [
     ('noise_field', 'Fields', 'noise_field({s}, {n})'),
     ('wave', 'Fields', "wave('x', {s}, {t})"),
     ('low_level_field', 'Fields', _LOW_LEVEL_FIELD),
+    # What a game is made of (see docs/gamedev.md): the ground, a room, a kit, a rock, a tree, a crate, a barrel -- made where the menu is; the numbers are for the user to say
+    ('terrain', 'Game', 'terrain(size=({s}, {s}), height={t}, scale={h}, center=({x}, {y}))'),
+    ('room', 'Game', 'build_level(room(({xm}, {ym}, {z}), ({xp}, {yp}, {zp})))'),
+    ('kit', 'Game', 'kit(({h}, {h}, {h})).build(["###", "###"])'),
+    ('rock', 'Game', 'placed(rock({h}), ({x}, {y}, {z}))'),
+    ('tree', 'Game', 'placed(tree({s}, {q}, {h}), ({x}, {y}, {z}))'),
+    ('crate', 'Game', 'placed(crate({h}), ({x}, {y}, {z}))'),
+    ('barrel', 'Game', 'placed(barrel({q}, {h}), ({x}, {y}, {z}))'),
 ]
 
 # The PRIMITIVES -- the most basic, low-level representation of each kind of thing: a sphere, a box, a cylinder, a cone, a torus, a pyramid and a prism for 3D; a circle, a rectangle, a triangle,
@@ -328,7 +336,7 @@ OPERATIONS = [
     ('taper_xy_z', 'Bend and twist', 'taper_xy_z({body}, ({x}, {y}, {zm}), {s}, 0.5)', False),
     ('shear_x_y', 'Bend and twist', 'shear_x_y({body}, ({x}, {ym}), {s}, {t})', False),
     # The colours a body is shown and exported with (the presets: see material_presets(); a material of your own is `material(...)`)
-    ('with_materials', 'Materials', 'with_materials({body}, material_preset("plastic"))', False),
+    ('with_materials', 'Materials', 'with_materials({body}, material_preset("{preset}"))', False),
     # The cross-section of an armature, at its first node (made with every armature the menu makes: here for one that was written by hand)
     ('cut_face', 'Character', 'cut_face({body})', False),
     # A character: the armatures selected are joined into one body (the other half a mirror image), and are the skeleton of it
@@ -746,6 +754,15 @@ def _default_stroke_template(name, values, r):
     return _stroke_text(name, places, False, r)
 
 
+def _material_preset_name(r):
+    ''' The preset the Materials entry writes: the one the request names (a swatch of the materials card dropped on a model), else plastic '''
+    from fieldev.stdlib.materials import material_presets
+    name = str(r.get('preset') or 'plastic').strip().lower()
+    if name not in material_presets():
+        raise ValueError(tr('there is no material called %s') % name)
+    return name
+
+
 def _values(r):
     ''' What the templates are filled from: the place, the size, the models, and the boxes and numbers worked out from them '''
     name = r['name']
@@ -777,6 +794,7 @@ def _values(r):
             values['f%s%dy' % (key, i)] = _num(y + dy * h)
             values['f%s%dz' % (key, i)] = _num(z + dz * h)
     values['others'] = ', ' + values['other'] if values['other'] else ''       # (for a call that may have no other model)
+    values['preset'] = _material_preset_name(r)
     values['body_info'] = r.get('body_info')
     return values
 
@@ -868,7 +886,7 @@ KEEPS_ITS_TEMPLATE = ('extrude', 'with_materials')
 
 # (the shapes of the first groups are made where the user clicks, as big as the view shows: the place and the size are what the click says.
 # Everything else a menu writes is made of models and calls: the numbers in them are for the user to say)
-_PLACED_GROUPS = ('1D', '3D', '2D', 'Points', 'Surfaces', 'Fields', 'Symmetry', 'Character')
+_PLACED_GROUPS = ('1D', '3D', '2D', 'Points', 'Surfaces', 'Fields', 'Symmetry', 'Character', 'Game')
 
 
 def _reference_text(r):
