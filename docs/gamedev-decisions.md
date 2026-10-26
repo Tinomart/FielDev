@@ -13,7 +13,7 @@ Written overnight, while nobody could be asked. Every decision below was made by
 | The unit of a model: `export_mesh(..., model_unit="m")` | `exporting.py` | a crate of size 1 is 1.0 in a glTF with it, 0.001 without |
 | Game entries in the right-click menu | `menu_catalog.py` | the menu dump lists them under *Parametric shapes > Game* |
 | Examples 42 to 46 | `examples/` | opened and drawn |
-| Water for a river, a steep-ground check, levels of detail for terrain chunks, collision meshes | `terrain.py`, `collision.py`, example 46 | 19 numeric checks (water in the channel and not above, below or away from it; the red layer where it is steep and not where it is flat; the budgets and names of the files); example 46 drawn once |
+| Water for a river, a steep-ground check | `terrain.py`, example 46 | numeric checks (water in the channel and not above, below or away from it; the red layer where it is steep and not where it is flat); example 46 drawn once |
 
 ## Decisions
 
@@ -37,7 +37,7 @@ Written overnight, while nobody could be asked. Every decision below was made by
 
 **10. Where a character can walk is a layer of the ground, not a separate analysis.** `steep_places(max_angle)` adds a red material where the slope is steeper, so it is looked at while modelling and is in the exported file; `walkable_fraction` is a number from a grid of places. Not done: a navigation mesh, steps and ledges (a staircase counts by its own slope), a path finder.
 
-**11. Levels of detail are the field meshed again with a smaller budget.** `export_terrain_chunks(lods=[...])` and `export_lods`: nothing is cut down from a finer mesh, each level is a mesh of the same field, so it stays where the surface is. **Open:** a coarse square beside a fine one does not meet exactly at their common edge (different polygons: a crack can show); engines hide it with skirts or by giving neighbours the same level. `export_collision` is the same call with a name an engine looks for; `"godot"` (`-colonly`, in the name of the node) is from my memory of how that engine's importer reads names, and was not tried in it.
+**11. No collision meshes and no level-of-detail files.** I built `export_collision` and `lods=` of `export_terrain_chunks` (a coarser mesh of the same field, named the way an engine looks for it). You said that every engine has ways to generate collision meshes -- and the same goes for levels of detail --, so both are removed; the generic `export_lods` of `export_mesh` is older than this work and stays.
 
 **12. Weather is geometry, found from the field's own gradient.** `covered` lays a cover of `depth` on the surfaces that face up: the field is differenced along each axis to see which way the surface faces, and the cover is `depth` thick where it faces straight up and thins to nothing at `angle`. Not taken: a colour only (what a texture does: the silhouette does not change and an engine's shadows do not see it); a cover found from the normals of a mesh (it needs a mesh, and has no resolution of its own). **Open:** the field is evaluated seven times as often, so a covered level or a covered forest is slow to mesh; a field that is not a distance gets a cover whose depth is corrected by the length of its gradient, which is good but not exact; the cover does not collect (no snow on a ledge that is not touching the surface, no sliding off along a slope).
 
@@ -56,6 +56,6 @@ Written overnight, while nobody could be asked. Every decision below was made by
 
 1. Fold the material statement into its model's row in the tree (decision 1), so a model is one row.
 2. A project unit (decision 3) and a polygon budget per prop and per chunk in the export, so a level can be checked against a number.
-3. Skirts or shared edges between levels of detail of neighbouring chunks, and a river whose water level falls along its path instead of following the bank.
+3. A river whose water level falls along its path instead of following the bank.
 4. Stairs and storeys in the kit's plan builder; an inner-corner piece.
 5. Scatter rules from fields in the interface: drag a field onto a scatter to say where props may stand.

@@ -4,7 +4,6 @@
 #   ground.river_water(0.4)          its water: a body of its own that fills the channel to 0.4 below the ground the river was cut into, and follows the river downhill
 #   ground.steep_places(32)          the ground in its colours, with red wherever it is steeper than 32 degrees
 #   ground.walkable_fraction(32)     how much of the ground is not: a number from 0 to 1
-#   export_terrain_chunks(ground, "world", 35, lods=[4000, 1000, 250])    every square of the world at three levels of detail: the field is meshed coarser, not cut down
 #
 # What to look at: the water ends where the bank rises above it; the red places are the steep sides of the hills (the road and the flat place are not red);
 # the number is in the output.  One number of this scene is one metre.

@@ -51,7 +51,7 @@ The materials of a model shown with `with_materials` are exported with it (`expo
 | `.chunk(ix, iy, size)`, `.chunks(size)` | A square of the world, or all of them. |
 | `.textured(...)`, `.material_layers(...)` | Grass, rock (steeper than `rock_angle`, and the walls of caves), snow (above `snow_line`), sand (below `beach`), and a road and a river bed wherever `.road` and `.river` were made. |
 | `water(size, level, depth)` | A slab of water. |
-| `export_terrain_chunks(ground, folder, size, lods=None)` | One file per square, with materials. `lods=[4000, 1000, 250]` writes every square at three budgets of triangles (`name_ix_iy_lod0.glb` ...): the field is meshed again, coarser. |
+| `export_terrain_chunks(ground, folder, size)` | One file per square, with materials. |
 
 Every method returns a new terrain; the old one is untouched. Rivers and roads go over each other in the order you call them.
 
@@ -97,15 +97,24 @@ The cell of a piece has its south-west floor corner at the origin. `wall_piece` 
 
 Every piece is cut to its cell, so it ends exactly on the cell's faces. `seam(a, b, axis)` asks both fields, on a grid just inside the face they share, what is solid, and `check()` does it for the whole kit. Walls that run north-south give the corner squares to the ones that run east-west, and a post (`pillar_piece`) closes a corner where two walls would only touch at a point, so no volume is made twice.
 
-## Collision meshes
+## Where the fields are, and where a mesh is made
 
-    export_collision(rock, "out/rock.glb", triangles=300)                  # out/rock_collision.glb
-    export_collision(rock, "out/rock.glb", triangles=300, naming="godot")  # out/rock-colonly.glb
+Everything in this list is built as fields (arithmetic on x, y and z) and is meshed only to be shown, or to be written to a file:
 
-A body that is a field has no low-poly version to model by hand: the field is meshed again with fewer triangles, and the rougher copy stays where the surface is. `naming` is the suffix an engine looks for (`"godot"`: `-colonly`, which its importer reads from the node name, so the node gets the same name); nothing here was tried in an engine. The same idea gives levels of detail: `export_lods(part, path, [8000, 2000, 500])`, and `lods=` of `export_terrain_chunks`.
+| | The field |
+|---|---|
+| Terrain | A height `h(x, y)` and the solid `z < h`. Hills, roads, rivers and flat places are sums, blends and `smoothstep`s of fields of x and y; a cave or a pit is a boolean on the solid. |
+| Roads and rivers | The distance from a path, as a field, blended into the height. The water of a river is the body between its bed and a level that follows the path. |
+| Materials | Every layer is a `where` field: the slope (from the gradient of the height), the height, the distance to a path or to a body. `steep_places` is one more layer. |
+| `covered` | The field of the model, less `depth` times a weight made from the field's own gradient (which way the surface faces). |
+| Levels | The space inside is a field; the walls are that field grown by the wall thickness, and the space is subtracted again. |
+| Kit pieces | Each piece is a field clipped to its cell; `seam` asks two fields whether they are solid on the face they share. |
+| Props | Noise, ellipsoids and blended unions; the rules of `scatter` (`where`, the slope) are fields. |
+| Chunks | The one field of the ground, cut by a box. |
+
+A mesh is made by `export_mesh` and the helpers built on it (`export_terrain_chunks`, `export_scatter`, `Kit.export`), and by the viewport to show a model. Nothing of the field is left in such a file.
 
 ## What is not here yet
 
 * Pieces of a kit in the right-click menus beyond the first Game entries; the kit's seam check covers plain walls, floors and ceilings, not stairs.
-* Level of detail by distance for terrain chunks (`export_mesh(..., max_triangles=...)` per chunk works).
 * Anything seen in a real window or on Windows: all of this was run only in a virtual display on a Linux machine.

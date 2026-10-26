@@ -33,7 +33,7 @@ two seconds, except `12` (mesh export and import), which writes a mesh and reads
 | `43_level_and_kit.py` | none (a hall, a cell and a corridor; a house of kit pieces) | a level from the space inside it (`room`, `corridor`, `doorway`, `window_opening`, `staircase`, `pillar`, `build_level`) and a modular kit (`kit(...)`, `.build(plan)`, `.check()`, `.export(...)`) |
 | `44_props.py` | none (a row of props, a grove on terrain) | `rock`, `tree` (round, pine, bush), `crate`, `barrel`, `placed`, `merge`, `scatter` (on terrain, by a slope and a rule), `export_scatter` |
 | `45_game_world.py` | none (a small world) | all of it together: terrain with a road, a river and a cave, a keep, a house of kit pieces, trees, rocks and crates standing on the ground by rules; it meshes for a while.  Drag a material onto the keep (View > Materials) |
-| `46_water_and_walking.py` | none (a piece of ground with a river) | `.river_water`, `.steep_places`, `.walkable_fraction`: the water of a river as a body of its own, and the ground in red where a character cannot walk; `lods=` of `export_terrain_chunks`; docs/gamedev.md |
+| `46_water_and_walking.py` | none (a piece of ground with a river) | `.river_water`, `.steep_places`, `.walkable_fraction`: the water of a river as a body of its own, and the ground in red where a character cannot walk; docs/gamedev.md |
 | `47_snow_and_moss.py` | none (a row of props) | `covered(model, depth, angle, name, color)`: snow, moss and dust as geometry on every surface that faces up, with a material of its own; `merge`; docs/gamedev.md |
 | `48_kit_stairs.py` | none (a two-level house of kit pieces) | `walls.build(plan, levels=2, stairs={(i, j, k): turn}, ceiling=False)`: stairs in a plan, the floor above them left out |
 

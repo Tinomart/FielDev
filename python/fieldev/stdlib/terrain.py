@@ -380,13 +380,10 @@ def water(size=(200.0, 200.0), level=0.0, depth=3.0, center=(0.0, 0.0)):
     return with_materials(slab, material_preset('water'))
 
 
-def export_terrain_chunks(ground, folder, size, name='terrain', ext='glb', layers=None, lods=None, **options):
+def export_terrain_chunks(ground, folder, size, name='terrain', ext='glb', layers=None, **options):
     ''' Writes every square of `ground` (`size` across) as a file of its own, `folder/name_ix_iy.ext`, with the materials of `ground.textured()` (or `layers`: a list of
-        `material(...)`) -- the pieces of a streamed world.  `lods`: a list of budgets of triangles, the finest first (`[4000, 1000, 250]`) -- every square is then written at each of them, as
-        `name_ix_iy_lod0.ext`, `name_ix_iy_lod1.ext` ... (see `export_lods`): the field is meshed again, coarser, so each level is the same ground and the squares still meet at the edge
-        of the ground they share, but a coarser level does not meet a finer neighbour exactly (the edges are different polygons).  The other options are those of `export_mesh`
-        (resolution, max_triangles, up="y" ...).  Returns the paths '''
-    from fieldev.stdlib.exporting import export_mesh, export_lods
+        `material(...)`) -- the pieces of a streamed world.  The other options are those of `export_mesh` (resolution, max_triangles, up="y" ...).  Returns the paths '''
+    from fieldev.stdlib.exporting import export_mesh
     if not isinstance(ground, Terrain):
         raise TypeError('export_terrain_chunks: the first argument is a terrain(...)')
     layers = ground.material_layers() if layers is None else layers
@@ -397,8 +394,5 @@ def export_terrain_chunks(ground, folder, size, name='terrain', ext='glb', layer
         lo, hi = body._bounds
         path = os.path.join(os.fspath(folder), '%s_%d_%d.%s' % (name, ix, iy, ext))
         use = layers if ext.lower() in ('obj', 'glb', 'gltf') else None
-        if lods is None:
-            paths.append(export_mesh(body, path, bounds=(tuple(lo), tuple(hi)), materials=use, **export_options(ext, options)))
-        else:
-            paths.extend(export_lods(body, path, lods, bounds=(tuple(lo), tuple(hi)), materials=use, **export_options(ext, options)))
+        paths.append(export_mesh(body, path, bounds=(tuple(lo), tuple(hi)), materials=use, **export_options(ext, options)))
     return paths
