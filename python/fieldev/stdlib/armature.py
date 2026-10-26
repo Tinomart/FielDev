@@ -135,6 +135,7 @@ def _placed_natively(placed, sweep, move):
 _BLEND = 1.2
 
 
+
 def _thickness(one):
     ''' How thick an armature is, as a number: the size of its cross-section times the mean size of its nodes (a ball: its radius); None for what is not an armature (a feature model) '''
     info = getattr(one, '_armature', None)
@@ -221,9 +222,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
         The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
-        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  The armature
-        is ONE field: a branch is blended into the piece it hangs from, over a width as thick as the branch is -- what the viewport meshes and what is exported.  An armature with no branch is
-        drawn from its nodes, ring by ring, as before '''
+        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  A branch is blended into the piece it hangs from, over a width as thick as the branch is -- what is exported.  Every chain is drawn from its nodes, ring by ring, and the blend of a junction from the same
+        numbers, so a dragged node bends a branch, and the junction with it, at once '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more; a list among them is a branch')
     nodes, parents, chains = _node_tree(points)
@@ -306,12 +306,13 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # (every chain of nodes that has two or more is swept from its first node: the main chain, and each branch from the node it hangs from.  The cross-section is the same for all of them)
         swept = [chain for chain in chains if len(chain) > 1]
         sweeps, placed, ways = [], [], []
+        across_ref = _profile_radius(base)
         for chain in swept:
             way = C.spline([nodes[i] for i in chain])
             # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
             # circle -- in the field and for the viewport by the same law.  A branch begins round: its start is inside the node it hangs from)
             rounds = (ctrls[0].flag != 0 if chain is chains[0] else True, ctrls[chain[-1]].flag != 0)
-            # (an armature with branches is ONE field: every chain is made of the small field, and they are blended below -- see `cheap` of path_extrude.  One without a branch is drawn natively)
+            # (the field of a sweep of an armature with branches is the small one -- see `cheap` of path_extrude --, for what is made of it; every chain is drawn natively from its nodes, branches too)
             sweep = path_extrude(base, way, twist, ends=rounds, across=True, sizes=[multipliers[i] for i in chain], cheap=len(swept) > 1)
             moved = sweep
             # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
@@ -344,10 +345,15 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
                 own = chain[1:]
                 mean = sum(max(C.value_of(Shape.wrap(multipliers[i])), 1e-3) for i in own) / len(own)
                 piece_widths.append(across_ref * mean * _BLEND)
-            # (one field: each branch is blended into what it hangs from, from the start -- not a second tube united with the first afterwards)
+            # (one field: each branch is blended into what it hangs from, over a width as thick as the branch is -- what is exported.  The viewport draws every chain from its nodes, and the blend of each
+            # junction from the same numbers (`_sweep_blend`: the width of the blend as a multiple of the thickness of the branch): a dragged node bends a branch, and the junction with it, at once)
+            pieces = placed
             out = placed[0]
             for piece, own in zip(placed[1:], piece_widths[1:]):
                 out = F.smooth_union(out, piece, own)
+            if _carry_native(out, placed[0]):
+                out._sweep_branches = list(sweeps[1:])
+                out._sweep_blend = _BLEND
         if len(ways[0].vertices) > 1:
             start = C.unit(C.sub(ways[0].vertices[1], ways[0].vertices[0]))
         # (the viewport draws the ring of every node of a selected armature as a circle of the armature's real radius there: the node's size times the size of the cross-section)
@@ -376,9 +382,7 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # (a sweep that is not drawn natively from its points -- a profile that is not made of points -- is meshed from its field, which is slow to clear empty space of: over the whole region
         # of the scene it takes seconds at every node put down, so it is meshed over a cube of its own)
         from fieldev.stdlib.custom_resolution import render_hint_for
-        # (six samples across the thinnest place: three left the tube of a branched armature -- which is meshed, not drawn from its nodes -- faceted (3.7 s), eight made it smooth (14.5 s): the
-        # same armature in the virtual machine)
-        hint = render_hint_for(out._bounds[0], out._bounds[1], 2.0 * ref * max(min(C.value_of(Shape.wrap(m)) for m in multipliers), 1e-3), per_thin=6.0)
+        hint = render_hint_for(out._bounds[0], out._bounds[1], 2.0 * ref * max(min(C.value_of(Shape.wrap(m)) for m in multipliers), 1e-3))
         if hint is not None:
             out._render_hint = hint
     out._group_pos = [ctl.expr for ctl in ctrls]        # (the points it is made of: the viewport shares their gizmos when the armature is selected as a whole, as it does for a profile's)

@@ -14,9 +14,9 @@ FielDev is a **modelling program**: fields, shapes, materials, editing -- for pe
 
 Every feature must be reachable from the right-click context menu (primitives, operations, materials, exports, checks). A feature that exists only as a function you type in a script is **not finished** and must never be listed or reported as done. A feature is done when (1) its menu entry exists and writes the call into the script, (2) the entry was checked (the menu dump lists it, the text it writes runs), and (3) the docs say where it is in the menu. Add the entry in the same batch as the function (`python/fieldev/menu_catalog.py`: PRIMITIVES and OPERATIONS).
 
-## A branch is part of the armature's field from the start (the user: "ACTIVELY GET INCORPORATED INTO THE ARMATURE FROM THE START")
+## An armature drags in real time, and a branch is part of it (the user: "so that you can drag it around in real time"; a branch must "ACTIVELY GET INCORPORATED INTO THE ARMATURE FROM THE START")
 
-An armature's branch is not a second tube united with the main one afterwards. Every node, branch nodes included, takes part in ONE field of the whole armature: the radii and the blends at a junction come out of that one field.
+An armature has to be dragged around in real time: every sweep of it is drawn natively from the numbers of its nodes (`_sweep_*`, `_sweep_branches`), and a change is never answered by meshing a field (that is seconds). A branch is not a second tube united with the first: the application cuts the fillet of the junction itself, live, from the same numbers (`addJunction` in `app/src/shape.cpp`, its width is `_sweep_blend`), and the field is the same blend (`smooth_union` of the sweeps with the same width). A change that makes dragging a node slower than the native drawing is wrong, whatever else it gains: do not call it a trade-off, do not decide it away.
 
 ## Other standing rules of the user
 

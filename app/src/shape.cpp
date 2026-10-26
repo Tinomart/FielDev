@@ -523,6 +523,7 @@ struct Shape::SweepNumbers
         bool pathDefault = false, roundStart = false, roundEnd = false;
     };
     std::vector<Chain> branches;                                            // (the pieces of an armature that hang from a node of the path: see setSweepBranches)
+    double blend = 0;                                                       // (see setSweepBlend)
     bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false, roundStart = false, roundEnd = false, offset = false, across = false;
     double twist = 0;                                                       // (degrees)
     Eigen::Vector3d about = Eigen::Vector3d::Zero(), move = Eigen::Vector3d::Zero(), rotate = Eigen::Vector3d::Zero(), scale = Eigen::Vector3d::Ones();
@@ -567,6 +568,7 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
         chain.roundEnd = b.roundEnd;
         out.branches.push_back(std::move(chain));
     }
+    out.blend = m_sweep_blend;
     out.profileDefault = m_sweep_profile_default;
     out.pathDefault = m_sweep_path_default;
     out.closed = m_sweep_closed;
@@ -751,10 +753,389 @@ void inscribedCircle(const std::vector<Eigen::Vector2d>& poly, double& radius, E
 
 }   // namespace
 
+// What the distance to one tube of a sweep needs (see addJunction): the vertices of its path, and for each piece of it the frame and the two planes that cut it at its ends -- the pieces, the frames
+// and the cuts that the mesh and the field of `path_extrude` have
+struct SweepTubeGeom
+{
+    std::vector<Eigen::Vector3d> V;                          // (the vertices of the path)
+    std::vector<Eigen::Vector3d> T, nk, bk, cutA, cutB;      // (for each piece: its direction, its frame, and the normals of the planes that cut it at its two ends)
+    std::vector<double> size;                                // (how thick the section is at each vertex of the path)
+    std::vector<Eigen::Vector2d> prof;                       // (the outline of the profile, from the middle of its box)
+    std::vector<Eigen::Vector3d> mid;                        // (for each piece: the middle of it, and the radius of a ball that holds it -- see prepareTube)
+    std::vector<double> reach;
+    bool closed = false, ok = false;
+};
+
+namespace
+{
+
+// The distance from (x, y) to the outline `poly` -- negative inside it
+double outlineDistance(const std::vector<Eigen::Vector2d>& poly, double x, double y)
+{
+    const size_t n = poly.size();
+    bool inside = false;
+    double best = 1e300;
+    for (size_t i = 0; i < n; ++i)
+    {
+        const Eigen::Vector2d& a = poly[i];
+        const Eigen::Vector2d& b = poly[(i + 1) % n];
+        if ((a.y() > y) != (b.y() > y) && x < a.x() + (y - a.y()) * (b.x() - a.x()) / (b.y() - a.y())) inside = !inside;
+        const double dx = b.x() - a.x(), dy = b.y() - a.y(), l2 = dx * dx + dy * dy;
+        const double t = l2 > 0 ? std::max(0.0, std::min(1.0, ((x - a.x()) * dx + (y - a.y()) * dy) / l2)) : 0.0;
+        const double px = a.x() + t * dx - x, py = a.y() + t * dy - y;
+        best = std::min(best, px * px + py * py);
+    }
+    return inside ? -std::sqrt(best) : std::sqrt(best);
+}
+
+// The distance to an outline on a grid, so that asking for it is a few multiplications and not a walk round the outline.  The grid is made once for an outline (the same one is asked for at every
+// frame of a drag)
+struct OutlineGrid
+{
+    std::vector<Eigen::Vector2d> prof;
+    int n = 0;
+    double lim = 0, step = 0;
+    std::vector<float> v;
+};
+
+const OutlineGrid& outlineGrid(const std::vector<Eigen::Vector2d>& prof)
+{
+    thread_local OutlineGrid cache;
+    if (cache.v.empty() || cache.prof != prof)
+    {
+        cache.prof = prof;
+        double outer = 0;
+        for (const auto& q : prof) outer = std::max(outer, q.norm());
+        cache.lim = 1.4 * std::max(outer, 1e-9);
+        cache.n = 64;
+        cache.step = 2.0 * cache.lim / double(cache.n - 1);
+        cache.v.assign(size_t(cache.n) * size_t(cache.n), 0.0f);
+        for (int i = 0; i < cache.n; ++i)
+            for (int j = 0; j < cache.n; ++j) cache.v[size_t(i) * size_t(cache.n) + size_t(j)] = float(outlineDistance(prof, -cache.lim + i * cache.step, -cache.lim + j * cache.step));
+    }
+    return cache;
+}
+
+double gridDistance(const OutlineGrid& g, double x, double y)
+{
+    const double cx = std::max(-g.lim, std::min(g.lim, x)), cy = std::max(-g.lim, std::min(g.lim, y));
+    const double fx = (cx + g.lim) / g.step, fy = (cy + g.lim) / g.step;
+    const int i = std::min(int(fx), g.n - 2), j = std::min(int(fy), g.n - 2);
+    const double tx = fx - i, ty = fy - j;
+    const float* v = g.v.data();
+    const double a = v[i * g.n + j], b = v[(i + 1) * g.n + j], c = v[i * g.n + j + 1], d = v[(i + 1) * g.n + j + 1];
+    const double inside = (a * (1.0 - tx) + b * tx) * (1.0 - ty) + (c * (1.0 - tx) + d * tx) * ty;
+    const double ox = x - cx, oy = y - cy;
+    return inside + std::sqrt(ox * ox + oy * oy);
+}
+
+// For each piece of a tube, the middle of it and the radius of a ball round that middle that holds the piece -- its axis, the widest reach of its section, and how far the section is slid along the
+// piece onto the plane that cuts it at a corner -- so that a piece farther than that from a place can be left out when the nearest is looked for
+void prepareTube(SweepTubeGeom& g)
+{
+    const size_t n = g.V.size();
+    double outer = 0;
+    for (const auto& q : g.prof) outer = std::max(outer, q.norm());
+    g.mid.resize(g.T.size());
+    g.reach.resize(g.T.size());
+    for (size_t k = 0; k < g.T.size(); ++k)
+    {
+        const size_t j = (k + 1) % n;
+        g.mid[k] = 0.5 * (g.V[k] + g.V[j]);
+        const double big = std::max(g.size[k], g.size[j]);
+        const auto slide = [&](const Eigen::Vector3d& cut) {
+            const double s = std::max(std::fabs(cut.dot(g.T[k])), 0.2);
+            return outer * big * std::sqrt(std::max(1.0 - s * s, 0.0)) / s;
+        };
+        g.reach[k] = 0.5 * (g.V[j] - g.V[k]).norm() + outer * big + std::max(slide(g.cutA[k]), slide(g.cutB[k]));
+    }
+}
+
+// How far `p` is from the axis of the pieces `pieces` of a tube
+double axisDistance(const SweepTubeGeom& g, const std::vector<int>& pieces, const Eigen::Vector3d& p)
+{
+    double best = 1e300;
+    const size_t n = g.V.size();
+    for (const int k : pieces)
+    {
+        const Eigen::Vector3d& a = g.V[size_t(k)];
+        const Eigen::Vector3d ab = g.V[(size_t(k) + 1) % n] - a;
+        const double l2 = ab.squaredNorm();
+        const double t = l2 > 1e-300 ? std::max(0.0, std::min(1.0, (p - a).dot(ab) / l2)) : 0.0;
+        best = std::min(best, (p - (a + ab * t)).squaredNorm());
+    }
+    return std::sqrt(best);
+}
+
+// The distance from `p` to the surface of the tube, made of the pieces `pieces` of it (negative inside), as the field of `path_extrude` has it: for each piece the outline in the frame of the piece, at
+// the size there, cut by the two planes at its ends; the least of them
+double tubeDistance(const SweepTubeGeom& g, const OutlineGrid& grid, const std::vector<int>& pieces, const Eigen::Vector3d& p)
+{
+    double best = 1e300;
+    const size_t n = g.V.size();
+    for (const int k : pieces)
+    {
+        const size_t a = size_t(k), b = (a + 1) % n;
+        if ((p - g.mid[a]).norm() - g.reach[a] >= best) continue;
+        const Eigen::Vector3d q = p - g.V[a];
+        const double plane = std::max(-q.dot(g.cutA[a]), (p - g.V[b]).dot(g.cutB[a]));
+        if (plane >= best) continue;
+        const double len = (g.V[b] - g.V[a]).norm();
+        const double s = len > 1e-12 ? std::max(0.0, std::min(1.0, q.dot(g.T[a]) / len)) : 0.0;
+        const double size = std::max(g.size[a] * (1.0 - s) + g.size[b] * s, 1e-6);
+        const double d = gridDistance(grid, q.dot(g.nk[a]) / size, q.dot(g.bk[a]) / size) * size;
+        best = std::min(best, std::max(d, plane));
+    }
+    return best;
+}
+
+// The pieces of a tube whose axis comes within `radius` of `centre`
+std::vector<int> piecesNear(const SweepTubeGeom& g, const Eigen::Vector3d& centre, double radius)
+{
+    std::vector<int> found;
+    for (int k = 0; k < int(g.T.size()); ++k)
+        if (axisDistance(g, std::vector<int>{k}, centre) <= radius) found.push_back(k);
+    return found;
+}
+
+// The junction of a branch with the tube it hangs from, drawn as the smooth union of the two -- the blend that the field of the armature has (`smooth_union(parent, branch, w)`) --, from the numbers of the
+// nodes, so that it follows them while one is dragged.  The solid of the blend, cut to a ball round the node, is meshed on a grid (marching tetrahedra); only the triangles that stand out of the tubes --
+// the fillet -- are added to the mesh, the rest of it is the tubes that are drawn anyway
+void addJunction(libfive::Mesh& out, const SweepTubeGeom& parent, const SweepTubeGeom& branch, double w)
+{
+    using Vec = Eigen::Vector3d;
+    using Tri = Eigen::Matrix<uint32_t, 3, 1>;
+    if (!parent.ok || !branch.ok || branch.V.size() < 2 || parent.T.empty() || branch.T.empty() || branch.size.size() < 2 || !(w > 1e-9)) return;
+    const Vec centre = branch.V[0];
+    double outer = 0;
+    for (const auto& q : branch.prof) outer = std::max(outer, q.norm());
+    if (!(outer > 1e-12)) return;
+    const OutlineGrid& grid = outlineGrid(branch.prof);
+    double sizeP = 0, nearest = 1e300;
+    for (size_t k = 0; k < parent.V.size(); ++k)
+    {
+        const double d = (parent.V[k] - centre).norm();
+        if (d < nearest) { nearest = d; sizeP = parent.size[k]; }
+    }
+    const double rP = outer * std::max(sizeP, 1e-3), rB = outer * std::max(branch.size[0], branch.size[1]);
+    const double rz = 1.1 * (rP + rB + w);
+    const std::vector<int> nearP = piecesNear(parent, centre, rz + rP), nearB = piecesNear(branch, centre, rz + rB);
+    if (nearP.empty() || nearB.empty()) return;
+    const double drop = 0.02 * std::min(rP, rB);
+    int N = int(std::ceil(2.0 * rz / std::max(0.14 * std::min(rP, rB), 1e-9)));
+    N = std::max(12, std::min(N, 72));
+    const double h = 2.0 * rz / N;
+    const Vec lo = centre - Vec(rz, rz, rz);
+    const int P = N + 1;
+    std::vector<float> value(size_t(P) * size_t(P) * size_t(P), 1.0f);
+    std::vector<char> have(value.size(), 0);
+    const auto pointAt = [&](int i, int j, int k) { return Vec(lo.x() + i * h, lo.y() + j * h, lo.z() + k * h); };
+    const auto index = [&](int i, int j, int k) { return (size_t(i) * size_t(P) + size_t(j)) * size_t(P) + size_t(k); };
+    // (negative inside the blend of the two tubes, and inside the ball round the node)
+    const auto field = [&](int i, int j, int k) -> double {
+        const size_t id = index(i, j, k);
+        if (!have[id])
+        {
+            const Vec p = pointAt(i, j, k);
+            const double dP = std::min(tubeDistance(parent, grid, nearP, p), 1e3), dB = std::min(tubeDistance(branch, grid, nearB, p), 1e3);
+            const double hh = std::max(w - std::fabs(dP - dB), 0.0) / w;
+            const double g = std::min(dP, dB) - hh * hh * w * 0.25;
+            value[id] = float(std::max(g, (p - centre).norm() - rz));
+            have[id] = 1;
+        }
+        return double(value[id]);
+    };
+    static const int corner[8][3] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
+    static const int tets[6][4] = {{0, 1, 2, 6}, {0, 1, 5, 6}, {0, 3, 2, 6}, {0, 3, 7, 6}, {0, 4, 7, 6}, {0, 4, 5, 6}};
+    std::unordered_map<uint64_t, uint32_t> shared;
+    std::vector<Vec> lv;
+    std::vector<Tri> lt;
+    const auto tetra = [&](const size_t* id, const Vec* p, const double* f) {
+        int inside[4], outside[4], nin = 0, nout = 0;
+        for (int a = 0; a < 4; ++a)
+        {
+            if (f[a] < 0) inside[nin++] = a;
+            else outside[nout++] = a;
+        }
+        if (nin == 0 || nout == 0) return;
+        // (the vertex where the edge between corners a and b of the tet crosses zero: shared by every tet that has the edge)
+        const auto cross = [&](int a, int b) -> uint32_t {
+            const uint64_t key = (uint64_t(std::min(id[a], id[b])) << 32) | uint64_t(std::max(id[a], id[b]));
+            const auto it = shared.find(key);
+            if (it != shared.end()) return it->second;
+            const double t = f[a] / (f[a] - f[b]);
+            const uint32_t made = uint32_t(lv.size());
+            lv.push_back(p[a] + (p[b] - p[a]) * t);
+            shared[key] = made;
+            return made;
+        };
+        Vec in = Vec::Zero(), away = Vec::Zero();
+        for (int a = 0; a < nin; ++a) in += p[inside[a]];
+        for (int a = 0; a < nout; ++a) away += p[outside[a]];
+        const Vec toward = away / double(nout) - in / double(nin);
+        // (a triangle faces out: the way from the inside of the blend to the outside of it)
+        const auto addTriangle = [&](uint32_t a, uint32_t b, uint32_t c) {
+            if (a == b || b == c || a == c) return;
+            if (((lv[b] - lv[a]).cross(lv[c] - lv[a])).dot(toward) >= 0) lt.push_back(Tri(a, b, c));
+            else lt.push_back(Tri(a, c, b));
+        };
+        if (nin == 1) addTriangle(cross(inside[0], outside[0]), cross(inside[0], outside[1]), cross(inside[0], outside[2]));
+        else if (nout == 1) addTriangle(cross(outside[0], inside[0]), cross(outside[0], inside[1]), cross(outside[0], inside[2]));
+        else
+        {
+            const uint32_t c00 = cross(inside[0], outside[0]), c01 = cross(inside[0], outside[1]), c11 = cross(inside[1], outside[1]), c10 = cross(inside[1], outside[0]);
+            addTriangle(c00, c01, c11);
+            addTriangle(c00, c11, c10);
+        }
+    };
+    // (blocks of cells: a block that is far from both tubes is not looked at)
+    const int B = 8;
+    struct Block { int bi, bj, bk, ei, ej, ek; };
+    std::vector<Block> blocks;
+    for (int bi = 0; bi < N; bi += B)
+        for (int bj = 0; bj < N; bj += B)
+            for (int bk = 0; bk < N; bk += B)
+            {
+                const int ei = std::min(bi + B, N), ej = std::min(bj + B, N), ek = std::min(bk + B, N);
+                const Vec mid = pointAt(bi, bj, bk) + Vec(ei - bi, ej - bj, ek - bk) * (0.5 * h);
+                const double half = 0.5 * h * std::sqrt(double((ei - bi) * (ei - bi) + (ej - bj) * (ej - bj) + (ek - bk) * (ek - bk)));
+                const double farP = axisDistance(parent, nearP, mid) - rP - half, farB = axisDistance(branch, nearB, mid) - rB - half;
+                if (std::min(farP, farB) > w + 2.0 * h) continue;
+                blocks.push_back(Block{bi, bj, bk, ei, ej, ek});
+                for (int i = bi; i <= ei; ++i)
+                    for (int j = bj; j <= ej; ++j)
+                        for (int k = bk; k <= ek; ++k) field(i, j, k);
+            }
+    // The field is smoothed a little before it is meshed: the distance to a path of many pieces has creases at the planes between them, and where two tubes meet, and a mesh of its zero shows each of them as a ridge
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        std::vector<float> smoothed = value;
+        for (const Block& blk : blocks)
+            for (int i = std::max(blk.bi, 1); i <= std::min(blk.ei, N - 1); ++i)
+                for (int j = std::max(blk.bj, 1); j <= std::min(blk.ej, N - 1); ++j)
+                    for (int k = std::max(blk.bk, 1); k <= std::min(blk.ek, N - 1); ++k)
+                    {
+                        float sum = 0;
+                        for (int a = -1; a <= 1; ++a)
+                            for (int b2 = -1; b2 <= 1; ++b2)
+                                for (int c2 = -1; c2 <= 1; ++c2) sum += value[index(i + a, j + b2, k + c2)];
+                        smoothed[index(i, j, k)] = sum / 27.0f;
+                    }
+        value.swap(smoothed);
+    }
+    for (const Block& blk : blocks)
+        for (int i = blk.bi; i < blk.ei; ++i)
+            for (int j = blk.bj; j < blk.ej; ++j)
+                for (int k = blk.bk; k < blk.ek; ++k)
+                {
+                    double f[8];
+                    bool neg = false, pos = false;
+                    for (int c = 0; c < 8; ++c)
+                    {
+                        f[c] = double(value[index(i + corner[c][0], j + corner[c][1], k + corner[c][2])]);
+                        if (f[c] < 0) neg = true;
+                        else pos = true;
+                    }
+                    if (!neg || !pos) continue;
+                    for (const auto& t : tets)
+                    {
+                        size_t id[4];
+                        Vec p[4];
+                        double fv[4];
+                        for (int a = 0; a < 4; ++a)
+                        {
+                            const int c = t[a];
+                            id[a] = index(i + corner[c][0], j + corner[c][1], k + corner[c][2]);
+                            p[a] = pointAt(i + corner[c][0], j + corner[c][1], k + corner[c][2]);
+                            fv[a] = f[c];
+                        }
+                        tetra(id, p, fv);
+                    }
+                }
+    // The fillet only: a triangle that has no corner standing out of both tubes by more than `drop` lies on a tube that is drawn already
+    const auto clearOf = [&](const Vec& q) { return std::min(tubeDistance(parent, grid, nearP, q), tubeDistance(branch, grid, nearB, q)); };
+    std::vector<double> clear(lv.size());
+    for (size_t i = 0; i < lv.size(); ++i) clear[i] = clearOf(lv[i]);
+    std::vector<Tri> kept;
+    for (const Tri& t : lt)
+        if (std::max(clear[t[0]], std::max(clear[t[1]], clear[t[2]])) > drop) kept.push_back(t);
+    // The fillet is smoothed a little: the field of a path of many pieces is not smooth at the planes between them, and a grid of tetrahedra shows that as ridges.  The vertices on and near the tubes stay where they are
+    {
+        std::vector<std::vector<uint32_t>> next(lv.size());
+        for (const Tri& t : kept)
+            for (int c = 0; c < 3; ++c)
+            {
+                next[t[c]].push_back(t[(c + 1) % 3]);
+                next[t[c]].push_back(t[(c + 2) % 3]);
+            }
+        for (int pass = 0; pass < 8; ++pass)
+        {
+            std::vector<Vec> moved = lv;
+            for (size_t i = 0; i < lv.size(); ++i)
+            {
+                if (next[i].empty() || clear[i] <= 3.0 * drop) continue;
+                Vec sum = Vec::Zero();
+                for (const uint32_t o : next[i]) sum += lv[o];
+                moved[i] = lv[i] * 0.4 + (sum / double(next[i].size())) * 0.6;
+            }
+            lv = moved;
+        }
+    }
+    // Where the fillet runs out into a tube it is cut off along the line where it stands out of the tubes by `drop`: a triangle is cut where the edge crosses that line (not kept or dropped whole, which
+    // would leave a ragged edge as wide as a cell), and the cut is shared by the triangles next to it.  The edge is then a smooth line, and it stands out of the tube by less than a pixel
+    for (size_t i = 0; i < clear.size(); ++i) clear[i] = clearOf(lv[i]);
+    std::unordered_map<uint64_t, uint32_t> cutAt;
+    const auto cut = [&](uint32_t below, uint32_t above) -> uint32_t {
+        const uint64_t key = (uint64_t(std::min(below, above)) << 32) | uint64_t(std::max(below, above));
+        const auto it = cutAt.find(key);
+        if (it != cutAt.end()) return it->second;
+        const double u = std::max(0.0, std::min(1.0, (drop - clear[below]) / std::max(clear[above] - clear[below], 1e-12)));
+        const Vec at = lv[below] + (lv[above] - lv[below]) * u;
+        lv.push_back(at);
+        const uint32_t made = uint32_t(lv.size() - 1);
+        cutAt[key] = made;
+        return made;
+    };
+    std::vector<Tri> shown;
+    for (const Tri& t : kept)
+    {
+        const bool up[3] = {clear[t[0]] > drop, clear[t[1]] > drop, clear[t[2]] > drop};
+        const int ups = int(up[0]) + int(up[1]) + int(up[2]);
+        if (ups == 3) shown.push_back(t);
+        else if (ups == 1)
+        {
+            const int a = up[0] ? 0 : (up[1] ? 1 : 2);
+            const uint32_t A = t[a], B = t[(a + 1) % 3], C = t[(a + 2) % 3];
+            shown.push_back(Tri(A, cut(B, A), cut(C, A)));
+        }
+        else if (ups == 2)
+        {
+            const int c = !up[0] ? 0 : (!up[1] ? 1 : 2);
+            const uint32_t A = t[(c + 1) % 3], B = t[(c + 2) % 3], C = t[c];
+            const uint32_t pBC = cut(C, B), pCA = cut(C, A);
+            shown.push_back(Tri(A, B, pBC));
+            shown.push_back(Tri(A, pBC, pCA));
+        }
+    }
+    std::vector<uint32_t> remap(lv.size(), 0xffffffffu);
+    for (const Tri& t : shown)
+    {
+        for (int c = 0; c < 3; ++c)
+        {
+            if (remap[t[c]] != 0xffffffffu) continue;
+            remap[t[c]] = uint32_t(out.verts.size());
+            out.verts.push_back(Eigen::Vector3f(float(lv[t[c]].x()), float(lv[t[c]].y()), float(lv[t[c]].z())));
+        }
+        out.branes.push_back(Tri(remap[t[0]], remap[t[1]], remap[t[2]]));
+    }
+}
+
+}   // namespace
+
 // The mesh of ONE path of a sweep: the outline of the profile (from the middle of its box) carried along the path, a ring of it at both ends of every piece of the path -- in the frame
 // that piece has (the one the field of `path_extrude` has: carried along without turning about the path, turned by the points' rotations, scaled by their thickness) and cut
 // by the planes that bisect the corners (square at the ends of an open path) -- and the walls between the rings; the profile's face closes an open path's ends
-std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed)
+std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed, SweepTubeGeom* geom)
 {
     using Vec = Eigen::Vector3d;
     // The profile in the coordinates of its own plane, from the middle of the box of its outline
@@ -1032,6 +1413,21 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
     }
     auto sizeAt = [&](int j) { return std::max(vertexSize[size_t(j)], 1e-3); };
     const double total = in.twist * M_PI / 180.0;
+    if (geom)
+    {
+        // (what the junction of a branch with this tube is worked out from: see addJunction)
+        geom->V.assign(V.begin(), V.end());
+        geom->size.resize(size_t(n));
+        for (int j = 0; j < n; ++j) geom->size[size_t(j)] = sizeAt(j);
+        geom->prof = prof;
+        geom->closed = closed;
+        geom->ok = !offsetMode;
+        geom->T.clear();
+        geom->nk.clear();
+        geom->bk.clear();
+        geom->cutA.clear();
+        geom->cutB.clear();
+    }
 
     auto out = std::make_unique<libfive::Mesh>();
     using Tri = Eigen::Matrix<uint32_t, 3, 1>;
@@ -1043,6 +1439,14 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
         const double cs = std::cos(phi), sn = std::sin(phi);
         const Vec Tk = T[size_t(k)];
         const Vec nk = turned(Uf[size_t(k)], Tk, cs, sn), bk = turned(Wf[size_t(k)], Tk, cs, sn);
+        if (geom)
+        {
+            geom->T.push_back(Tk);
+            geom->nk.push_back(nk);
+            geom->bk.push_back(bk);
+            geom->cutA.push_back(tangentAt(k));
+            geom->cutB.push_back(tangentAt(j));
+        }
         // (which way the profile faces along the path: a profile that the path leaves backwards is swept the other way round)
         const double facing = nk.cross(bk).dot(Tk) >= 0 ? 1.0 : -1.0;
         const uint32_t base = uint32_t(out->verts.size());
@@ -1199,8 +1603,10 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
 {
     using Vec = Eigen::Vector3d;
     Vec shift = Vec::Zero();
-    auto out = sweepChain(in, nullptr, &shift);
+    std::vector<SweepTubeGeom> geoms(in.branches.size() + 1);
+    auto out = sweepChain(in, nullptr, &shift, &geoms[0]);
     if (!out) return nullptr;
+    size_t which = 0;
     for (const SweepNumbers::Chain& b : in.branches)
     {
         SweepNumbers one = in;
@@ -1211,11 +1617,44 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
         one.closed = false;
         one.roundStart = b.roundStart;
         one.roundEnd = b.roundEnd;
-        const auto piece = sweepChain(one, &shift, nullptr);
+        const auto piece = sweepChain(one, &shift, nullptr, &geoms[++which]);
         if (!piece) return nullptr;
         const uint32_t first = uint32_t(out->verts.size());
         for (const auto& p : piece->verts) out->verts.push_back(p);
         for (const auto& t : piece->branes) out->branes.push_back(Eigen::Matrix<uint32_t, 3, 1>(t[0] + first, t[1] + first, t[2] + first));
+    }
+    // The junction of each branch with the tube it hangs from -- the one whose axis runs through the first node of the branch --, blended as the field of the armature has it
+    if (in.blend > 1e-9 && !geoms[0].prof.empty() && geoms[0].ok)
+    {
+        for (auto& g : geoms) prepareTube(g);
+        double meanProfile = 0;
+        for (const auto& q : geoms[0].prof) meanProfile += q.norm();
+        meanProfile /= double(geoms[0].prof.size());
+        for (size_t b = 0; b < in.branches.size(); ++b)
+        {
+            const SweepTubeGeom& branch = geoms[b + 1];
+            if (!branch.ok || branch.V.empty() || branch.size.empty()) continue;
+            size_t parent = 0;
+            double nearest = 1e300;
+            for (size_t c = 0; c <= b; ++c)
+            {
+                std::vector<int> all;
+                for (size_t k = 0; k < geoms[c].T.size(); ++k) all.push_back(int(k));
+                const double d = axisDistance(geoms[c], all, branch.V[0]);
+                if (d < nearest) { nearest = d; parent = c; }
+            }
+            double mean = 0;
+            size_t count = 0;
+            const std::vector<double>& sizes = in.branches[b].size;
+            for (size_t i = 1; i < sizes.size(); ++i) { mean += std::max(sizes[i], 1e-3); ++count; }
+            if (!count) continue;
+            mean /= double(count);
+            double reach = 0;
+            for (const auto& q : branch.prof) reach = std::max(reach, q.norm());
+            // (the first node of a branch is on the tube it hangs from: where it is not, there is nothing to blend)
+            if (nearest > 0.2 * reach * std::max(branch.size[0], 1e-3)) continue;
+            addJunction(*out, geoms[parent], branch, in.blend * meanProfile * mean);
+        }
     }
     // Placed by the gizmo: scaled about its point, turned about x, then y, then z (degrees), then moved -- as `gizmo()` places a shape
     if (in.placed)
@@ -3112,6 +3551,7 @@ QString Shape::identityKey(std::unordered_map<libfive::TreeDataKey, libfive::Tre
             }
         }
         key += QString(";t%1").arg(sid(m_sweep_twist));
+        key += QString("|b%1").arg(m_sweep_blend);                                                                // (a blend or none at the junction of a branch: not the same mesh)
         for (int a = 0; a < 3; ++a) key += QString(";g%1,%2,%3").arg(sid(m_sweep_move[a])).arg(sid(m_sweep_rotate[a])).arg(sid(m_sweep_scale[a]));
     }
     if (m_controls.empty()) return key;

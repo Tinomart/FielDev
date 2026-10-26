@@ -914,7 +914,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
         pad = 0.02 * max(hi[a] - lo[a] for a in range(3)) + 1e-3
         out._bounds = (tuple(lo[a] - pad for a in range(3)), tuple(hi[a] + pad for a in range(3)))
         out._bounds_loose = True
-    if ring and not cheap:
+    if ring:
         # A sweep of a profile is drawn natively from the numbers of the points of the profile and of the path (as a straight extrusion is: see `extrude`), so it
         # follows a point while the point is dragged and nothing is meshed.  Its field (above) is for what is made *of* it -- and it is not searched for or counted
         # for handles: it is a field of thousands of terms

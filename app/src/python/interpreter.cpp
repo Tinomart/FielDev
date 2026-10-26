@@ -1949,6 +1949,13 @@ void Interpreter::recordShape(
                     Py_XDECREF(fr);
                     shape->setSweepGuard(std::move(sweepGuard));
                     shape->setSweepBranches(std::move(branches));
+                    // (how wide the blend is where a branch leaves what it hangs from, as a multiple of the branch's thickness: the junction is drawn from the numbers of the nodes)
+                    {
+                        PyObject* sb = PyObject_GetAttrString(obj, "_sweep_blend");
+                        shape->setSweepBlend(sb && PyNumber_Check(sb) ? PyFloat_AsDouble(sb) : 0.0);
+                        Py_XDECREF(sb);
+                        PyErr_Clear();
+                    }
                     // (a ball that carries what its next node would make of it a sweep of: see Shape::setSweepSeed)
                     PyObject* seed = PyObject_GetAttrString(obj, "_sweep_seed");
                     shape->setSweepSeed(seed && PyObject_IsTrue(seed) == 1);

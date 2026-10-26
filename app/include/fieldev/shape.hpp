@@ -59,6 +59,8 @@ namespace libfive { class Tape; /*  forward declaration */ }
 
 namespace FielDev {
 
+struct SweepTubeGeom;        // (what the distance to one tube of a sweep needs: see shape.cpp)
+
 
 class Shape : public QObject, QOpenGLFunctions
 {
@@ -229,6 +231,9 @@ public:
         bool pathDefault = false, roundStart = false, roundEnd = false;
     };
     void setSweepBranches(std::vector<SweepBranch> branches) { m_sweep_branches = std::move(branches); }
+    /*  How wide the blend is where a branch leaves the tube it hangs from, as a multiple of the thickness of the branch (an armature's: 1.2).  The junction is drawn, from the numbers of the nodes, as the
+     *  smooth union of the two tubes -- the one the field of the armature has -- so that it follows the nodes while one is dragged.  0: the tubes are drawn as they are  */
+    void setSweepBlend(double k) { m_sweep_blend = k; }
     /*  A node that has just been put down for an armature, drawn before the script has run with it (the run takes a moment): the sweep is drawn with a node more -- the path that ends at `anchor` goes on
      *  to `at`; from anywhere else on the sweep a branch hangs from the node at `anchor` -- `size` thick.  It is gone with the shape: the run that has the node in the script makes another one  */
     void previewSweepNode(const QVector3D& anchor, const QVector3D& at, double size);
@@ -790,6 +795,7 @@ protected:
     struct SweepNumbers;
     std::vector<ControlPoint> m_sweep_profile, m_sweep_path;
     std::vector<SweepBranch> m_sweep_branches;
+    double m_sweep_blend = 0;
     bool m_sweep_profile_default = false, m_sweep_path_default = false, m_sweep_closed = false, m_sweep_placed = false, m_sweep_free = false, m_sweep_seed = false;
     std::vector<std::pair<libfive::Tree::Id, float>> m_sweep_guard;
     bool m_sweep_round_start = false, m_sweep_round_end = false;
@@ -801,7 +807,7 @@ protected:
     libfive::Tree m_sweep_scale[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
     bool sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& out) const;
     static std::unique_ptr<libfive::Mesh> sweepMesh(const SweepNumbers& in);
-    static std::unique_ptr<libfive::Mesh> sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed);
+    static std::unique_ptr<libfive::Mesh> sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed, SweepTubeGeom* geom = nullptr);
     struct SweepPreviewNode { QVector3D anchor, at; double size = 1; };
     std::vector<SweepPreviewNode> m_sweepPreview;           // (read by the render thread, changed by the GUI's: m_previewMutex)
     mutable std::mutex m_previewMutex;
