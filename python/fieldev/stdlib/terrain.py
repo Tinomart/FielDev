@@ -4,8 +4,7 @@ Terrain: the ground as a field.
 A heightmap is a picture of heights; a terrain here is a FIELD -- the ground is where z is below a height that is itself a field of x and y, and everything you do to it is
 arithmetic on that field.  So:
 
-  * there is no grid and no resolution: the same ground is meshed coarse for a preview and fine for an export, and a chunk cut out of it fits the next chunk exactly (both are
-    cut from the one field -- there is no seam to stitch);
+  * there is no grid and no resolution: the same ground is meshed coarse for a preview and fine for an export;
   * a hill, a flat place to build on, a road, a river are smooth blends of fields: they cannot leave a crack, and a road keeps its width over any hill;
   * it is a solid, not a surface: caves, arches and overhangs are boolean cuts of the same body, which a heightmap cannot have;
   * the material of a place is a field too -- grass where the ground is flat, rock where it is steep, snow high up -- and goes to the exported file.
@@ -18,8 +17,7 @@ arithmetic on that field.  So:
     ground = ground.cave([(60, -60, 4), (80, -30, 6), (100, 0, 8)], radius=5)
     shown = ground.textured(snow_line=26, beach=1.5)                       # grass, rock, snow, sand: by the slope and the height
 
-`ground.height_at(x, y)` is the height of the ground there (for standing a prop on it: see props.scatter); `ground.chunk(ix, iy, size)` is one square of the world, and
-`export_terrain_chunks(ground, "world/", 64)` writes them all.
+`ground.height_at(x, y)` is the height of the ground there (for standing a prop on it: see props.scatter).
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -27,15 +25,13 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 import math
 import numbers
-import os
 
 from fieldev.shape import Shape
-from fieldev.stdlib.gameunits import export_options
 from fieldev.stdlib.curves import owned
 from fieldev.stdlib.fields import noise_field, smoothstep, smooth_union, smooth_difference, evaluate
 from fieldev.stdlib.materials import material, material_preset, with_materials
 
-__all__ = ['terrain', 'Terrain', 'water', 'export_terrain_chunks']
+__all__ = ['terrain', 'Terrain', 'water']
 
 
 def _pair(v, what):
@@ -310,25 +306,6 @@ class Terrain(Shape):
                     ok += 1
         return ok / float(n * n)
 
-    # ---- cutting it up
-
-    def chunk(self, ix, iy, size):
-        ''' One square of the world, `size` across, the one `ix` squares along x and `iy` along y from the corner of the ground: a body.  Squares that touch are cut from the
-            same field, so they meet exactly -- there is nothing to stitch '''
-        from fieldev.stdlib.shapes import _bounded
-        cx, cy, sx, sy = self._box
-        x0, y0 = cx - sx / 2.0 + ix * float(size), cy - sy / 2.0 + iy * float(size)
-        mx, my = x0 + size / 2.0, y0 + size / 2.0
-        body = self.max((Shape.X() - mx).abs() - size / 2.0).max((Shape.Y() - my).abs() - size / 2.0)
-        low, high = _height_range(self._height, mx, my, size, size, 9)
-        _bounded(body, [x0, y0, min(self._base, low) - 1.0], [x0 + size, y0 + size, high + 1.0 + 0.1 * (high - low)])
-        return body
-
-    def chunks(self, size):
-        ''' All the squares of the ground, `size` across: a list of (ix, iy, body) '''
-        cx, cy, sx, sy = self._box
-        return [(ix, iy, self.chunk(ix, iy, size)) for iy in range(int(math.ceil(sy / size - 1e-9))) for ix in range(int(math.ceil(sx / size - 1e-9)))]
-
     # ---- what it is made of
 
     def material_layers(self, grass='#5f8f3c', rock='#7b776f', sand=None, snow=None, rock_angle=38.0, snow_line=None, beach=None, seed=1, road='#8b7b63', riverbed='#6e6552'):
@@ -378,21 +355,3 @@ def water(size=(200.0, 200.0), level=0.0, depth=3.0, center=(0.0, 0.0)):
     cx, cy = _pair(center, 'water: center')
     slab = box((cx - sx / 2.0, cy - sy / 2.0, float(level) - float(depth)), (cx + sx / 2.0, cy + sy / 2.0, float(level)))
     return with_materials(slab, material_preset('water'))
-
-
-def export_terrain_chunks(ground, folder, size, name='terrain', ext='glb', layers=None, **options):
-    ''' Writes every square of `ground` (`size` across) as a file of its own, `folder/name_ix_iy.ext`, with the materials of `ground.textured()` (or `layers`: a list of
-        `material(...)`) -- the pieces of a streamed world.  The other options are those of `export_mesh` (resolution, max_triangles, up="y" ...).  Returns the paths '''
-    from fieldev.stdlib.exporting import export_mesh
-    if not isinstance(ground, Terrain):
-        raise TypeError('export_terrain_chunks: the first argument is a terrain(...)')
-    layers = ground.material_layers() if layers is None else layers
-    cx, cy, sx, sy = ground._box
-    paths = []
-    for ix, iy, body in ground.chunks(size):
-        x0, y0 = cx - sx / 2.0 + ix * float(size), cy - sy / 2.0 + iy * float(size)
-        lo, hi = body._bounds
-        path = os.path.join(os.fspath(folder), '%s_%d_%d.%s' % (name, ix, iy, ext))
-        use = layers if ext.lower() in ('obj', 'glb', 'gltf') else None
-        paths.append(export_mesh(body, path, bounds=(tuple(lo), tuple(hi)), materials=use, **export_options(ext, options)))
-    return paths

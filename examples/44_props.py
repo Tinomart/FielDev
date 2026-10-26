@@ -4,7 +4,6 @@
 #   rock(size, seed, roughness, flat, crag)   tree(height, trunk, crown, seed, kind)   crate(size)   barrel(radius, height)
 #   placed(prop, (x, y, z), turn=30, scale=1.2)    merge([a, b, c])                    the materials go with them
 #   scatter(make, count, ground=..., min_distance, max_slope, where, variants)         props where the ground is flat enough and a rule allows
-#   export_scatter(forest, "out/forest")                                              the few meshes once, and a list of places for an engine
 #
 # One number of this scene is one metre.
 from fieldev import *

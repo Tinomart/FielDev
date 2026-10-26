@@ -12,21 +12,17 @@ Every prop is a body shown in its own materials (see `with_materials`), standing
     forest = scatter(lambda s: tree(height=8, seed=s), 120, ((-90, -90), (90, 90)), ground=ground, min_distance=5, max_slope=28)
 
 `scatter` stands props on the ground, wherever it is flat enough and the rules allow (`where`: a field that is negative where props may be, or a function of (x, y, z)), each a
-variant of a few (`variants`), turned and scaled a little.  It remembers where every one stands (`forest._instances`): `export_scatter` writes the few meshes once and a list of
-places, which is how an engine wants a forest -- not a hundred copies of a tree in one mesh.
+variant of a few (`variants`), turned and scaled a little.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 import copy
-import json
 import math
-import os
 import random
 
 from fieldev.shape import Shape
-from fieldev.stdlib.gameunits import export_options
 from fieldev.stdlib.fields import noise_field, smooth_union, union_all
 from fieldev.stdlib.materials import material, material_preset, with_materials
 from fieldev.stdlib.shapes import box, sphere, cylinder, cone, rounded_box
@@ -34,7 +30,7 @@ from fieldev.stdlib.surfaces import ellipsoid
 from fieldev.stdlib.characters import round_cone
 from fieldev.stdlib.transforms import move, rotate_z, scale_xyz
 
-__all__ = ['rock', 'tree', 'crate', 'barrel', 'placed', 'merge', 'scatter', 'export_scatter']
+__all__ = ['rock', 'tree', 'crate', 'barrel', 'placed', 'merge', 'scatter']
 
 
 def _prop(body, layers, grow=0.0):
@@ -183,7 +179,7 @@ def scatter(make, count, area=None, ground=None, seed=1, min_distance=0.0, max_s
     ''' `count` props over `area` ((x0, y0), (x1, y1): the ground's own when not given), each made by `make(seed)` -- `variants` different ones, each placed many times --, standing on
         `ground` (a `terrain(...)`: at its height, only where it is not steeper than `max_slope` degrees) at least `min_distance` apart, turned about z and scaled by a number in `scale`.
         `where`: a field that is negative where props may stand, or a function (x, y, z) -> True / False.  `sink`: how far they sink into the ground.  Fewer than `count` are made when
-        the area has no room for more.  The result is one prop; `_instances` lists where each one stands and `_variants` has the few that were made '''
+        the area has no room for more.  The result is one prop '''
     rng = random.Random(seed)
     if area is None:
         if ground is None:
@@ -207,33 +203,13 @@ def scatter(make, count, area=None, ground=None, seed=1, min_distance=0.0, max_s
         if min_distance and any((x - px) ** 2 + (y - py) ** 2 < float(min_distance) ** 2 for px, py, _ in spots):
             continue
         spots.append((x, y, z))
-    items, instances = [], []
+    items = []
     for x, y, z in spots:
         k = rng.randrange(len(bases))
         s = rng.uniform(float(scale[0]), float(scale[1]))
         t = rng.uniform(0.0, 360.0) if turn else 0.0
         items.append(placed(bases[k], (x, y, z - float(sink) * s), t, s))
-        instances.append({'variant': k, 'position': [round(x, 4), round(y, 4), round(z - float(sink) * s, 4)], 'turn': round(t, 3), 'scale': round(s, 4)})
     if not items:
         raise ValueError('scatter: no place was found for a prop (the area, the slope or the rule leave none)')
     out = merge(items, blend)
-    out._instances = instances
-    out._variants = bases
     return out
-
-
-def export_scatter(scattered, folder, name='prop', ext='glb', **options):
-    ''' Writes the variants of a `scatter(...)` once each (`folder/name_0.glb` ...) and `folder/name_instances.json`: for every placed prop its variant, position (x, y, z), its turn
-        about z in degrees and its scale -- the places to put them at in an engine.  The other options are those of `export_mesh`.  Returns the paths '''
-    from fieldev.stdlib.exporting import export_mesh
-    variants = getattr(scattered, '_variants', None)
-    if not variants:
-        raise TypeError('export_scatter: the first argument is a scatter(...)')
-    os.makedirs(os.fspath(folder), exist_ok=True)
-    files = []
-    for k, base in enumerate(variants):
-        files.append(export_mesh(base, os.path.join(os.fspath(folder), '%s_%d.%s' % (name, k, ext)), **export_options(ext, options)))
-    index = os.path.join(os.fspath(folder), '%s_instances.json' % name)
-    with open(index, 'w') as f:
-        json.dump({'meshes': [os.path.basename(p) for p in files], 'up': 'z', 'turn': 'degrees about z', 'instances': scattered._instances}, f, indent=1)
-    return files + [index]

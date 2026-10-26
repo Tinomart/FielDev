@@ -4,7 +4,7 @@
 # into a room opens into it, a doorway or a window is a cutter.  Here the roof is cut away to show the plan; take the `plan` line out to see the outside.
 #
 # KIT: pieces that are one grid cell each and end exactly on the cell's faces, set out by a floor plan.  `walls.check()` asks the pieces what is solid on the faces
-# they share (an empty list: every piece meets every other), `walls.export(house, folder)` writes each piece once and `kit.json`, the list of which stands where.
+# they share (an empty list: every piece meets every other).
 # One number of this scene is one metre.
 from fieldev import *
 
@@ -31,4 +31,3 @@ house = walls.build(["#####",
                      "##  #"], edges={(2, 2, 2): "door", (1, 0, 0): "window", (1, 1, 1): "arch"}, ceiling=False)
 house = move(house, (30, 2, 0))                                            # a kit is built at the origin and put where it is wanted
 house
-# walls.export(build, "out/kit")                                            # (build = walls.build(...) before it is moved): each piece once, and where they stand

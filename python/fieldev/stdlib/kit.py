@@ -10,7 +10,6 @@ on the cell's faces, and `seam(a, b)` checks it by asking both fields what is so
     house = walls.build(["#####",
                          "#####",
                          "##  #"], edges={(2, 2, 0): "door"})  # a floor plan: '#' is a cell that is inside; walls stand on every edge that has outside beyond it
-    walls.export(house, "kit/")                                  # each piece once, and the list of where each one stands -- what an engine builds a level from
 
 The cell of a piece has its south-west floor corner at the origin: a piece covers x from 0 to the cell's width, y from 0 to its depth, z from 0 to its height.  Walls are made
 standing along the south edge (the front); `turn` 1, 2, 3 turns a piece a quarter, a half, three quarters about the middle of its cell (counter-clockwise from above), which puts
@@ -20,12 +19,9 @@ This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
 You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
-import json
 import math
-import os
 
 from fieldev.shape import Shape
-from fieldev.stdlib.gameunits import export_options
 from fieldev.stdlib.fields import union_all, evaluate
 from fieldev.stdlib.shapes import box, _bounded
 from fieldev.stdlib.transforms import move, rotate_z
@@ -217,7 +213,6 @@ class Kit:
                     diagonal = (i + a[0] + b[0], j + a[1] + b[1])
                     if side_a in inside and side_b in inside and diagonal not in inside:
                         placements.append(('pillar', i, j, k, corner))
-        self._pieces_made = pieces
         parts = [self.place(pieces[name], i, j, k, turn) for name, i, j, k, turn in placements]
         body = union_all(parts) if len(parts) > 1 else parts[0]
         sx, sy, sz = self.cell
@@ -226,10 +221,9 @@ class Kit:
         _bounded(body, lo, hi)
         body._placements = [{'piece': n, 'cell': [i, j, k], 'turn': t} for n, i, j, k, t in placements]
         body._kit = self
-        body._kit_pieces = pieces               # (the pieces of this build: another build with the same kit does not change what `export` writes for this one)
         return body
 
-    # ---- checking and exporting
+    # ---- checking
 
     def seam(self, a, b, axis='x', samples=24):
         ''' Whether piece `a`, standing in a cell, meets piece `b` in the next cell along `axis` ("x", "y" or "z"): both are asked, on a grid of `samples` x `samples` points just
@@ -269,25 +263,3 @@ class Kit:
                     if not report['ok']:
                         problems.append((a, b, axis, report['mismatch']))
         return problems
-
-    def export(self, built, folder, ext='glb', **options):
-        ''' Writes the pieces that `built` (from `build`) uses, once each, as `folder/piece.glb`, and `folder/kit.json`: the size of the cell and, for every piece that stands in the
-            level, its name, its cell (i, j, k) and its turn in quarter turns.  The other options are those of `export_mesh`.  Returns the paths '''
-        from fieldev.stdlib.exporting import export_mesh
-        placements = getattr(built, '_placements', None)
-        if placements is None:
-            raise TypeError('export: the first argument is the body that build(...) made')
-        os.makedirs(os.fspath(folder), exist_ok=True)
-        sx, sy, sz = self.cell
-        made = getattr(built, '_kit_pieces', None) or getattr(self, '_pieces_made', None) or self.pieces()
-        paths = []
-        for name in sorted({p['piece'] for p in placements}):
-            path = os.path.join(os.fspath(folder), '%s.%s' % (name, ext))
-            lo, hi = getattr(made[name], '_bounds', None) or ((0.0, 0.0, 0.0), (sx, sy, sz))             # (the stairs are a floor's thickness higher than the cell)
-            export_mesh(made[name], path, bounds=(tuple(lo), tuple(hi)), **export_options(ext, options))
-            paths.append(path)
-        index = os.path.join(os.fspath(folder), 'kit.json')
-        with open(index, 'w') as f:
-            json.dump({'cell': [sx, sy, sz], 'meshes': [os.path.basename(p) for p in paths], 'turn': 'quarter turns counter-clockwise about the middle of the cell, seen from above',
-                       'placements': placements}, f, indent=1)
-        return paths + [index]

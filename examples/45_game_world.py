@@ -6,9 +6,6 @@
 #      Change a number of the ground (the hill's height, the road's path) and everything that stands on it is placed again.
 #
 # One number of this scene is one metre.  It is a large scene: give it a moment to mesh.
-#
-#   export_terrain_chunks(ground, "world", 80)           the ground in squares, with its materials
-#   export_scatter(trees, "world", name="tree")           the trees: each variant once, and the list of where they stand
 import math
 from fieldev import *
 

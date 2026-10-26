@@ -2,7 +2,7 @@
 
 FielDev models with **fields**: a shape is a number at every point of space, negative inside. For game assets that has consequences nothing else gives you:
 
-* **No grid, no stitching.** A terrain is one field. A chunk cut from it meets the next chunk exactly, because both are cut from the same numbers.
+* **No grid, no stitching.** A terrain is one field. Hills, roads and rivers are blended in it, so there are no pieces to join and no seam can appear.
 * **Walls are what is left round empty space.** You say where the rooms and corridors are; the walls have the same thickness everywhere, two rooms that touch share a wall, and a corridor that runs into a room opens into it.
 * **Everything blends.** A road keeps its width over any hill, a river bank slopes into the ground, a hill joins the plain. They are sums of fields: they cannot leave a crack.
 * **Materials are fields too.** Grass where the ground is flat, rock where it is steep, snow high up, bark below the crown: a material is *where* a field is negative, and it goes to the exported file.
@@ -10,7 +10,7 @@ FielDev models with **fields**: a shape is a number at every point of space, neg
 
 All of these live in the library (`from fieldev import *`) and work like any other model: they are shown, moved, cut and exported.
 
-**Units.** These helpers are written for a model in **metres**: one number is one metre (a door is 1.2 wide, a room 12 long). Set the view's bounds and resolution to match: `view.set_bounds([-60, -60, -20], [60, 60, 30])`, `view.set_resolution(1)` (samples per number). The helpers that write game files (`export_terrain_chunks`, `export_scatter`, `Kit.export`) pass `model_unit="m"` to `export_mesh`, so a 4-metre wall is 4 metres in the glTF; give `model_unit="mm"` (or "cm") for another unit.
+**Units.** These helpers are written for a model in **metres**: one number is one metre (a door is 1.2 wide, a room 12 long). Set the view's bounds and resolution to match: `view.set_bounds([-60, -60, -20], [60, 60, 30])`, `view.set_resolution(1)` (samples per number). An export is told so with `export_mesh(model, "wall.glb", model_unit="m")`: a 4-metre wall is then 4 metres in the glTF (`model_unit` is "mm" by default; "cm" and "in" are possible too).
 
 ## Materials: drag and drop
 
@@ -48,10 +48,8 @@ The materials of a model shown with `with_materials` are exported with it (`expo
 | `.steep_places(max_angle)`, `.walkable_fraction(max_angle, samples)` | The ground in its materials with red where it is steeper than `max_angle` degrees (a check to look at while modelling), and the share of the ground that is not. |
 | `.cave(path, radius, blend)`, `.add(shape, blend)`, `.cut(shape, blend)` | 3D changes of the solid. |
 | `.height_at(x, y)`, `.slope_at(x, y)` | Numbers, for standing things on the ground. |
-| `.chunk(ix, iy, size)`, `.chunks(size)` | A square of the world, or all of them. |
 | `.textured(...)`, `.material_layers(...)` | Grass, rock (steeper than `rock_angle`, and the walls of caves), snow (above `snow_line`), sand (below `beach`), and a road and a river bed wherever `.road` and `.river` were made. |
 | `water(size, level, depth)` | A slab of water. |
-| `export_terrain_chunks(ground, folder, size)` | One file per square, with materials. |
 
 Every method returns a new terrain; the old one is untouched. Rivers and roads go over each other in the order you call them.
 
@@ -73,10 +71,8 @@ Every method returns a new terrain; the old one is untouched. Rivers and roads g
     pine = tree(height=9, kind="pine", seed=2)  # "round", "pine", "bush"
     row = merge([placed(stone, (0, 0, 0)), placed(pine, (6, 0, 0), turn=30, scale=1.2), placed(crate(1.0), (10, 0, 0)), placed(barrel(), (12, 0, 0))])
     forest = scatter(lambda s: tree(height=8, seed=s), 120, ground=ground, min_distance=5, max_slope=28, variants=3)
-    export_scatter(forest, "out/forest", name="tree")
 
-A prop is a body shown in its materials (bark and leaves are two). `placed` scales, turns (degrees about z) and moves it with its materials; `merge` joins several into one body. `scatter` stands props on the ground where it is flat enough (`max_slope`, degrees) and a rule allows (`where`: a field that is negative where props may stand, or a function of x, y, z), at least `min_distance` apart. It remembers where each stands, so `export_scatter` writes the few meshes **once** and a `name_instances.json` (variant, position, turn, scale for each): what an engine wants for a forest.
-
+A prop is a body shown in its materials (bark and leaves are two). `placed` scales, turns (degrees about z) and moves it with its materials; `merge` joins several into one body. `scatter` stands props on the ground where it is flat enough (`max_slope`, degrees) and a rule allows (`where`: a field that is negative where props may stand, or a function of x, y, z), at least `min_distance` apart.
 ## Snow, moss and dust as geometry
 
     snowy = covered(rock(1.4, seed=7), depth=0.12, angle=55)                        # snow on every surface that faces up, thinning out where it would slide off
@@ -91,7 +87,6 @@ A prop is a body shown in its materials (bark and leaves are two). `placed` scal
     house = walls.build(["#####",
                          "#####",
                          "##  #"], edges={(2, 2, 2): "door", (1, 0, 0): "window"})
-    walls.export(house, "out/kit")                  # each piece once, and kit.json: which piece stands in which cell, turned how
 
 The cell of a piece has its south-west floor corner at the origin. `wall_piece` stands on the south edge; `turn` quarter turns (counter-clockwise from above) put it on the east, north, west edge. A plan is a list of strings, the first the northmost; a cell is inside unless it is a space. Walls stand on every edge with outside beyond it; `edges` changes an edge: `{(i, j, side): kind}` with `side` 0 south, 1 east, 2 north, 3 west and `kind` "door", "arch", "window", "wall" or `None`. `stairs={(i, j, k): turn}` puts a stairs piece in the cell (i, j) of level k, rising towards north, west, south or east for `turn` 0, 1, 2, 3, and leaves out the floor above it; it leads up into the next cell in that direction, which has to be inside the plan, and `levels` has to be at least k + 2.
 
@@ -110,9 +105,8 @@ Everything in this list is built as fields (arithmetic on x, y and z) and is mes
 | Levels | The space inside is a field; the walls are that field grown by the wall thickness, and the space is subtracted again. |
 | Kit pieces | Each piece is a field clipped to its cell; `seam` asks two fields whether they are solid on the face they share. |
 | Props | Noise, ellipsoids and blended unions; the rules of `scatter` (`where`, the slope) are fields. |
-| Chunks | The one field of the ground, cut by a box. |
 
-A mesh is made by `export_mesh` and the helpers built on it (`export_terrain_chunks`, `export_scatter`, `Kit.export`), and by the viewport to show a model. Nothing of the field is left in such a file.
+A mesh is made by `export_mesh`, and by the viewport to show a model: nothing of the field is left in an exported file. Nothing else is made here -- what an engine does with a model (levels of detail, collision, chunks, instances) is the engine's job, not this program's.
 
 ## What is not here yet
 
