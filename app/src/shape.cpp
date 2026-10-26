@@ -767,6 +767,7 @@ struct SweepFieldChain
         Vec mk = Vec::Zero(), mj = Vec::Zero();         // (the normals of the two planes the piece ends at)
         double s0 = 1, s1 = 1;                          // (how thick the section is at its two ends)
         double startOff = 0, stopOff = 0;               // (start(p) = -mk . p + startOff and stop(p) = mj . p + stopOff are not positive between the two planes)
+        double fade = 1;                                // (how far the frame of the next piece is blended in along this one: 1 where the path bends gently, 0 at a corner -- see `_selected_field`)
     };
     struct Dome
     {
@@ -1120,6 +1121,13 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
                 pc.s1 = sizeAt(j);
                 pc.startOff = pc.mk.dot(V[size_t(k)]) - 1e-3;
                 pc.stopOff = -pc.mj.dot(V[size_t(j)]) - 1e-3;
+                // (the frame of the next piece is blended in along this one only where the path bends gently: all of it below 20 degrees from one piece to the next, none from 40 -- a corner is a mitre)
+                if (size_t(k) + 1 < T.size())
+                {
+                    const double both = Tk.norm() * T[size_t(k) + 1].norm();
+                    const double turn = std::acos(std::max(-1.0, std::min(1.0, both > 0 ? Tk.dot(T[size_t(k) + 1]) / both : 1.0)));
+                    pc.fade = std::max(0.0, std::min(1.0, (40.0 * M_PI / 180.0 - turn) / (20.0 * M_PI / 180.0)));
+                }
                 field->pieces.push_back(pc);
             }
         }
@@ -1263,7 +1271,16 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
         double thickest = 1e-3;
         for (const double z : vertexSize) thickest = std::max(thickest, z);
         field->widest = widest;
-        field->guard = widest * 1.3 * thickest + 1e-2;
+        // (the outer corner of a mitre reaches 1 / cos of half the turn times the reach of the section: the tube must hold it, or the tip of a sharp corner is cut off -- see `path_extrude`)
+        double mitre = 1.3;
+        for (int k = 0; k + 1 < pieces; ++k)
+        {
+            const double both = T[size_t(k)].norm() * T[size_t(k) + 1].norm();
+            if (!(both > 0)) continue;
+            const double turn = std::acos(std::max(-1.0, std::min(1.0, T[size_t(k)].dot(T[size_t(k) + 1]) / both)));
+            mitre = std::max(mitre, 1.05 / std::cos(std::min(turn, 150.0 * M_PI / 180.0) * 0.5));
+        }
+        field->guard = widest * mitre * thickest + 1e-2;
         field->sized = false;
         for (const auto& pc : field->pieces)
             if (std::fabs(pc.s0 - 1.0) > 1e-9 || std::fabs(pc.s1 - 1.0) > 1e-9) field->sized = true;
@@ -1459,14 +1476,14 @@ double chainValue(const SweepFieldChain& c, const Eigen::Vector3d& p, bool penal
             const Eigen::Vector3d r = p - q.from;
             const double a = q.ra.dot(r), b = q.rb.dot(r);
             double an = a, bn = b;
-            if (k + 1 < m)
+            if (k + 1 < m && q.fade > 0)
             {
                 const SweepFieldChain::Piece& nx = c.pieces[k + 1];
                 const Eigen::Vector3d rn = p - nx.from;
                 an = nx.ra.dot(rn);
                 bn = nx.rb.dot(rn);
             }
-            const double weight = along * along * (3.0 - 2.0 * along);          // (a smooth step, as the field has it)
+            const double weight = q.fade * along * along * (3.0 - 2.0 * along);          // (a smooth step, as the field has it)
             sa += a + (an - a) * weight;
             sb += b + (bn - b) * weight;
             ss += along * (q.s1 - q.s0) + q.s0;

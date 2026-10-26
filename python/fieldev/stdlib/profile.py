@@ -859,8 +859,16 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
         stop = _linear(mj, -C.dot(mj, V[j]) - 1e-3)
         if k == 0:
             first_start = start
+        # (how far the frame of the next piece is blended in along this one -- see `_selected_field`: all of it where the path bends gently, none where it turns sharply: a corner is a mitre, and blending
+        # the two frames over the whole piece made the outside of a sharp bend swell)
+        fade = 1.0
+        if k + 1 < len(T):
+            na = math.sqrt(C.dot(T[k], T[k])) * math.sqrt(C.dot(T[k + 1], T[k + 1]))
+            if na > 0:
+                turn = math.acos(max(-1.0, min(1.0, C.dot(T[k], T[k + 1]) / na)))
+                fade = max(0.0, min(1.0, (math.radians(40.0) - turn) / math.radians(20.0)))
         if cheap:
-            chosen.append((a, b, s0, s1, start, stop))
+            chosen.append((a, b, s0, s1, start, stop, fade))
         else:
             body = f.max(start).max(stop)
             best = body if best is None else best.min(body)
@@ -871,7 +879,14 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
         if box_ring:
             widest = max(math.hypot(px, py) for px, py in box_ring)
             thickest = max(max(vertex_size), 1e-3)
-            reach_guard = (widest * 1.3 * thickest if grow is None else widest * 1.3 + max(thickest - 1.0, 0.0) * grow) + 1e-2
+            # (the outer corner of a mitre reaches 1 / cos of half the turn times the reach of the section: the tube must hold it, or the tip of a sharp corner is cut off)
+            mitre = 1.3
+            for k in range(len(T) - 1):
+                na = math.sqrt(C.dot(T[k], T[k])) * math.sqrt(C.dot(T[k + 1], T[k + 1]))
+                if na > 0:
+                    turn = math.acos(max(-1.0, min(1.0, C.dot(T[k], T[k + 1]) / na)))
+                    mitre = max(mitre, 1.05 / math.cos(min(turn, math.radians(150.0)) * 0.5))
+            reach_guard = (widest * mitre * thickest if grow is None else widest * mitre + max(thickest - 1.0, 0.0) * grow) + 1e-2
         best = _selected_field(profile, chosen, centre2d, grow, 28, V if reach_guard is not None else None, reach_guard)
     # Round ends: past the end of an open path the cross-section shrinks along a quarter of a circle, so that the end is a dome of the cross-section itself and not a ball that its shape
     # clashes with.  It is one more piece of the sweep: the profile in the frame of the end piece (the ring's own plane, which is across the path unless the path leaves the profile at an
@@ -956,7 +971,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
 def _selected_field(profile, pieces, centre2d, grow, group=28, axis=None, reach=None):
     ''' The field of a sweep made of far fewer terms.  A sweep of the usual kind is one piece of field for every piece of the path, each carrying the whole profile: for an armature of a few
         nodes tens of thousands of terms, which no renderer meshes in a moment.  Here the profile is evaluated ONCE for a group of `group` pieces, at the coordinates (a, b) and the size of the
-        piece of the path that the point lies in.  `pieces`: for each (a, b, s0, s1, start, stop) -- the two coordinates of a point in the plane of the profile (fields), the sizes at its two
+        piece of the path that the point lies in.  `pieces`: for each (a, b, s0, s1, start, stop, fade) -- the two coordinates of a point in the plane of the profile (fields), the sizes at its two
         ends, and the two planes it lies between (fields, not positive inside).  A point is in the piece whose two planes it lies between.  Between its two planes the coordinates and the size
         run from the ones of this piece to the ones of the next -- the coordinates along a smooth step --, so that the section turns and grows smoothly and there is no step, and no crease, at the plane where two pieces meet.  Where no piece of a
         group holds a point the group is positive; past the two ends the planes of the ends are the field.  The groups are the least of each other (`min`), each one limited to the two
@@ -964,21 +979,22 @@ def _selected_field(profile, pieces, centre2d, grow, group=28, axis=None, reach=
         far from the sweep must be able to tell that nothing is there from the few terms of the tube, and not look at every plane that crosses the cell '''
     from fieldev.stdlib.curves import polyline_field
     m = len(pieces)
-    sized = any(abs(s0 - 1.0) > 1e-9 or abs(s1 - 1.0) > 1e-9 for _a, _b, s0, s1, _start, _stop in pieces)
+    sized = any(abs(s0 - 1.0) > 1e-9 or abs(s1 - 1.0) > 1e-9 for _a, _b, s0, s1, _start, _stop, _fade in pieces)
     best = None
     for g0 in range(0, m, group):
         g1 = min(g0 + group, m)
         count = a_sum = b_sum = size_sum = None
         for k in range(g0, g1):
-            a, b, s0, s1, start, stop = pieces[k]
+            a, b, s0, s1, start, stop, fade = pieces[k]
             inside = (1.0 - start.compare(0.0).max(0.0)) * (1.0 - stop.compare(0.0).max(0.0))          # (1 between the two planes, 0 elsewhere)
             s = ((-start) / ((-start) + (-stop)).max(1e-6)).max(0.0).min(1.0)                          # (how far along between them: 0 at the first plane, 1 at the second)
             a_to, b_to = (pieces[k + 1][0], pieces[k + 1][1]) if k + 1 < m else (a, b)
             # (along a smooth step -- 0 and 1 at the two planes, no slope at either --: the coordinates of this piece leave it in the plane of the next, so that the slope of the surface does not jump at the
             # plane where two pieces meet, which a straight line between them did on a bend: a crease round the body at every piece)
-            weight = s * s * (3.0 - 2.0 * s)
-            here_a = a + (a_to - a) * weight
-            here_b = b + (b_to - b) * weight
+            # (only where the path bends gently -- `fade` is 1 below 20 degrees from one piece to the next and 0 from 40: at a corner the frames are not blended, it is a mitre)
+            weight = s * s * (3.0 - 2.0 * s) * fade
+            here_a = a + (a_to - a) * weight if fade > 0 else a
+            here_b = b + (b_to - b) * weight if fade > 0 else b
             count = inside if count is None else count + inside
             term_a, term_b = inside * here_a, inside * here_b
             a_sum = term_a if a_sum is None else a_sum + term_a
