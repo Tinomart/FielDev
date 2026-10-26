@@ -136,6 +136,9 @@ FROM_SELECTION = {
 }
 
 # (function, group, template)
+# (a kit, with every argument written: a method of it is called on the result, where the completion cannot see the arguments to fill in)
+_KIT = 'kit(cell=({h}, {h}, {h}), wall=0.3, floor=0.25, door=(1.4, 2.3), window=(1.2, 1.1, 1.0))'
+
 PRIMITIVES = [
     ('sphere', '3D', 'sphere({h}, ({x}, {y}, {z}))'),
     ('box', '3D', 'box(({xm}, {ym}, {zm}), ({xp}, {yp}, {zp}))'),
@@ -174,11 +177,29 @@ PRIMITIVES = [
     # What a game is made of (see docs/gamedev.md): the ground, a room, a kit, a rock, a tree, a crate, a barrel -- made where the menu is; the numbers are for the user to say
     ('terrain', 'Game', 'terrain(size=({s}, {s}), height={t}, scale={h}, center=({x}, {y}))'),
     ('room', 'Game', 'build_level(room(({xm}, {ym}, {z}), ({xp}, {yp}, {zp})))'),
-    ('kit', 'Game', 'kit(({h}, {h}, {h})).build(["###", "###"])'),
+    ('kit', 'Game', _KIT + '.build(["###", "###"], edges=None, levels=1, ceiling=True, stairs=None)'),
     ('rock', 'Game', 'placed(rock({h}), ({x}, {y}, {z}))'),
     ('tree', 'Game', 'placed(tree({s}, {q}, {h}), ({x}, {y}, {z}))'),
     ('crate', 'Game', 'placed(crate({h}), ({x}, {y}, {z}))'),
     ('barrel', 'Game', 'placed(barrel({q}, {h}), ({x}, {y}, {z}))'),
+    ('water', 'Game', 'water(size=({s}, {s}), level={z}, depth={t}, center=({x}, {y}))'),
+    # The parts of a level: a corridor is a space like a room (Operations > Level > join_levels makes rooms and corridors one level); a doorway or a window is a cutter (Combining > difference
+    # takes it out of a wall); a pillar, a staircase and a wall are bodies of their own (Combining > union adds them to a level)
+    ('corridor', 'Game', 'build_level(corridor([({xm}, {y}, {z}), ({xp}, {y}, {z})]))'),
+    ('doorway', 'Game', 'doorway(({x}, {y}, {z}))'),
+    ('window_opening', 'Game', 'window_opening(({x}, {y}, {z}))'),
+    ('pillar', 'Game', 'pillar(({x}, {y}), radius={t}, height={s}, base={z})'),
+    ('staircase', 'Game', 'staircase(({xm}, {y}, {z}), ({xp}, {y}, {zp}))'),
+    ('wall_segment', 'Game', 'wall_segment(({xm}, {y}, {z}), ({xp}, {y}, {z}))'),
+    # The pieces of a modular kit, one by one (the whole kit built from a plan is the `kit` above)
+    ('floor_tile', 'Game', _KIT + '.floor_tile()'),
+    ('ceiling_tile', 'Game', _KIT + '.ceiling_tile()'),
+    ('wall_piece', 'Game', _KIT + '.wall_piece(opening=None, trim=(False, False))'),
+    ('corner_piece', 'Game', _KIT + '.corner_piece()'),
+    ('pillar_piece', 'Game', _KIT + '.pillar_piece()'),
+    ('stairs_piece', 'Game', _KIT + '.stairs_piece(steps=12)'),
+    # The check of a kit: whether its pieces meet where they stand side by side (the list of what does not is printed below the editor)
+    ('kit_check', 'Game', 'kit_check(cell=({h}, {h}, {h}))'),
 ]
 
 # The PRIMITIVES -- the most basic, low-level representation of each kind of thing: a sphere, a box, a cylinder, a cone, a torus, a pyramid and a prism for 3D; a circle, a rectangle, a triangle,
@@ -339,6 +360,28 @@ OPERATIONS = [
     ('with_materials', 'Materials', 'with_materials({body}, material_preset("{preset}"))', False),
     # Snow, moss or dust laid on every surface of the body that faces up, as geometry (see fieldev.stdlib.finish)
     ('covered', 'Materials', 'covered({body}, depth={t}, angle=50)', False),
+    # The ground (Operations > Terrain): each edit of a `terrain(...)` -- a hill, a flat place, a road, a river and its water, a cave, a body added or cut, the colours, the steep places, one square of
+    # it -- is offered for a terrain only (fn._on), written with every argument at a value that shows something
+    ('terrain_raised', 'Terrain', 'terrain_raised({body})', False),
+    ('terrain_flattened', 'Terrain', 'terrain_flattened({body})', False),
+    ('terrain_road', 'Terrain', 'terrain_road({body})', False),
+    ('terrain_river', 'Terrain', 'terrain_river({body})', False),
+    ('terrain_river_water', 'Terrain', 'terrain_river_water({body})', False),
+    ('terrain_cave', 'Terrain', 'terrain_cave({body})', False),
+    ('terrain_add', 'Terrain', 'terrain_add({body}, {other})', True),
+    ('terrain_cut', 'Terrain', 'terrain_cut({body}, {other})', True),
+    ('terrain_textured', 'Terrain', 'terrain_textured({body})', False),
+    ('terrain_steep_places', 'Terrain', 'terrain_steep_places({body})', False),
+    ('terrain_chunk', 'Terrain', 'terrain_chunk({body})', False),
+    ('terrain_walkable_fraction', 'Terrain', 'terrain_walkable_fraction({body})', False),
+    ('terrain_height_at', 'Terrain', 'terrain_height_at({body})', False),
+    ('terrain_slope_at', 'Terrain', 'terrain_slope_at({body})', False),
+    # Props (Operations > Props): put a prop in its place (its materials go with it), make several one body, strew a prop over a ground
+    ('placed', 'Props', 'placed({body})', False),
+    ('merge', 'Props', 'merge([{body}{others}])', 'optional'),
+    ('scatter_prop', 'Props', 'scatter_prop([{body}], ...)', 'optional'),
+    # Levels (Operations > Level): rooms and corridors made one level, so that the walls between them are open
+    ('join_levels', 'Level', 'join_levels([{body}{others}])', 'optional'),
     # The cross-section of an armature, at its first node (made with every armature the menu makes: here for one that was written by hand)
     ('cut_face', 'Character', 'cut_face({body})', False),
     # A character: the armatures selected are joined into one body (the other half a mirror image), and are the skeleton of it
@@ -498,6 +541,15 @@ def _takes(name):
     return declared or None
 
 
+def _only_for(name):
+    ''' The class of model the operation `name` is for (`fn._on`, e.g. 'Terrain'), or None: any model of the kinds it takes '''
+    try:
+        import fieldev
+        return getattr(getattr(fieldev, name, None), '_on', None)
+    except Exception:
+        return None
+
+
 def _tag(m):
     ''' What a selected model is, for what an entry takes: its kind -- solid, profile, field, surface, point, import --
         None when it is not known (a model that has not run) '''
@@ -511,6 +563,10 @@ def _selection_fits(kind, name, models):
     else:
         group = next((g for n, g, _, _ in OPERATIONS if n == name), None)
         signatures = _takes(name) or ([(_SHAPES, [])] if group else None)
+    # (a function that is for one class of model -- the terrain edits are for a `terrain(...)` -- is not offered for another: the first model is the one it works on)
+    only = _only_for(name) if kind != 'primitive' else None
+    if only and models and models[0].get('cls') and models[0]['cls'] != only:
+        return False
     tags = [t for t in map(_tag, models) if t]
     if not signatures or not tags:
         return True
@@ -586,6 +642,13 @@ def _build_operation(name, v, others):
         if profile and len(points) >= 2:
             var = v.get('var') or 'path_extrude_1'
             return '%s_path = spline([%s])\n%s_path%spath_extrude(%s, %s_path)' % (var, ', '.join(points), var, PRELUDE, profile, var)
+    if name == 'scatter_prop':
+        # (the props, and the ground they stand on: whichever was selected first -- the one that is a terrain(...) is the ground)
+        models = [dict(v.get('body_info') or {}, name=body)] + list(others)
+        ground = next((m['name'] for m in models if m.get('cls') == 'Terrain'), None)
+        props = [m['name'] for m in models if m['name'] != ground and m.get('type') in ('solid', None)]
+        if props:
+            return 'scatter_prop([%s], %s)' % (', '.join(props), ground or '...')
     slot = FIELD_SLOTS.get(name)
     if slot:
         fields = [o['name'] for o in others if o.get('type') == 'field']

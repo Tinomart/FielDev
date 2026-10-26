@@ -21,6 +21,14 @@ All of this was seen only in a virtual display (software rendering, a Linux mach
   **Stairs in a kit's plan**: `walls.build(plan, levels=2, stairs={(0, 0, 0): 3})` puts a stairs piece in a cell, leaves out the floor above it and leads up into the next cell; the stairs reach the top of that floor.  Examples `47_snow_and_moss.py`, `48_kit_stairs.py`.
 - **Removed**: `export_lods` and the *Levels of detail* entry of the export menu (an engine makes levels of detail); example `37_pivot_and_lods.py` is now `37_pivot.py` and is only about the pivot.
 
+### Every game feature is in the right-click menu; a branch is part of the armature's field
+Seen only in a virtual display (software rendering, a Linux machine): the menus were dumped and the text of every new entry was run; nothing was seen in a real window or on Windows.
+- **The right-click menu has all of it.** *Parametric shapes ▸ Game*: water, corridor, doorway, window_opening, pillar, staircase, wall_segment, the pieces of a kit (floor_tile, ceiling_tile, wall_piece, corner_piece, pillar_piece, stairs_piece) and `kit_check`, beside terrain, room, kit,
+  rock, tree, crate and barrel; the `kit` entry now writes `edges`, `levels`, `ceiling` and `stairs`.  *Operations ▸ Terrain*: raised, flattened, road, river, river_water, cave, add, cut, textured, steep_places, chunk, walkable_fraction, height_at and slope_at (`terrain_raised(ground, ...)` and so on; offered for a
+  terrain only).  *Operations ▸ Props*: `placed`, `merge`, `scatter_prop` (the props and the ground selected).  *Operations ▸ Level*: `join_levels` (rooms and corridors made one level, so a corridor opens into the room it ends in).  `docs/gamedev.md` says where each is.
+- **A branch of an armature is part of its one field from the start**: the pieces of the main chain and of every branch are blended into one field (a blend as wide as the branch is thick), not a second tube united with the first; `skeleton_of`, `character`, `cut_face`, `export_mesh` and `uvs="armature"` work on it.
+  An unbranched armature is still drawn from its nodes at once; a branched one is meshed from its field, which takes seconds at a fine resolution, and a dragged node bends it when you let go (`docs/gamedev-decisions.md`, decision 13).
+
 ### After a click nothing flickers; a node brings the armature mode back; closing does not wait for a heavy render
 - **No flicker on a click (seen in a virtual display with software rendering, not on a real screen, not on Windows).** Four causes, found by recording every frame: (1) the shapes a run replaced were deleted before the new ones had a mesh, so the rings, dots and tube
   vanished for a few frames -- they now stay in the picture until the shape that replaces them has its mesh; (2) the model tree lit shapes by the line numbers of the new text while the viewport still held the old ones, so the selection dropped for up to half a second --

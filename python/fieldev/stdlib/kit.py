@@ -27,7 +27,7 @@ from fieldev.stdlib.shapes import box, _bounded
 from fieldev.stdlib.transforms import move, rotate_z
 from fieldev.stdlib.level import doorway, window_opening
 
-__all__ = ['kit', 'Kit']
+__all__ = ['kit', 'Kit', 'kit_check']
 
 _RISES = ((0, 1), (-1, 0), (0, -1), (1, 0))         # (the way stairs rise for 0, 1, 2, 3 quarter turns: north, west, south, east)
 _DIRS = ((0, -1), (1, 0), (0, 1), (-1, 0))          # (the neighbour a wall faces away to: south, east, north, west)
@@ -49,6 +49,14 @@ def kit(cell=(4.0, 4.0, 3.0), wall=0.3, floor=0.25, door=(1.4, 2.3), window=(1.2
     ''' A kit with this cell (width, depth, height), walls `wall` thick, floors and ceilings `floor` thick, doors (width, height) and windows (width, height, sill height above the
         floor).  A cell that is as wide as it is deep can be turned; one that is not can only be turned a half '''
     return Kit(_cell(cell), float(wall), float(floor), tuple(float(d) for d in door), tuple(float(w) for w in window))
+
+
+def kit_check(cell=(4.0, 4.0, 3.0), wall=0.3, floor=0.25, door=(1.4, 2.3), window=(1.2, 1.1, 1.0), samples=24):
+    ''' `kit(...).check(samples)`: every piece against every piece along x and y where they meet side by side -- a list of what does not meet, empty when the kit is sound.  It is printed too, so that
+        the menu's entry (Game > kit_check) shows it below the editor '''
+    problems = kit(cell, wall, floor, door, window).check(samples)
+    print('kit_check: every piece meets its neighbours' if not problems else 'kit_check: %d places where pieces do not meet: %s' % (len(problems), problems))
+    return problems
 
 
 class Kit:

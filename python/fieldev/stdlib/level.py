@@ -23,7 +23,7 @@ from fieldev.shape import Shape
 from fieldev.stdlib.fields import union_all
 from fieldev.stdlib.shapes import box, _bounded
 
-__all__ = ['Space', 'room', 'corridor', 'doorway', 'window_opening', 'pillar', 'staircase', 'wall_segment', 'build_level']
+__all__ = ['Space', 'room', 'corridor', 'doorway', 'window_opening', 'pillar', 'staircase', 'wall_segment', 'build_level', 'join_levels']
 
 
 class Space:
@@ -210,4 +210,25 @@ def build_level(spaces, openings=(), solids=()):
     lo = [min(s.bounds[0][i] for s in spaces) for i in range(3)]
     hi = [max(s.bounds[1][i] for s in spaces) for i in range(3)]
     _bounded(out, lo, hi)
+    out._level = (spaces, list(openings), list(solids))             # (what it is made of: `join_levels` makes one level of several)
     return out
+
+
+def join_levels(levels, openings=(), solids=()):
+    ''' Levels (rooms and corridors, each made by `build_level`) made one level: their spaces are one space, so that the wall between two rooms that overlap or touch is open, and a corridor
+        opens into the room it ends in.  `openings` and `solids` are added to those the levels already have.  A body.  The menu writes this one (Operations > Level) '''
+    levels = list(levels) if isinstance(levels, (list, tuple)) else [levels]
+    spaces, cuts, stands = [], list(openings), list(solids)
+    for one in levels:
+        made = getattr(one, '_level', None)
+        if made is None:
+            raise TypeError('join_levels: every model is a level made by build_level(...) -- a room(...) or a corridor(...) made from the menu is; this one is not')
+        spaces += made[0]
+        cuts += made[1]
+        stands += made[2]
+    return build_level(spaces, cuts, stands)
+
+
+from fieldev.kinds import takes as _declare
+
+join_levels._takes = _declare({'solid'}, [{'solid'}])

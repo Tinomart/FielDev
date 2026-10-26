@@ -10,6 +10,14 @@ FielDev is a **modelling program**: fields, shapes, materials, editing -- for pe
 * Export is a plain export of the model (`export_mesh`): the model, its materials, its unit. No pipelines around it.
 * Stay in fields as long as possible: a mesh is made only to show a model or to write it to a file.
 
+## Everything is reachable from the context menu (the user, 2026-10-26: "EVERYTHING IS ALWAYS AVAILABLE FROM THE CONTEXT MENU")
+
+Every feature must be reachable from the right-click context menu (primitives, operations, materials, exports, checks). A feature that exists only as a function you type in a script is **not finished** and must never be listed or reported as done. A feature is done when (1) its menu entry exists and writes the call into the script, (2) the entry was checked (the menu dump lists it, the text it writes runs), and (3) the docs say where it is in the menu. Add the entry in the same batch as the function (`python/fieldev/menu_catalog.py`: PRIMITIVES and OPERATIONS).
+
+## A branch is part of the armature's field from the start (the user: "ACTIVELY GET INCORPORATED INTO THE ARMATURE FROM THE START")
+
+An armature's branch is not a second tube united with the main one afterwards. Every node, branch nodes included, takes part in ONE field of the whole armature: the radii and the blends at a junction come out of that one field.
+
 ## Other standing rules of the user
 
 * Never push, publish or open a pull request without his word for that step in his latest message.

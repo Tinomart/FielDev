@@ -30,7 +30,7 @@ from fieldev.stdlib.surfaces import ellipsoid
 from fieldev.stdlib.characters import round_cone
 from fieldev.stdlib.transforms import move, rotate_z, scale_xyz
 
-__all__ = ['rock', 'tree', 'crate', 'barrel', 'placed', 'merge', 'scatter']
+__all__ = ['rock', 'tree', 'crate', 'barrel', 'placed', 'merge', 'scatter', 'scatter_prop']
 
 
 def _prop(body, layers, grow=0.0):
@@ -213,3 +213,19 @@ def scatter(make, count, area=None, ground=None, seed=1, min_distance=0.0, max_s
         raise ValueError('scatter: no place was found for a prop (the area, the slope or the rule leave none)')
     out = merge(items, blend)
     return out
+
+
+def scatter_prop(props, ground=None, count=20, area=None, seed=1, min_distance=0.0, max_slope=40.0, where=None, scale=(0.85, 1.2), turn=True, sink=0.0, blend=0.0):
+    ''' `scatter(...)` of props that are models: `props` is a prop, or a list of props (the variants), each placed many times over `area` or over `ground` (a `terrain(...)`, at its height, only where it
+        is not steeper than `max_slope` degrees), at least `min_distance` apart, turned about z and scaled by a number in `scale`.  The result is one prop.  The menu writes this one (Operations > Props) '''
+    bases = list(props) if isinstance(props, (list, tuple)) else [props]
+    if not bases:
+        raise ValueError('scatter_prop: give a prop, or a list of props')
+    k = len(bases)
+    return scatter(lambda s: bases[(s - int(seed) * 1000) % k], count, area, ground, seed, min_distance, max_slope, where, scale, turn, k, sink, blend)
+
+
+from fieldev.kinds import takes as _declare
+
+for _fn in (placed, merge, scatter_prop):
+    _fn._takes = _declare({'solid'}, [{'solid'}])

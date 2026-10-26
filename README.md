@@ -138,7 +138,7 @@ The last expression is what is shown; assign other shapes to names and they appe
 | [Selecting surfaces](docs/selecting-surfaces.md) | Right-click a face: a flood-filled surface as a field, to work on one part of a body |
 | [Meshes](docs/meshes.md) | Mesh import and export, with the units, up axis, triangle budget and exact symmetry a game engine asks for |
 | [Characters](docs/characters.md) | Armatures and bodies made of points: `chain`, `round_cone`, a mirror for the other half |
-| [Game assets](docs/gamedev.md) | Terrain, levels, props, modular kits and materials by drag and drop, as fields, and how they are exported for an engine; [what was decided and what is open](docs/gamedev-decisions.md) |
+| [Game assets](docs/gamedev.md) | Terrain, levels, props, modular kits and materials by drag and drop, as fields, every one of them in the right-click menu; [what was decided and what is open](docs/gamedev-decisions.md) |
 | [Caching and performance](docs/caching-and-performance.md) | What is cached, resolution and quality, long renders |
 | [Troubleshooting](docs/troubleshooting.md) | Empty viewport, slow renders, import errors |
 | [Library reference](docs/reference.md) | Every function and class, from its docstring |

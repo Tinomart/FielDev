@@ -12,6 +12,25 @@ All of these live in the library (`from fieldev import *`) and work like any oth
 
 **Units.** These helpers are written for a model in **metres**: one number is one metre (a door is 1.2 wide, a room 12 long). Set the view's bounds and resolution to match: `view.set_bounds([-60, -60, -20], [60, 60, 30])`, `view.set_resolution(1)` (samples per number). An export is told so with `export_mesh(model, "wall.glb", model_unit="m")`: a 4-metre wall is then 4 metres in the glTF (`model_unit` is "mm" by default; "cm" and "in" are possible too).
 
+## Where each is in the right-click menu
+
+Everything on this page is in the right-click menu; an entry writes the call into the script, with every argument written at a value that shows something, to be edited there.
+
+| What | Where | Writes |
+|---|---|---|
+| `terrain`, `water`, `room`, `corridor`, `doorway`, `window_opening`, `pillar`, `staircase`, `wall_segment` | *Parametric shapes ▸ Game*, on empty space or on a model | the shape at the place of the click (a room and a corridor are `build_level(room(...))` and `build_level(corridor(...))`, a body each) |
+| `rock`, `tree`, `crate`, `barrel` | *Parametric shapes ▸ Game* | the prop, `placed` at the click |
+| `kit`, `floor_tile`, `ceiling_tile`, `wall_piece`, `corner_piece`, `pillar_piece`, `stairs_piece` | *Parametric shapes ▸ Game* | the whole kit built from a plan (`edges`, `levels`, `ceiling` and `stairs` are written, for you to fill), or one piece of it |
+| `kit_check` | *Parametric shapes ▸ Game* | the check of a kit: whether its pieces meet where they stand side by side; the answer is printed below the editor |
+| the edits of a ground: `terrain_raised`, `terrain_flattened`, `terrain_road`, `terrain_river`, `terrain_river_water`, `terrain_cave`, `terrain_add`, `terrain_cut`, `terrain_textured`, `terrain_steep_places`, `terrain_chunk` | right-click a terrain, *Operations ▸ Terrain* | `terrain_raised(ground, center=..., radius=..., ...)`: the function form of `ground.raised(...)`, and so on; the ground stays a terrain, so the edits chain. `terrain_add` and `terrain_cut` take a second model, selected with the ground |
+| the numbers of a ground: `terrain_walkable_fraction`, `terrain_height_at`, `terrain_slope_at` | *Operations ▸ Terrain* | the number, which is printed below the editor too |
+| `placed`, `merge`, `scatter_prop` | *Operations ▸ Props* | `placed(prop, ...)`; `merge([a, b, ...])` of the models selected; `scatter_prop([props], ground, ...)`: select the prop (or several, for variants) and the terrain, in any order |
+| `join_levels` | *Operations ▸ Level* | `join_levels([room, corridor, ...])`: the rooms and corridors selected made one level, so that the wall between them is open where a corridor ends in a room. A doorway or a window is taken out of a wall with *Combining ▸ difference*; a pillar or a staircase is added with *Combining ▸ union* |
+| `covered`, `with_materials` | *Operations ▸ Materials* | snow, moss or dust as geometry; a material for the model |
+| materials by drag and drop | *View ▸ Materials* | see below |
+
+A terrain edit is offered for a terrain only (for another model its entry is greyed out): a ground that was given its colours (`textured`, `steep_places`) is a plain body, so make the edits first and dress it last. Not in the menu are `.chunks(size)`, `.height_field()`, `.material_layers()` and a kit's `place`, `seam` and `pieces`: they give a list or a dictionary to your own script, not a model (`terrain_chunk` once for every square does what `chunks` does; `kit_check` is the seam check).
+
 ## Materials: drag and drop
 
 `View > Materials` opens the card of materials: a swatch for each preset of the library (`material_presets()`: gold, stone, wood, glass ...), drawn as a ball in its colour, shine and roughness.
@@ -112,5 +131,6 @@ A mesh is made by `export_mesh`, and by the viewport to show a model: nothing of
 
 ## What is not here yet
 
-* Pieces of a kit in the right-click menus beyond the first Game entries; the kit's seam check covers plain walls, floors and ceilings, not stairs.
+* The kit's seam check covers plain walls, floors and ceilings, not stairs.
+* The right-click menus were dumped and every entry's text was run in the virtual display; a terrain edit being greyed out for a model that is no terrain was tested on the function that decides it, not on the popup.
 * Anything seen in a real window or on Windows: all of this was run only in a virtual display on a Linux machine.

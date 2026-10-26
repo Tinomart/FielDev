@@ -31,7 +31,8 @@ from fieldev.stdlib.curves import owned
 from fieldev.stdlib.fields import noise_field, smoothstep, smooth_union, smooth_difference, evaluate
 from fieldev.stdlib.materials import material, material_preset, with_materials
 
-__all__ = ['terrain', 'Terrain', 'water']
+__all__ = ['terrain', 'Terrain', 'water', 'terrain_raised', 'terrain_flattened', 'terrain_road', 'terrain_river', 'terrain_river_water', 'terrain_cave', 'terrain_add', 'terrain_cut',
+           'terrain_steep_places', 'terrain_textured', 'terrain_chunk', 'terrain_walkable_fraction', 'terrain_height_at', 'terrain_slope_at']
 
 
 def _pair(v, what):
@@ -374,3 +375,100 @@ def water(size=(200.0, 200.0), level=0.0, depth=3.0, center=(0.0, 0.0)):
     cx, cy = _pair(center, 'water: center')
     slab = box((cx - sx / 2.0, cy - sy / 2.0, float(level) - float(depth)), (cx + sx / 2.0, cy + sy / 2.0, float(level)))
     return with_materials(slab, material_preset('water'))
+
+
+# ---- The edits of a ground as functions of the ground -- what the right-click menu writes (Operations > Terrain): `terrain_raised(ground, ...)` is `ground.raised(...)`.  Every argument has a
+# value that makes something you can see at once, to be changed in the script
+
+def _ground(ground, what):
+    if not isinstance(ground, Terrain):
+        raise TypeError('%s: the first model is a terrain(...), and this is not one (a ground that was given its materials is a plain body: edit the ground first, then dress it)' % what)
+    return ground
+
+
+def terrain_raised(ground, center=(0.0, 0.0), radius=10.0, height=3.0, falloff='smooth'):
+    ''' `ground.raised(...)`: a hill (a pit when `height` is negative) of that height and radius at `center` (x, y); falloff 'smooth', 'dome' or 'cone' '''
+    return _ground(ground, 'terrain_raised').raised(center, radius, height, falloff)
+
+
+def terrain_flattened(ground, center=(0.0, 0.0), radius=10.0, level=None, blend=None):
+    ''' `ground.flattened(...)`: a flat place of that radius at `center`, at height `level` (the ground's own height at the middle when not given), joined to the ground over `blend` '''
+    return _ground(ground, 'terrain_flattened').flattened(center, radius, level, blend)
+
+
+def terrain_road(ground, path=((-20.0, 0.0), (0.0, 0.0), (20.0, 0.0)), width=4.0, blend=None, depth=0.0, smooth=True):
+    ''' `ground.road(...)`: a flat road along `path` (places (x, y), or (x, y, z) where it is to be at a height), `width` wide, joined to the ground at its sides over `blend` '''
+    return _ground(ground, 'terrain_road').road(path, width, blend, depth, smooth)
+
+
+def terrain_river(ground, path=((-20.0, 0.0), (0.0, 0.0), (20.0, 0.0)), width=6.0, depth=2.0, blend=None, smooth=True):
+    ''' `ground.river(...)`: a channel `depth` deep along `path`, `width` across at its bottom, with banks that slope up to the ground over `blend` '''
+    return _ground(ground, 'terrain_river').river(path, width, depth, blend, smooth)
+
+
+def terrain_river_water(ground, freeboard=0.4):
+    ''' `ground.river_water(...)`: the water of the rivers made so far, as a body of its own in the water material '''
+    return _ground(ground, 'terrain_river_water').river_water(freeboard)
+
+
+def terrain_cave(ground, path=((-10.0, 0.0, 0.0), (0.0, 0.0, 0.0), (10.0, 0.0, 0.0)), radius=4.0, blend=2.0):
+    ''' `ground.cave(...)`: a tunnel of that radius along `path` (places (x, y, z)), blended into the ground over `blend` '''
+    return _ground(ground, 'terrain_cave').cave(path, radius, blend)
+
+
+def terrain_add(ground, shape, blend=0.0):
+    ''' `ground.add(shape, blend)`: another body joined to the ground, with a blend of `blend` where they meet '''
+    return _ground(ground, 'terrain_add').add(shape, blend)
+
+
+def terrain_cut(ground, shape, blend=0.0):
+    ''' `ground.cut(shape, blend)`: a body taken out of the ground, with a blend of `blend` along the cut '''
+    return _ground(ground, 'terrain_cut').cut(shape, blend)
+
+
+def terrain_steep_places(ground, max_angle=35.0, grass='#5f8f3c', rock='#7b776f', sand=None, snow=None, rock_angle=38.0, snow_line=None, beach=None, seed=1, road='#8b7b63', riverbed='#6e6552',
+                         color='#d9483b'):
+    ''' `ground.steep_places(...)`: the ground in its materials, with `color` (red) wherever it is steeper than `max_angle` degrees: the check for the places a character cannot walk up '''
+    return _ground(ground, 'terrain_steep_places').steep_places(max_angle, color, grass=grass, rock=rock, sand=sand, snow=snow, rock_angle=rock_angle, snow_line=snow_line, beach=beach,
+                                                               seed=seed, road=road, riverbed=riverbed)
+
+
+def terrain_textured(ground, grass='#5f8f3c', rock='#7b776f', sand=None, snow=None, rock_angle=38.0, snow_line=None, beach=None, seed=1, road='#8b7b63', riverbed='#6e6552'):
+    ''' `ground.textured(...)`: the ground in grass, rock (steeper than `rock_angle`), snow (above `snow_line`), sand (below `beach`), and a road and a river bed wherever `road` and `river` were made '''
+    return _ground(ground, 'terrain_textured').textured(grass=grass, rock=rock, sand=sand, snow=snow, rock_angle=rock_angle, snow_line=snow_line, beach=beach, seed=seed, road=road,
+                                                       riverbed=riverbed)
+
+
+def terrain_chunk(ground, ix=0, iy=0, size=50.0):
+    ''' `ground.chunk(ix, iy, size)`: one square of the ground, `size` across, the one `ix` squares along x and `iy` along y from its corner, cut from the same field as its neighbours '''
+    return _ground(ground, 'terrain_chunk').chunk(ix, iy, size)
+
+
+def terrain_walkable_fraction(ground, max_angle=35.0, samples=30):
+    ''' `ground.walkable_fraction(...)`: how much of the ground, seen from above, is not steeper than `max_angle` degrees (a number from 0 to 1).  It is printed too, so that the menu's entry
+        shows it below the editor '''
+    share = _ground(ground, 'terrain_walkable_fraction').walkable_fraction(max_angle, samples)
+    print('terrain_walkable_fraction: %.0f %% of the ground is not steeper than %g degrees (%d x %d places looked at)' % (100.0 * share, float(max_angle), int(samples), int(samples)))
+    return share
+
+
+def terrain_height_at(ground, x=0.0, y=0.0):
+    ''' `ground.height_at(x, y)`: the height of the ground there, a number.  It is printed too, so that the menu's entry shows it below the editor '''
+    h = _ground(ground, 'terrain_height_at').height_at(x, y)
+    print('terrain_height_at: the ground is %g high at (%g, %g)' % (h, float(x), float(y)))
+    return h
+
+
+def terrain_slope_at(ground, x=0.0, y=0.0):
+    ''' `ground.slope_at(x, y)`: the angle of the ground there, in degrees.  It is printed too, so that the menu's entry shows it below the editor '''
+    a = _ground(ground, 'terrain_slope_at').slope_at(x, y)
+    print('terrain_slope_at: the ground rises at %.1f degrees at (%g, %g)' % (a, float(x), float(y)))
+    return a
+
+
+from fieldev.kinds import takes as _declare
+
+for _fn in (terrain_raised, terrain_flattened, terrain_road, terrain_river, terrain_river_water, terrain_cave, terrain_add, terrain_cut, terrain_steep_places, terrain_textured, terrain_chunk,
+            terrain_walkable_fraction, terrain_height_at, terrain_slope_at):
+    _fn._takes = _declare({'solid'}, [{'solid'}])
+    _fn._on = 'Terrain'                     # (the menu offers them for a terrain(...) only)
