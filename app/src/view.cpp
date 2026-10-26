@@ -4138,12 +4138,68 @@ void View::addReferenceImage(const QString& plane, const QVector3D& point, doubl
     emit(createRequested("python", "reference_image|" + plane + "|" + path, point, scale, atLine, -1));
 }
 
+// A part of the suite for one kind of work, as the Character section is for the figures (Environment, Materials): its entries are the catalog's `sections` -- each with its label, its tooltip and the
+// submenus it is in, in the order the catalog has them, a line before an entry that says `sep`; the entry that opens the part (`lead`) is in bold.  An entry of an operation is the operation of the library, made
+// for what is selected; its name may carry a choice after a bar (`with_materials|gold`)
+void View::fillSectionMenu(QMenu* menu, const QJsonObject& section, int line, const QVector3D& point, const QVector3D& flat, double scale, double flatScale, int atLine)
+{
+    const int generation = m_scene ? m_scene->generation() : -1;
+    QHash<QString, QMenu*> subs;
+    const auto menuAt = [&](const QString& path) {
+        QMenu* at = menu;
+        QString soFar;
+        for (const QString& part : path.split('/', Qt::SkipEmptyParts))
+        {
+            soFar += "/" + part;
+            QMenu*& sub = subs[soFar];
+            if (!sub)
+            {
+                sub = at->addMenu(T(part));
+                sub->setToolTipsVisible(true);
+            }
+            at = sub;
+        }
+        return at;
+    };
+    for (const auto v : section["entries"].toArray())
+    {
+        const auto e = v.toObject();
+        const QString name = e["name"].toString();
+        const QString label = e["label"].toString(name);
+        QMenu* at = menuAt(e["path"].toString());
+        if (e["sep"].toBool() && !at->isEmpty()) at->addSeparator();
+        QAction* action = nullptr;
+        if (e["kind"].toString() == "primitive")
+        {
+            const bool isFlat = e["flat"].toBool();
+            const QVector3D where = isFlat ? flat : point;
+            const double size = isFlat ? flatScale : scale;
+            action = at->addAction(TypeIcons::icon(e["type"].toString("solid")), label, this, [=]{ emit(createRequested("primitive", name, where, size, atLine, -1)); });
+            checkPrimitive(action, name);
+        }
+        else
+        {
+            action = at->addAction(label, this, [=]{ emit(createRequested("operation", name, point, scale, line, generation)); });
+            // (what is selected cannot make it: the library refuses the call for this selection)
+            if (m_scene && !m_scene->entryAllowed("operation", name.section('|', 0, 0), line)) action->setEnabled(false);
+        }
+        if (!e["doc"].toString().isEmpty()) action->setToolTip(e["doc"].toString());
+        if (e["lead"].toBool())
+        {
+            QFont bold = action->font();
+            bold.setBold(true);
+            action->setFont(bold);
+        }
+    }
+}
+
 void View::fillOperations(QMenu* menu, int line, const QVector3D& point, double scale, const QString& onlyGroup)
 {
     QJsonArray ops;
     for (const auto v : m_catalog["operations"].toArray())
     {
         if (v.toObject()["quick"].toBool()) continue;          // (in the first menu: see addQuickOperations)
+        if (!v.toObject()["section"].toString().isEmpty()) continue;      // (in the part of the suite it belongs to: see fillSectionMenu)
         // (the group of the Character section is in that section: the others are in the Operations menu)
         const bool character = v.toObject()["group"].toString() == "Character";
         if (onlyGroup.isEmpty() ? character : v.toObject()["group"].toString() != onlyGroup) continue;
@@ -4367,6 +4423,13 @@ void View::showEmptyMenu(QPoint globalPos, QPoint pos, int atLine)
     auto character = menu->addMenu(TypeIcons::icon("character"), T("Characters"));
     character->setToolTipsVisible(true);
     fillCharacterMenu(character, -1, point, scale, atLine);
+    for (const auto v : m_catalog["sections"].toArray())
+    {
+        const auto part = v.toObject();
+        auto section = menu->addMenu(TypeIcons::icon(part["icon"].toString("shapes")), T(part["name"].toString()));
+        section->setToolTipsVisible(true);
+        fillSectionMenu(section, part, -1, point, flat, scale, flatScale, atLine);
+    }
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
     python->setToolTipsVisible(true);
     fillPythonMenu(python, point, scale, atLine);
@@ -4412,6 +4475,7 @@ void View::addCreateEntries(QMenu* menu, const QVector3D& point, const QVector3D
             const auto p = v.toObject();
             const QString g = p["group"].toString();
             if (g == "Character") continue;                 // (it has a section of its own: see fillCharacterMenu)
+            if (!p["section"].toString().isEmpty()) continue;       // (it is in the part of the suite it belongs to: see fillSectionMenu)
             if (p["primitive"].toBool() != basic) continue;
             if (!groups.contains(g)) order << g;
             groups[g] << p;
@@ -4488,6 +4552,13 @@ void View::showSurfaceMenu(QPoint globalPos, int line, const QVector3D& point, d
     auto character = menu->addMenu(TypeIcons::icon("character"), T("Characters"));
     character->setToolTipsVisible(true);
     fillCharacterMenu(character, line, point, scale, -1);
+    for (const auto v : m_catalog["sections"].toArray())
+    {
+        const auto part = v.toObject();
+        auto section = menu->addMenu(TypeIcons::icon(part["icon"].toString("shapes")), T(part["name"].toString()));
+        section->setToolTipsVisible(true);
+        fillSectionMenu(section, part, line, point, point, scale, scale, -1);
+    }
     auto python = menu->addMenu(TypeIcons::icon("python"), T("Python"));
     python->setToolTipsVisible(true);
     fillPythonMenu(python, point, scale, -1);

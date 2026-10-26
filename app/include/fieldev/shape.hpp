@@ -59,8 +59,6 @@ namespace libfive { class Tape; /*  forward declaration */ }
 
 namespace FielDev {
 
-struct SweepTubeGeom;        // (what the distance to one tube of a sweep needs: see shape.cpp)
-
 
 class Shape : public QObject, QOpenGLFunctions
 {
@@ -231,14 +229,17 @@ public:
         bool pathDefault = false, roundStart = false, roundEnd = false;
     };
     void setSweepBranches(std::vector<SweepBranch> branches) { m_sweep_branches = std::move(branches); }
-    /*  How wide the blend is where a branch leaves the tube it hangs from, as a multiple of the thickness of the branch (an armature's: 1.2).  The junction is drawn, from the numbers of the nodes, as the
-     *  smooth union of the two tubes -- the one the field of the armature has -- so that it follows the nodes while one is dragged.  0: the tubes are drawn as they are  */
+    /*  How wide the blend is where a branch leaves the tube it hangs from, as a multiple of the thickness of the branch (an armature's: 1.2): the width of the smooth union in its field.  Not drawn from the
+     *  numbers: see hasBlendedSweep.  0: the branches are not blended  */
     void setSweepBlend(double k) { m_sweep_blend = k; }
     /*  A node that has just been put down for an armature, drawn before the script has run with it (the run takes a moment): the sweep is drawn with a node more -- the path that ends at `anchor` goes on
      *  to `at`; from anywhere else on the sweep a branch hangs from the node at `anchor` -- `size` thick.  It is gone with the shape: the run that has the node in the script makes another one  */
     void previewSweepNode(const QVector3D& anchor, const QVector3D& at, double size);
     void clearSweepPreview();
     bool hasSweep() const { return !m_sweep_path.empty() && !m_sweep_profile.empty() && !m_sweep_seed; }
+    /*  A sweep with branches that are blended into what they hang from: what it is drawn as from its numbers is only a quick picture to follow a drag by (every piece a tube of its own, the blend is not
+     *  in it); the picture that stays is the mesh of its field, the blend that is exported  */
+    bool hasBlendedSweep() const { return hasSweep() && m_sweep_blend > 1e-9 && !m_sweep_branches.empty(); }
     /*  An armature of ONE node -- a ball -- that carries what its next node would make of it a sweep of: the profile, the node as a path of one, how it is placed.  It is not a sweep (it is drawn from its
      *  field) until a node is previewed on it (previewSweepNode): then the click draws the sweep at once, before the script has run with the node  */
     void setSweepSeed(bool seed) { m_sweep_seed = seed; }
@@ -759,6 +760,7 @@ protected:
         std::vector<Eigen::Vector3f> disp;          // displacements at the vertices
         std::vector<std::vector<Eigen::Vector3f>> outlines;     // the outline of a flat face, the line of a curve
         std::vector<OutlineCurve> curves;                         // the arcs of its round corners and its splines
+        bool smooth = false;                                      // (the mesh is a sweep drawn from its numbers: it is lit smoothly)
     };
 
     void startRender(RenderSettings s);
@@ -807,7 +809,7 @@ protected:
     libfive::Tree m_sweep_scale[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
     bool sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& out) const;
     static std::unique_ptr<libfive::Mesh> sweepMesh(const SweepNumbers& in);
-    static std::unique_ptr<libfive::Mesh> sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed, SweepTubeGeom* geom = nullptr);
+    static std::unique_ptr<libfive::Mesh> sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed);
     struct SweepPreviewNode { QVector3D anchor, at; double size = 1; };
     std::vector<SweepPreviewNode> m_sweepPreview;           // (read by the render thread, changed by the GUI's: m_previewMutex)
     mutable std::mutex m_previewMutex;
@@ -862,6 +864,8 @@ protected:
     bool running=false;
 
     bool gl_ready=false;
+    bool m_smooth_shade=false;          // (the mesh is a sweep drawn from its numbers: lit with a normal for every corner of a triangle, not with the one of its face)
+    bool gl_smooth=false;               // (what the buffers of the graphics card were made for)
     QOpenGLVertexArrayObject vao;
     QOpenGLBuffer vert_vbo;
     QOpenGLBuffer tri_vbo;

@@ -24,6 +24,9 @@ out vec3 base_pos;
 out vec3 frag_pos;
 out vec3 frag_norm;
 out float frag_patch;
+// The normal of a smoothly lit mesh (smooth_normals in the fragment shader), in the space of frag_pos: the vertex's normal carried through the whole projection by the inverse transpose of the Jacobian of the
+// position, so that it holds for a perspective camera too
+out vec3 frag_nrm;
 
 void main()
 {
@@ -42,4 +45,12 @@ void main()
     frag_norm = (norm_pos.xyz / norm_pos.w) - frag_pos;
     frag_norm.z *= -8;
     frag_norm = normalize(frag_norm);
+
+    {
+        float cw = max(gl_Position.w, 1e-6);
+        mat3 A = mat3(M);
+        vec3 wrow = vec3(M[0][3], M[1][3], M[2][3]);
+        mat3 J = (A - outerProduct(frag_pos, wrow)) / cw;
+        frag_nrm = transpose(inverse(J)) * vertex_norm;
+    }
 }

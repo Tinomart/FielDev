@@ -217,7 +217,7 @@ def scatter(make, count, area=None, ground=None, seed=1, min_distance=0.0, max_s
 
 def scatter_prop(props, ground=None, count=20, area=None, seed=1, min_distance=0.0, max_slope=40.0, where=None, scale=(0.85, 1.2), turn=True, sink=0.0, blend=0.0):
     ''' `scatter(...)` of props that are models: `props` is a prop, or a list of props (the variants), each placed many times over `area` or over `ground` (a `terrain(...)`, at its height, only where it
-        is not steeper than `max_slope` degrees), at least `min_distance` apart, turned about z and scaled by a number in `scale`.  The result is one prop.  The menu writes this one (Operations > Props) '''
+        is not steeper than `max_slope` degrees), at least `min_distance` apart, turned about z and scaled by a number in `scale`.  The result is one prop.  The menu writes this one (Environment > Props) '''
     bases = list(props) if isinstance(props, (list, tuple)) else [props]
     if not bases:
         raise ValueError('scatter_prop: give a prop, or a list of props')

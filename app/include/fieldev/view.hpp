@@ -633,6 +633,7 @@ protected:
     /*  The Characters section of the menus: what makes a character -- armatures put down node after node (see startArmaturePlacing), the character that holds
      *  them and its skeleton -- and the pictures to trace them over.  `line` is the model the menu is on (-1: empty space), `atLine` the line of the text editor it was opened on  */
     void fillCharacterMenu(QMenu* menu, int line, const QVector3D& point, double scale, int atLine);
+    void fillSectionMenu(QMenu* menu, const QJsonObject& section, int line, const QVector3D& point, const QVector3D& flat, double scale, double flatScale, int atLine);
     /*  The armature mode's own pieces (see startArmaturePlacing): where a click puts a node, the position of the node the next follows, the click, the cursor, a step back, the drawing  */
     bool armatureCursor(QPoint pos, QVector3D& out) const;
     bool armatureAnchorPosition(QVector3D& p) const;

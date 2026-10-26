@@ -7632,6 +7632,14 @@ void ScenePanel::createPlaced(QString name, QList<QVector3D> points, bool smooth
 void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, double scale, int line0, int generation)
 {
     if (!m_support) return;
+    // A choice that goes with an entry of a part of the menu (`with_materials|gold`: which material; `covered|moss`: what lies on it): the name is the call's, the choice is the library's `option`
+    const QString fullName = name;
+    QString option;
+    if (kind == "operation" && name.contains('|'))
+    {
+        option = name.section('|', 1);
+        name = name.section('|', 0, 0);
+    }
     // (what createPlaced is making: its own points, whatever is selected)
     const QJsonArray placed = m_placed;
     const QJsonObject symdef = m_symdefRequest;
@@ -7666,7 +7674,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
             m_symdefRequest = symdef;
             m_placedSmooth = placedSmooth;
             m_placedSize = placedSize;
-            createFromMenu(kind, name, point, scale,
+            createFromMenu(kind, fullName, point, scale,
                            (operation && !selectedModels().isEmpty()) || (withBodies && !regionOnly && selectedModels().size() >= 2) ? -1 : line0);
         };
         return;
@@ -7768,6 +7776,7 @@ void ScenePanel::createFromMenu(QString kind, QString name, QVector3D point, dou
     QJsonObject request;
     request["kind"] = kind;
     request["name"] = name;
+    if (!option.isEmpty()) request["option"] = option;
     request["x"] = point.x();
     request["y"] = point.y();
     request["z"] = point.z();

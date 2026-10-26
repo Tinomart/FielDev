@@ -216,7 +216,7 @@ def build_level(spaces, openings=(), solids=()):
 
 def join_levels(levels, openings=(), solids=()):
     ''' Levels (rooms and corridors, each made by `build_level`) made one level: their spaces are one space, so that the wall between two rooms that overlap or touch is open, and a corridor
-        opens into the room it ends in.  `openings` and `solids` are added to those the levels already have.  A body.  The menu writes this one (Operations > Level) '''
+        opens into the room it ends in.  `openings` and `solids` are added to those the levels already have.  A body.  The menu writes this one (Environment > Rooms and corridors) '''
     levels = list(levels) if isinstance(levels, (list, tuple)) else [levels]
     spaces, cuts, stands = [], list(openings), list(solids)
     for one in levels:

@@ -53,7 +53,7 @@ def kit(cell=(4.0, 4.0, 3.0), wall=0.3, floor=0.25, door=(1.4, 2.3), window=(1.2
 
 def kit_check(cell=(4.0, 4.0, 3.0), wall=0.3, floor=0.25, door=(1.4, 2.3), window=(1.2, 1.1, 1.0), samples=24):
     ''' `kit(...).check(samples)`: every piece against every piece along x and y where they meet side by side -- a list of what does not meet, empty when the kit is sound.  It is printed too, so that
-        the menu's entry (Game > kit_check) shows it below the editor '''
+        the menu's entry (Environment > Modular kit > Check that the pieces fit) shows it below the editor '''
     problems = kit(cell, wall, floor, door, window).check(samples)
     print('kit_check: every piece meets its neighbours' if not problems else 'kit_check: %d places where pieces do not meet: %s' % (len(problems), problems))
     return problems

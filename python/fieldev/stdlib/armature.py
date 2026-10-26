@@ -222,8 +222,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
         The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
-        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  A branch is blended into the piece it hangs from, over a width as thick as the branch is -- what is exported.  Every chain is drawn from its nodes, ring by ring, and the blend of a junction from the same
-        numbers, so a dragged node bends a branch, and the junction with it, at once '''
+        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  A branch is blended into the piece it hangs from, over a width as thick as the branch is -- what is exported.  While a node is dragged every chain is drawn from the nodes at once, ring by ring, each as a tube of its own (a quick picture to follow the hand by); the mesh that stays once it is let go is the mesh of the
+        field, which has the blend '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more; a list among them is a branch')
     nodes, parents, chains = _node_tree(points)
@@ -345,8 +345,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
                 own = chain[1:]
                 mean = sum(max(C.value_of(Shape.wrap(multipliers[i])), 1e-3) for i in own) / len(own)
                 piece_widths.append(across_ref * mean * _BLEND)
-            # (one field: each branch is blended into what it hangs from, over a width as thick as the branch is -- what is exported.  The viewport draws every chain from its nodes, and the blend of each
-            # junction from the same numbers (`_sweep_blend`: the width of the blend as a multiple of the thickness of the branch): a dragged node bends a branch, and the junction with it, at once)
+            # (one field: each branch is blended into what it hangs from, over a width as thick as the branch is -- what is exported.  While a node is dragged the viewport draws every chain from its nodes at once, each as a tube of its own;
+            # the mesh it shows after is the mesh of this field (`_sweep_blend`, the width of the blend as a multiple of the thickness of the branch, tells the viewport that the sweep has blended branches))
             pieces = placed
             out = placed[0]
             for piece, own in zip(placed[1:], piece_widths[1:]):

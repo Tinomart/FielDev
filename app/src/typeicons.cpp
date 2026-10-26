@@ -51,6 +51,9 @@ QHash<QString, Kind>& kinds()
         {"character",  {"Character",    QColor("#ffcf4a")}},
         {"armature",   {"Armature",     QColor("#7fd1ff")}},
         {"feature",    {"Feature model", QColor("#ff8fc2")}},
+        // (the other parts of the menu: the places of a game, and the materials)
+        {"environment", {"Environment", QColor("#7ccf6b")}},
+        {"materials",  {"Materials",   QColor("#ff9f5a")}},
     };
     return k;
 }
@@ -138,6 +141,28 @@ void drawKind(QPainter& p, const QString& type, const QColor& c)
         p.setPen(Qt::NoPen);
         p.setBrush(c);
         p.drawEllipse(QPointF(8, 8), 2.7, 2.7);
+    }
+    else if (type == "environment")
+    {
+        // hills with a sun over them
+        p.setPen(QPen(c, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(alpha(c, 150));
+        QPolygonF hills({QPointF(1.5, 13.5), QPointF(5.6, 6.2), QPointF(8.4, 10.2), QPointF(10.6, 7.4), QPointF(14.5, 13.5)});
+        p.drawPolygon(hills);
+        p.setPen(Qt::NoPen);
+        p.setBrush(alpha(c, 230));
+        p.drawEllipse(QPointF(11.8, 3.8), 1.8, 1.8);
+    }
+    else if (type == "materials")
+    {
+        // a lit ball
+        QRadialGradient g(QPointF(6.2, 5.8), 8);
+        g.setColorAt(0.0, alpha(c.lighter(170), 255));
+        g.setColorAt(0.6, c);
+        g.setColorAt(1.0, c.darker(150));
+        p.setPen(Qt::NoPen);
+        p.setBrush(g);
+        p.drawEllipse(QPointF(8, 8), 6.4, 6.4);
     }
     else if (type == "points")
     {

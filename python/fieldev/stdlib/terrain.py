@@ -377,7 +377,7 @@ def water(size=(200.0, 200.0), level=0.0, depth=3.0, center=(0.0, 0.0)):
     return with_materials(slab, material_preset('water'))
 
 
-# ---- The edits of a ground as functions of the ground -- what the right-click menu writes (Operations > Terrain): `terrain_raised(ground, ...)` is `ground.raised(...)`.  Every argument has a
+# ---- The edits of a ground as functions of the ground -- what the right-click menu writes (Environment > Terrain): `terrain_raised(ground, ...)` is `ground.raised(...)`.  Every argument has a
 # value that makes something you can see at once, to be changed in the script
 
 def _ground(ground, what):

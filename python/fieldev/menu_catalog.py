@@ -2,7 +2,8 @@
 What the viewport's context menus create: the library's primitives and basic operations.
 
 Right-clicking empty space in the viewport offers Primitives -- New 3D shape / 2D shape / 1D shape / point / surface / field, the most basic of each (BASIC), placed where the
-cursor is -- Parametric shapes (the rest of the shapes the library can make with no argument, by kind) and Operations (the operations); right-clicking a body offers the same, with that body passed in.  The
+cursor is -- Parametric shapes (the rest of the shapes the library can make with no argument, by kind), Operations (the operations, by what kind of thing they do) and the PARTS of the suite, each for one kind
+of work (Characters, Environment, Materials: see `SECTIONS`); right-clicking a body offers the same, with that body passed in.  The
 menus are built from the two lists below, and the call each entry writes into the script comes from its template,
 so this file is the one place that says what the menus offer.
 
@@ -183,7 +184,7 @@ PRIMITIVES = [
     ('crate', 'Game', 'placed(crate({h}), ({x}, {y}, {z}))'),
     ('barrel', 'Game', 'placed(barrel({q}, {h}), ({x}, {y}, {z}))'),
     ('water', 'Game', 'water(size=({s}, {s}), level={z}, depth={t}, center=({x}, {y}))'),
-    # The parts of a level: a corridor is a space like a room (Operations > Level > join_levels makes rooms and corridors one level); a doorway or a window is a cutter (Combining > difference
+    # The parts of a level: a corridor is a space like a room (Environment > Rooms and corridors > Join rooms and corridors into one level); a doorway or a window is a cutter (Combining > difference
     # takes it out of a wall); a pillar, a staircase and a wall are bodies of their own (Combining > union adds them to a level)
     ('corridor', 'Game', 'build_level(corridor([({xm}, {y}, {z}), ({xp}, {y}, {z})]))'),
     ('doorway', 'Game', 'doorway(({x}, {y}, {z}))'),
@@ -359,8 +360,8 @@ OPERATIONS = [
     # The colours a body is shown and exported with (the presets: see material_presets(); a material of your own is `material(...)`)
     ('with_materials', 'Materials', 'with_materials({body}, material_preset("{preset}"))', False),
     # Snow, moss or dust laid on every surface of the body that faces up, as geometry (see fieldev.stdlib.finish)
-    ('covered', 'Materials', 'covered({body}, depth={t}, angle=50)', False),
-    # The ground (Operations > Terrain): each edit of a `terrain(...)` -- a hill, a flat place, a road, a river and its water, a cave, a body added or cut, the colours, the steep places, one square of
+    ('covered', 'Materials', 'covered({body}, depth={t}, angle=50{cover_args})', False),
+    # The ground (Environment > Terrain): each edit of a `terrain(...)` -- a hill, a flat place, a road, a river and its water, a cave, a body added or cut, the colours, the steep places, one square of
     # it -- is offered for a terrain only (fn._on), written with every argument at a value that shows something
     ('terrain_raised', 'Terrain', 'terrain_raised({body})', False),
     ('terrain_flattened', 'Terrain', 'terrain_flattened({body})', False),
@@ -378,11 +379,11 @@ OPERATIONS = [
     ('terrain_walkable_fraction', 'Terrain', 'terrain_walkable_fraction({body})', False),
     ('terrain_height_at', 'Terrain', 'terrain_height_at({body})', False),
     ('terrain_slope_at', 'Terrain', 'terrain_slope_at({body})', False),
-    # Props (Operations > Props): put a prop in its place (its materials go with it), make several one body, strew a prop over a ground
+    # Props (Environment > Props): put a prop in its place (its materials go with it), make several one body, strew a prop over a ground
     ('placed', 'Props', 'placed({body})', False),
     ('merge', 'Props', 'merge([{body}{others}])', 'optional'),
     ('scatter_prop', 'Props', 'scatter_prop([{body}], ...)', 'optional'),
-    # Levels (Operations > Level): rooms and corridors made one level, so that the walls between them are open
+    # Levels (Environment > Rooms and corridors): rooms and corridors made one level, so that the walls between them are open
     ('join_levels', 'Level', 'join_levels([{body}{others}])', 'optional'),
     # The cross-section of an armature, at its first node (made with every armature the menu makes: here for one that was written by hand)
     ('cut_face', 'Character', 'cut_face({body})', False),
@@ -395,6 +396,131 @@ OPERATIONS = [
 # (operations that are in the first menu of a body, not under a group: used all the time)
 QUICK = ('center', 'bounding_box', 'distance_to_point')
 
+
+# ---- The parts of the suite ------------------------------------------------------------------------------------------------------------------------------------------------
+# The right-click menu has a part for each kind of work, as Characters is for the figures: what is made, and what is done to it, in the order the work goes, under the names the work has, each with a
+# tooltip that says what it does.  A part is a list of rows (kind, the library's function, the name the menu shows, the submenus it is in -- 'A/B' --, what it does, flags): `kind` is 'primitive' (made
+# where the menu is) or 'operation' (made for what is selected; its name may carry a choice after a bar: `with_materials|gold`), and `flags` is a string of the words `lead` (the entry that opens the
+# part: bold) and `sep` (a line before it).  The functions of the parts are not in the Primitives, Parametric shapes and Operations menus: each is in the part it belongs to, and there only
+ENVIRONMENT = [
+    ('primitive', 'terrain', tr('New terrain'), '', tr('A piece of ground: a slab whose top is hills made of noise.  Its size, height, roughness and seed are arguments of the call in the script.  What is under Terrain here is done to it'), 'lead'),
+    ('primitive', 'water', tr('New water'), '', tr('A slab of water at a level: the ground shows through wherever it is higher than the water'), ''),
+    ('operation', 'terrain_raised', tr('Raise a hill'), 'Terrain/Shape the ground', tr('A hill of a height and a radius at a place of the ground (a negative height is a pit).  Select a terrain first'), ''),
+    ('operation', 'terrain_flattened', tr('Flatten a place'), 'Terrain/Shape the ground', tr('A level place of a radius at a height, joined to the ground over a blend'), ''),
+    ('operation', 'terrain_road', tr('Lay a road'), 'Terrain/Shape the ground', tr('A flat road along a path of places, so wide, joined to the ground at its sides over a blend'), ''),
+    ('operation', 'terrain_river', tr('Cut a river bed'), 'Terrain/Shape the ground', tr('A channel along a path, so deep and so wide at its bottom, with banks that slope up to the ground'), ''),
+    ('operation', 'terrain_river_water', tr('Fill the river with water'), 'Terrain/Shape the ground', tr('The water of the rivers cut so far, as a body of its own in the water material'), ''),
+    ('operation', 'terrain_cave', tr('Dig a cave'), 'Terrain/Shape the ground', tr('A tunnel of a radius along a path of places, blended into the ground'), ''),
+    ('operation', 'terrain_add', tr('Join a body to the ground'), 'Terrain/Shape the ground', tr('Another body (a cliff, a ruin) joined to the ground with a blend where they meet.  Select the ground first, then the body'), 'sep'),
+    ('operation', 'terrain_cut', tr('Cut a body out of the ground'), 'Terrain/Shape the ground', tr('A body (a pit, the mouth of a tunnel) taken out of the ground with a blend along the cut.  Select the ground first, then the body'), ''),
+    ('operation', 'terrain_textured', tr('Paint grass, rock, sand and snow'), 'Terrain/Colour the ground', tr('The ground in grass, rock (where it is steep), snow (high up) and sand (low down), with the road and the river bed wherever they were made'), ''),
+    ('operation', 'terrain_steep_places', tr('Mark the steep places'), 'Terrain/Colour the ground', tr('The ground in its colours, red wherever it is steeper than an angle: the places a character cannot walk up'), ''),
+    ('operation', 'terrain_height_at', tr('Height at a place'), 'Terrain/Measure the ground', tr('The height of the ground at a place (x, y), a number: it is printed below the editor'), ''),
+    ('operation', 'terrain_slope_at', tr('Slope at a place'), 'Terrain/Measure the ground', tr('The angle of the ground at a place, in degrees: it is printed below the editor'), ''),
+    ('operation', 'terrain_walkable_fraction', tr('Share of the ground you can walk on'), 'Terrain/Measure the ground', tr('How much of the ground, seen from above, is not steeper than an angle (a number from 0 to 1): it is printed below the editor'), ''),
+    ('operation', 'terrain_height_field', tr('Height as a field'), 'Terrain/Measure the ground', tr('The height of the ground as a field of x and y, a model of its own, for your own arithmetic (a material, a mask)'), ''),
+    ('operation', 'terrain_chunk', tr('One square of the ground'), 'Terrain/Cut into squares', tr('One square of the ground, cut from the same field as its neighbours, so the squares meet without a crack'), ''),
+    ('operation', 'terrain_chunks', tr('Every square of the ground'), 'Terrain/Cut into squares', tr('All the squares of the ground as a list of bodies, cut from the one field of the ground'), ''),
+    ('primitive', 'room', tr('New room'), 'Rooms and corridors', tr('The empty box between two corners, with walls, a floor and a ceiling round it: a level that others can be joined to'), ''),
+    ('primitive', 'corridor', tr('New corridor'), 'Rooms and corridors', tr('A corridor along places, so wide and so high inside: put its first and its last place inside the rooms it joins and it opens into them'), ''),
+    ('primitive', 'doorway', tr('Doorway'), 'Rooms and corridors', tr('A cutter for a door, where a wall is to be open: take it out of a wall with Operations > Combining > difference'), ''),
+    ('primitive', 'window_opening', tr('Window opening'), 'Rooms and corridors', tr('A cutter for a window, a sill above the floor: take it out of a wall with Operations > Combining > difference'), ''),
+    ('primitive', 'pillar', tr('Pillar'), 'Rooms and corridors', tr('A pillar standing at a place of the floor, round or square, with a cap if you like: add it to a level with Operations > Combining > union'), ''),
+    ('primitive', 'staircase', tr('Staircase'), 'Rooms and corridors', tr('Solid steps from a start to an end, up or down, sunk into the floor so that no crack is left: add it to a level with Operations > Combining > union'), ''),
+    ('primitive', 'wall_segment', tr('Free-standing wall'), 'Rooms and corridors', tr('A wall of its own (a fence, a ruin, a rampart) along a straight line, with cutters taken out of it'), ''),
+    ('operation', 'join_levels', tr('Join rooms and corridors into one level'), 'Rooms and corridors', tr('Rooms and corridors made one level: their spaces are one space, so the wall between two rooms that touch is open and a corridor opens into the room it ends in.  Select them all'), 'sep'),
+    ('primitive', 'kit', tr('New kit from a plan'), 'Modular kit', tr('A whole kit built from a plan of rows of cells: floors, walls, corners, pillars and stairs from one cell size, each piece of its own'), ''),
+    ('primitive', 'floor_tile', tr('Floor tile'), 'Modular kit', tr('One piece of the kit: a floor tile, one cell wide'), 'sep'),
+    ('primitive', 'ceiling_tile', tr('Ceiling tile'), 'Modular kit', tr('One piece of the kit: a ceiling tile, one cell wide'), ''),
+    ('primitive', 'wall_piece', tr('Wall piece'), 'Modular kit', tr('One piece of the kit: a wall, one cell wide, with a door or a window if you say so'), ''),
+    ('primitive', 'corner_piece', tr('Corner piece'), 'Modular kit', tr('One piece of the kit: the corner where two walls meet'), ''),
+    ('primitive', 'pillar_piece', tr('Pillar piece'), 'Modular kit', tr('One piece of the kit: a pillar'), ''),
+    ('primitive', 'stairs_piece', tr('Stairs piece'), 'Modular kit', tr('One piece of the kit: a flight of stairs'), ''),
+    ('primitive', 'kit_check', tr('Check that the pieces fit'), 'Modular kit', tr('Whether the pieces of a kit meet where they stand side by side: the list of what does not is printed below the editor'), 'sep'),
+    ('primitive', 'rock', tr('Rock'), 'Props', tr('A boulder, flat underneath so that it sits on the ground.  Another seed, another rock'), ''),
+    ('primitive', 'tree', tr('Tree'), 'Props', tr('A tree with a trunk and a crown: round, pine or bush.  The bark and the leaves are two materials'), ''),
+    ('primitive', 'crate', tr('Crate'), 'Props', tr('A wooden crate: a frame of boards with panels sunk into it'), ''),
+    ('primitive', 'barrel', tr('Barrel'), 'Props', tr('A barrel with a bulge and iron hoops'), ''),
+    ('operation', 'placed', tr('Put a prop in its place'), 'Props', tr('The prop scaled, turned about z and moved to a place: its materials go with it'), 'sep'),
+    ('operation', 'merge', tr('Join props into one body'), 'Props', tr('Several props as one body: a material that two of them have is one layer'), ''),
+    ('operation', 'scatter_prop', tr('Scatter a prop over the ground'), 'Props', tr('A prop (or several, as variants) set down many times over an area or over a terrain, only where the ground is not too steep, and joined into one body'), ''),
+]
+
+# What lies on a model when it is covered (Materials > Cover the top with): the name of the material and its colour
+COVERS = {'snow': '#eef3f7', 'moss': '#4f7a34', 'dust': '#b8a98c', 'sand': '#d9c58b'}
+
+# What a material is, for the menu that gives one: the groups of the library's presets, by the look of them (a preset that is in none of them is under `Other`)
+_MATERIAL_GROUPS = [
+    ('Metals', ('gold', 'silver', 'copper', 'brass', 'iron', 'steel', 'aluminium', 'chrome')),
+    ('Plastic, rubber and paint', ('plastic', 'rubber', 'paint', 'ceramic')),
+    ('Wood and stone', ('wood', 'stone', 'concrete', 'brick')),
+    ('Skin, cloth and bone', ('skin', 'leather', 'cloth', 'paper', 'bone')),
+    ('Clear and glowing', ('glass', 'water', 'glow')),
+]
+
+
+def _materials_rows():
+    from fieldev.stdlib.materials import material_presets
+    have = list(material_presets())
+    rows = []
+    placed = set()
+    for title, names in _MATERIAL_GROUPS + [('Other', tuple(n for n in have if not any(n in g for _t, g in _MATERIAL_GROUPS)))]:
+        for n in names:
+            if n in have:
+                placed.add(n)
+                rows.append(('operation', 'with_materials|' + n, tr(n.capitalize()), 'Give a material/' + tr(title),
+                             tr('Shows %s on the model, and the exported file has it: with_materials(model, material_preset("%s")).  The materials card (View > Materials) does the same by drag and drop') % (n, n), ''))
+    for n, color in COVERS.items():
+        rows.append(('operation', 'covered|' + n, tr(n.capitalize()), tr('Cover the top with'),
+                     tr('A layer of %s on every surface of the model that faces up, thickest where it faces straight up and thinning to nothing at a steep angle.  It is geometry, not a picture: it shows in the silhouette, and it is a material of its own in the exported file') % n, ''))
+    return rows
+
+
+def _sections():
+    ''' The parts of the suite for the menus, as data: [{name, icon, entries: [{kind, name, label, path, doc, sep, lead, type}]}] '''
+    kinds = {n: GROUP_KINDS.get(g, 'solid') for n, g, _t in PRIMITIVES}
+    parts = []
+    for title, icon, rows in (('Environment', 'environment', ENVIRONMENT), ('Materials', 'materials', _materials_rows())):
+        entries = []
+        for kind, name, label, path, doc, flags in rows:
+            entry = {'kind': kind, 'name': name, 'label': label, 'path': path, 'doc': doc, 'sep': 'sep' in flags.split(), 'lead': 'lead' in flags.split()}
+            if kind == 'primitive':
+                entry['type'] = kinds.get(name, 'solid')
+            entries.append(entry)
+        parts.append({'name': title, 'icon': icon, 'entries': entries})
+    return parts
+
+
+# Operations: every group once, in the order of the first of its entries; inside Moving and Repeating the entries that go together side by side
+_ORDER_INSIDE = {
+    'Moving': ('move', 'rotate_x', 'rotate_y', 'rotate_z', 'scale_xyz', 'reflect_x', 'reflect_y', 'reflect_z', 'symmetric_x', 'symmetric_y', 'symmetric_z'),
+    'Repeating': ('instance', 'array_x', 'array_xy', 'array_xyz', 'array_polar_z', 'array_polar'),
+}
+
+
+def _ordered_operations():
+    groups = []
+    for _n, g, _t, _o in OPERATIONS:
+        if g not in groups:
+            groups.append(g)
+    out = []
+    for g in groups:
+        rows = [r for r in OPERATIONS if r[1] == g]
+        order = _ORDER_INSIDE.get(g)
+        if order:
+            rows.sort(key=lambda r: order.index(r[0]) if r[0] in order else len(order))
+        out += rows
+    return out
+
+
+def _cover_args(r):
+    ''' What the entry `covered|moss` adds to the call: the name of the cover and its colour '''
+    option = str(r.get('option') or '').strip().lower()
+    if not option:
+        return ''
+    if option not in COVERS:
+        raise ValueError(tr('there is no cover called %s') % option)
+    return ', name="%s", color="%s"' % (option, COVERS[option])
 # The "Python" menu: the most basic features of the language as blocks of plain code, written at the top level of the script, at the insertion point of the model tree (not
 # made into a model: no `name = ...`, no display line).  The code is edited in the code editor; the tree shows the blocks and what is in them.  A body of `pass` is where the
 # code of the block goes.  (name, label, what it is, the code)
@@ -483,11 +609,14 @@ def catalog():
     blocks = _blocks()
     basic = user_primitives.basic(BASIC)             # (what the user chose to show under Primitives: BASIC less what was taken out, and what was put in)
     given = user_primitives.labels()                 # (and the names the user gave the shapes of the library: the menus show those)
+    parts = _sections()
+    where = {(e['kind'], e['name'].split('|')[0]): p['name'] for p in parts for e in p['entries']}          # (the part of the suite a function is in: it is not in the menus that are not that part's)
     return json.dumps({
         'kinds': describe(),
         'primitives': [dict({'name': n, 'group': g, 'type': GROUP_KINDS.get(g, 'solid'), 'with_bodies': n in FROM_SELECTION, 'primitive': n in basic,
                              'from_selection': n in FROM_SELECTION},
                             **({'label': given[n]} if n in given else {}),
+                            **({'section': where[('primitive', n)]} if ('primitive', n) in where else {}),
                             **({'doc': FROM_SELECTION[n][0]} if n in FROM_SELECTION else {}),
                             # (a 2D shape that is written with an x and a y only lies in the plane z = 0: the place it is made at is where the ray under the cursor meets that plane)
                             **({'flat': True} if g == '2D' and '{z}' not in t else {}))
@@ -497,12 +626,14 @@ def catalog():
                          for b in blocks if b['primitive']],
         # (`other`: takes the other selected models; `needs_other`: is not offered without a second model)
         'operations': [dict({'name': n, 'group': g, 'other': bool(o), 'needs_other': o is True, 'quick': n in QUICK},
-                            **({'hint': HINTS[n]} if n in HINTS else {}))
-                       for n, g, _, o in OPERATIONS]
+                            **({'hint': HINTS[n]} if n in HINTS else {}),
+                            **({'section': where[('operation', n)]} if ('operation', n) in where else {}))
+                       for n, g, _, o in _ordered_operations()]
                       + [{'name': b['name'], 'group': 'Custom blocks', 'other': False, 'type': 'block', 'doc': b['doc']}
                          for b in blocks if b['operation']],
         'python': [{'name': n, 'label': l, 'doc': d} for n, l, d, _code in PYTHON],
         'export': [{'name': k, 'group': g, 'label': l, 'doc': d} for k, g, l, d, _code in EXPORTS],
+        'sections': parts,
     })
 
 
@@ -821,7 +952,7 @@ def _default_stroke_template(name, values, r):
 def _material_preset_name(r):
     ''' The preset the Materials entry writes: the one the request names (a swatch of the materials card dropped on a model), else plastic '''
     from fieldev.stdlib.materials import material_presets
-    name = str(r.get('preset') or 'plastic').strip().lower()
+    name = str(r.get('preset') or (r.get('option') if r.get('name') == 'with_materials' else None) or 'plastic').strip().lower()
     if name not in material_presets():
         raise ValueError(tr('there is no material called %s') % name)
     return name
@@ -859,6 +990,7 @@ def _values(r):
             values['f%s%dz' % (key, i)] = _num(z + dz * h)
     values['others'] = ', ' + values['other'] if values['other'] else ''       # (for a call that may have no other model)
     values['preset'] = _material_preset_name(r)
+    values['cover_args'] = _cover_args(r) if name == 'covered' else ''
     values['body_info'] = r.get('body_info')
     return values
 
@@ -946,7 +1078,7 @@ def call(request):
     return head + marker + expression + _images_after(r, head, expression)
 
 
-KEEPS_ITS_TEMPLATE = ('extrude', 'with_materials')
+KEEPS_ITS_TEMPLATE = ('extrude', 'with_materials', 'covered')
 
 # (the shapes of the first groups are made where the user clicks, as big as the view shows: the place and the size are what the click says.
 # Everything else a menu writes is made of models and calls: the numbers in them are for the user to say)

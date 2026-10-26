@@ -15,10 +15,14 @@ uniform vec4 cut_color;
 // triangles between them where the value crosses zero)
 uniform int patch_mode;
 
+// A mesh that is lit smoothly: the normals of its vertices (frag_nrm), on the side the triangle faces, and not the normal of each triangle
+uniform int smooth_normals;
+
 in vec3 frag_norm;
 in vec3 frag_pos;
 in vec4 frag_color;
 in float frag_patch;
+in vec3 frag_nrm;
 
 out vec4 fragColor;
 
@@ -42,6 +46,10 @@ void main() {
         else
         {
             norm = cross(dFdx(frag_pos), dFdy(frag_pos));
+            if (smooth_normals != 0 && dot(frag_nrm, frag_nrm) > 1e-20)
+            {
+                norm = dot(frag_nrm, norm) < 0.0 ? -frag_nrm : frag_nrm;
+            }
         }
         norm.z /= 8;
         // Degenerate (sliver) fragments have no usable derivative normal
