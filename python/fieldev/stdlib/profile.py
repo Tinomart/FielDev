@@ -953,7 +953,7 @@ def _selected_field(profile, pieces, centre2d, grow, group=28, axis=None, reach=
         nodes tens of thousands of terms, which no renderer meshes in a moment.  Here the profile is evaluated ONCE for a group of `group` pieces, at the coordinates (a, b) and the size of the
         piece of the path that the point lies in.  `pieces`: for each (a, b, s0, s1, start, stop) -- the two coordinates of a point in the plane of the profile (fields), the sizes at its two
         ends, and the two planes it lies between (fields, not positive inside).  A point is in the piece whose two planes it lies between.  Between its two planes the coordinates and the size
-        run from the ones of this piece to the ones of the next, so that the section turns and grows smoothly and there is no step at the plane where two pieces meet.  Where no piece of a
+        run from the ones of this piece to the ones of the next -- the coordinates along a smooth step --, so that the section turns and grows smoothly and there is no step, and no crease, at the plane where two pieces meet.  Where no piece of a
         group holds a point the group is positive; past the two ends the planes of the ends are the field.  The groups are the least of each other (`min`), each one limited to the two
         planes it lies between and to a tube of radius `reach` round its part of the path `axis` (`max`: the vertices of the path, one more than the pieces): a renderer that looks at a cell
         far from the sweep must be able to tell that nothing is there from the few terms of the tube, and not look at every plane that crosses the cell '''
@@ -969,8 +969,11 @@ def _selected_field(profile, pieces, centre2d, grow, group=28, axis=None, reach=
             inside = (1.0 - start.compare(0.0).max(0.0)) * (1.0 - stop.compare(0.0).max(0.0))          # (1 between the two planes, 0 elsewhere)
             s = ((-start) / ((-start) + (-stop)).max(1e-6)).max(0.0).min(1.0)                          # (how far along between them: 0 at the first plane, 1 at the second)
             a_to, b_to = (pieces[k + 1][0], pieces[k + 1][1]) if k + 1 < m else (a, b)
-            here_a = a + (a_to - a) * s
-            here_b = b + (b_to - b) * s
+            # (along a smooth step -- 0 and 1 at the two planes, no slope at either --: the coordinates of this piece leave it in the plane of the next, so that the slope of the surface does not jump at the
+            # plane where two pieces meet, which a straight line between them did on a bend: a crease round the body at every piece)
+            weight = s * s * (3.0 - 2.0 * s)
+            here_a = a + (a_to - a) * weight
+            here_b = b + (b_to - b) * weight
             count = inside if count is None else count + inside
             term_a, term_b = inside * here_a, inside * here_b
             a_sum = term_a if a_sum is None else a_sum + term_a

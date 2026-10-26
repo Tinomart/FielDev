@@ -525,6 +525,7 @@ struct Shape::SweepNumbers
     std::vector<Chain> branches;                                            // (the pieces of an armature that hang from a node of the path: see setSweepBranches)
     bool profileDefault = false, pathDefault = false, closed = false, placed = false, free = false, roundStart = false, roundEnd = false, offset = false, across = false;
     double twist = 0;                                                       // (degrees)
+    double blend = 0;                                                       // (see setSweepBlend)
     Eigen::Vector3d about = Eigen::Vector3d::Zero(), move = Eigen::Vector3d::Zero(), rotate = Eigen::Vector3d::Zero(), scale = Eigen::Vector3d::Ones();
 };
 
@@ -571,6 +572,7 @@ bool Shape::sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& 
     out.pathDefault = m_sweep_path_default;
     out.closed = m_sweep_closed;
     out.free = m_sweep_free;
+    out.blend = m_sweep_blend;
     out.roundStart = m_sweep_round_start;
     out.roundEnd = m_sweep_round_end;
     out.offset = m_sweep_offset;
@@ -751,10 +753,38 @@ void inscribedCircle(const std::vector<Eigen::Vector2d>& poly, double& radius, E
 
 }   // namespace
 
+// What the field of a sweep with blended branches is evaluated from, natively (see blendedSweepMesh): for one chain of nodes -- the path, or a branch -- the pieces of its path, thinned the way
+// `path_extrude(..., cheap=True)` of profile.py thins it, each with the planes it lies between and the two coordinates of a point on the plane of the profile, and the round ends.  They are taken from the
+// same frames that sweepChain draws the tubes with, so that the mesh that stays is the mesh of the very formula the field is made of (`_selected_field`), and not another picture of it
+struct SweepFieldChain
+{
+    using Vec = Eigen::Vector3d;
+    struct Piece
+    {
+        Vec from = Vec::Zero(), to = Vec::Zero();       // (the vertices of the path the piece runs between)
+        Vec ra = Vec::Zero(), rb = Vec::Zero();         // (a = ra . (p - from), b = rb . (p - from): where a point is on the plane of the profile, seen along the path)
+        Vec mk = Vec::Zero(), mj = Vec::Zero();         // (the normals of the two planes the piece ends at)
+        double s0 = 1, s1 = 1;                          // (how thick the section is at its two ends)
+        double startOff = 0, stopOff = 0;               // (start(p) = -mk . p + startOff and stop(p) = mj . p + stopOff are not positive between the two planes)
+    };
+    struct Dome
+    {
+        Vec end = Vec::Zero(), axis = Vec::Zero(), nk = Vec::Zero(), bk = Vec::Zero();
+        double size0 = 1, reach = 1;                    // (the size at the end, and how far the dome reaches past the plane of the end)
+    };
+    std::vector<Piece> pieces;
+    std::vector<Dome> domes;
+    std::vector<Eigen::Vector2d> prof;                  // (the outline of the profile, from the middle of its box)
+    double guard = 0;                                   // (how far from the path the sweep can be)
+    double widest = 0;                                  // (how far the outline reaches from the middle of its box)
+    double profileRadius = 0;                           // (the mean distance of the outline from the middle of its box: what an armature measures its blends by)
+    bool sized = false, ok = false;
+};
+
 // The mesh of ONE path of a sweep: the outline of the profile (from the middle of its box) carried along the path, a ring of it at both ends of every piece of the path -- in the frame
 // that piece has (the one the field of `path_extrude` has: carried along without turning about the path, turned by the points' rotations, scaled by their thickness) and cut
 // by the planes that bisect the corners (square at the ends of an open path) -- and the walls between the rings; the profile's face closes an open path's ends
-std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed)
+std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed, SweepFieldChain* field)
 {
     using Vec = Eigen::Vector3d;
     // The profile in the coordinates of its own plane, from the middle of the box of its outline
@@ -858,6 +888,24 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
     // The path
     std::vector<std::pair<int, double>> owners;
     auto V = libfive::pointshapes::polyline(in.path, in.pathDefault, in.closed, 14, &owners);
+    // (the field of a sweep with blended branches is made of a path thinned: every second vertex of the curve, and every vertex a point made -- see `cheap` of path_extrude.  Taken the same way here, so that
+    // what is meshed is that field)
+    if (field && !in.closed)
+    {
+        const int limit = 160, count = int(V.size());
+        const int every = std::max((count + limit - 1) / limit, 2);
+        decltype(V) keptV;
+        std::vector<std::pair<int, double>> keptOwners;
+        for (int j = 0; j < count; ++j)
+            if (j % every == 0 || owners[size_t(j)].second == 0.0 || j == count - 1)
+            {
+                keptV.push_back(V[size_t(j)]);
+                keptOwners.push_back(owners[size_t(j)]);
+            }
+        V = std::move(keptV);
+        owners = std::move(keptOwners);
+    }
+    bool badFrame = false;
     const int n = int(V.size());
     if (n < 2) return nullptr;
     // The sweep starts at the profile: the path says how it travels, not where from.  The first point of the path is the middle of the box of the profile (path_extrude of profile.py
@@ -1044,6 +1092,35 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
         const Vec nk = turned(Uf[size_t(k)], Tk, cs, sn), bk = turned(Wf[size_t(k)], Tk, cs, sn);
         // (which way the profile faces along the path: a profile that the path leaves backwards is swept the other way round)
         const double facing = nk.cross(bk).dot(Tk) >= 0 ? 1.0 : -1.0;
+        if (field)
+        {
+            // (what the field of this piece is made of: its two planes, the coordinates of a point on the plane of the profile, the sizes at its ends -- see `_selected_field` of profile.py)
+            SweepFieldChain::Piece pc;
+            const double det = nk.dot(bk.cross(Tk));
+            if (std::fabs(det) < 1e-9) badFrame = true;
+            else
+            {
+                pc.from = V[size_t(k)];
+                pc.to = V[size_t(j)];
+                pc.ra = bk.cross(Tk) / det;
+                pc.rb = Tk.cross(nk) / det;
+                pc.mk = tangentAt(k);
+                pc.mj = tangentAt(j);
+                if (!closed)
+                {
+                    // (the ends of the sweep of a profile are the profile itself, not cut square across the path)
+                    const Vec flatNormal = nk.cross(bk);
+                    const double sd = flatNormal.dot(Tk) >= 0 ? 1.0 : -1.0;
+                    if (k == 0) pc.mk = flatNormal * sd;
+                    if (k == pieces - 1) pc.mj = flatNormal * sd;
+                }
+                pc.s0 = sizeAt(k);
+                pc.s1 = sizeAt(j);
+                pc.startOff = pc.mk.dot(V[size_t(k)]) - 1e-3;
+                pc.stopOff = -pc.mj.dot(V[size_t(j)]) - 1e-3;
+                field->pieces.push_back(pc);
+            }
+        }
         const uint32_t base = uint32_t(out->verts.size());
         if (k == 0) startRing = base;
         if (k == pieces - 1) endRing = base + uint32_t(E);
@@ -1170,6 +1247,63 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
             dome(endRing, V[size_t(n - 1)], Vec(flat * side), nk, bk, sizeAt(n - 1));
         }
     }
+    if (field)
+    {
+        field->ok = !offsetMode && !closed && !in.free && !badFrame && !field->pieces.empty() && int(field->pieces.size()) == pieces;
+        field->prof.assign(prof.begin(), prof.end());
+        double widest = 0, meanReach = 0;
+        for (const auto& q : prof)
+        {
+            widest = std::max(widest, q.norm());
+            meanReach += q.norm();
+        }
+        meanReach /= double(E);
+        double thickest = 1e-3;
+        for (const double z : vertexSize) thickest = std::max(thickest, z);
+        field->widest = widest;
+        field->guard = widest * 1.3 * thickest + 1e-2;
+        field->sized = false;
+        for (const auto& pc : field->pieces)
+            if (std::fabs(pc.s0 - 1.0) > 1e-9 || std::fabs(pc.s1 - 1.0) > 1e-9) field->sized = true;
+        {
+            // (how big the cross-section is: the mean distance of its outline from the middle of the box of it -- `_profile_radius` of armature.py)
+            Vec lo = outline[0], hi = outline[0];
+            for (const auto& p : outline)
+            {
+                lo = lo.cwiseMin(p);
+                hi = hi.cwiseMax(p);
+            }
+            const Vec mid3 = 0.5 * (lo + hi);
+            double total3 = 0;
+            for (const auto& p : outline) total3 += (p - mid3).norm();
+            field->profileRadius = total3 / double(outline.size());
+        }
+        if (field->ok)
+        {
+            // (the round ends: the cross-section shrinking along a quarter of a circle past the plane of the end, one more term of the field -- see the end of path_extrude)
+            const auto frameAt = [&](int k, Vec& fnk, Vec& fbk) {
+                const int jj = (k + 1) % n;
+                const double ph = 0.5 * (rollAt(k) + rollAt(jj)) + total;
+                const double c1 = std::cos(ph), s1 = std::sin(ph);
+                fnk = turned(Uf[size_t(k)], T[size_t(k)], c1, s1);
+                fbk = turned(Wf[size_t(k)], T[size_t(k)], c1, s1);
+            };
+            for (int atStart = 1; atStart >= 0; --atStart)
+            {
+                if (!(atStart ? in.roundStart : in.roundEnd)) continue;
+                const int k = atStart ? 0 : pieces - 1;
+                SweepFieldChain::Dome d;
+                frameAt(k, d.nk, d.bk);
+                const Vec flatNormal = d.nk.cross(d.bk);
+                const double sd = flatNormal.dot(T[size_t(k)]) >= 0 ? 1.0 : -1.0;
+                d.axis = flatNormal * (atStart ? -sd : sd);
+                d.end = atStart ? V[0] : V[size_t(n - 1)];
+                d.size0 = sizeAt(atStart ? 0 : n - 1);
+                d.reach = std::max(meanReach * d.size0, 1e-6);
+                field->domes.push_back(d);
+            }
+        }
+    }
     if (std::getenv("FIELDEV_SWEEP_DEBUG"))
     {
         double longest = 0;
@@ -1229,6 +1363,493 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
             p = Eigen::Vector3f(float(placed.x()), float(placed.y()), float(placed.z()));
         }
     }
+    return out;
+}
+
+namespace
+{
+
+// The signed distance from (x, y) to the closed outline `poly`, negative inside it: exact, as the field of a profile has it
+double outlineSigned(const std::vector<Eigen::Vector2d>& poly, double x, double y)
+{
+    const size_t n = poly.size();
+    bool inside = false;
+    double best = 1e300;
+    for (size_t i = 0; i < n; ++i)
+    {
+        const Eigen::Vector2d& a = poly[i];
+        const Eigen::Vector2d& b = poly[(i + 1) % n];
+        if ((a.y() > y) != (b.y() > y) && x < a.x() + (y - a.y()) * (b.x() - a.x()) / (b.y() - a.y())) inside = !inside;
+        const double dx = b.x() - a.x(), dy = b.y() - a.y(), l2 = dx * dx + dy * dy;
+        const double t = l2 > 0 ? std::max(0.0, std::min(1.0, ((x - a.x()) * dx + (y - a.y()) * dy) / l2)) : 0.0;
+        const double px = a.x() + t * dx - x, py = a.y() + t * dy - y;
+        best = std::min(best, px * px + py * py);
+    }
+    return inside ? -std::sqrt(best) : std::sqrt(best);
+}
+
+// `smooth_union(a, b, k)` of fields.py
+double smoothUnionOf(double a, double b, double k)
+{
+    if (!(k > 0)) return std::min(a, b);
+    const double h = std::max(k - std::fabs(a - b), 0.0) / k;
+    return std::min(a, b) - h * h * k / 4.0;
+}
+
+// How far `p` is from the path of the pieces first .. last - 1 of a chain
+double axisDistanceOf(const SweepFieldChain& c, size_t first, size_t last, const Eigen::Vector3d& p)
+{
+    double best = 1e300;
+    for (size_t k = first; k < last; ++k)
+    {
+        const SweepFieldChain::Piece& q = c.pieces[k];
+        const Eigen::Vector3d ab = q.to - q.from;
+        const double l2 = ab.squaredNorm();
+        const double t = l2 > 1e-300 ? std::max(0.0, std::min(1.0, (p - q.from).dot(ab) / l2)) : 0.0;
+        best = std::min(best, (p - (q.from + ab * t)).squaredNorm());
+    }
+    return std::sqrt(best);
+}
+
+// The field of one chain of nodes, as `_selected_field` of profile.py and the end of path_extrude make it: the profile is evaluated once for a group of 28 pieces, at the coordinates and the size of the piece
+// the point lies in -- the coordinates run from the ones of this piece to the ones of the next along a smooth step, the size along a line --, limited to the planes the group lies between and to a tube round
+// its part of the path; the groups and the round ends are the least of each other.  `penalty` is the 1000 that is added where no piece of a group holds the point (past the end of the sweep): the meshing
+// leaves it out where it looks for the surface (the sign of the field does not change).  `wholeAxis`: how far the point is from the whole path of the chain
+double chainValue(const SweepFieldChain& c, const Eigen::Vector3d& p, bool penalty, double wholeAxis)
+{
+    const size_t m = c.pieces.size();
+    double best = 1e30;
+    for (size_t g0 = 0; g0 < m; g0 += 28)
+    {
+        const size_t g1 = std::min(g0 + 28, m);
+        const SweepFieldChain::Piece& first = c.pieces[g0];
+        const SweepFieldChain::Piece& last = c.pieces[g1 - 1];
+        const double guard = (g1 - g0 == m ? wholeAxis : axisDistanceOf(c, g0, g1, p)) - c.guard;
+        const double startFirst = -first.mk.dot(p) + first.startOff, stopLast = last.mj.dot(p) + last.stopOff;
+        if (std::max(guard, std::max(startFirst, stopLast)) >= best) continue;
+        int count = 0;
+        double sa = 0, sb = 0, ss = 0;
+        for (size_t k = g0; k < g1; ++k)
+        {
+            const SweepFieldChain::Piece& q = c.pieces[k];
+            const double start = -q.mk.dot(p) + q.startOff, stop = q.mj.dot(p) + q.stopOff;
+            if (start > 0 || stop > 0) continue;
+            ++count;
+            const double along = std::max(std::min(-start / std::max(-start - stop, 1e-6), 1.0), 0.0);
+            const Eigen::Vector3d r = p - q.from;
+            const double a = q.ra.dot(r), b = q.rb.dot(r);
+            double an = a, bn = b;
+            if (k + 1 < m)
+            {
+                const SweepFieldChain::Piece& nx = c.pieces[k + 1];
+                const Eigen::Vector3d rn = p - nx.from;
+                an = nx.ra.dot(rn);
+                bn = nx.rb.dot(rn);
+            }
+            const double weight = along * along * (3.0 - 2.0 * along);          // (a smooth step, as the field has it)
+            sa += a + (an - a) * weight;
+            sb += b + (bn - b) * weight;
+            ss += along * (q.s1 - q.s0) + q.s0;
+        }
+        const double div = std::max(double(count), 1.0);
+        const double size = c.sized ? std::max(ss / div, 1e-3) : 1.0;
+        const double qa = sa / div / size, qb = sb / div / size;
+        // (the outline is no nearer than the distance from its middle less how far it reaches: a group that cannot be the least is left)
+        if (size * (std::hypot(qa, qb) - c.widest) >= best) continue;
+        double f = outlineSigned(c.prof, qa, qb) * size;
+        f = std::max(f, std::max(startFirst, stopLast));
+        if (count == 0 && penalty) f += 1000.0;
+        f = std::max(f, guard);
+        best = std::min(best, f);
+    }
+    for (const SweepFieldChain::Dome& d : c.domes)
+    {
+        const Eigen::Vector3d r = p - d.end;
+        const double along = d.axis.dot(r);
+        const double lower = std::max(-along - 1e-3, along - d.reach);
+        if (lower >= best) continue;
+        const double ratio = along / d.reach;
+        const double size = std::max(std::sqrt(std::max(1.0 - ratio * ratio, 1e-6)) * d.size0, 1e-3);
+        const double f = outlineSigned(c.prof, d.nk.dot(r) / size, d.bk.dot(r) / size) * size;
+        best = std::min(best, std::max(f, lower));
+    }
+    return best;
+}
+
+// The field of the whole armature: the first chain, then each branch blended into what is before it over its own width -- `smooth_union(out, piece, width)`, in the order armature.py makes them
+struct BlendedField
+{
+    std::vector<SweepFieldChain> chains;
+    std::vector<double> width;                  // (width[b]: how wide chain b is blended into what is before it)
+    double value(const Eigen::Vector3d& p, bool penalty) const
+    {
+        double out = chainValue(chains[0], p, penalty, axisDistanceOf(chains[0], 0, chains[0].pieces.size(), p));
+        for (size_t b = 1; b < chains.size(); ++b)
+        {
+            const double axis = axisDistanceOf(chains[b], 0, chains[b].pieces.size(), p);
+            // (where a branch is farther than its blend is wide -- the value of a chain is not below its distance from the path less twice how far the sweep can be from it --, the union is the least of the
+            // two, which is what is there already)
+            if (axis - 2.0 * chains[b].guard >= out + width[b]) continue;
+            out = smoothUnionOf(out, chainValue(chains[b], p, penalty, axis), width[b]);
+        }
+        return out;
+    }
+};
+
+}   // namespace
+
+// The mesh of a sweep with blended branches that stays once it is let go (the last level of the render): the mesh of the field of the armature -- the very formula `path_extrude(..., cheap=True)` and
+// `armature` build it from, `smooth_union` of each branch into what is before it --, made natively and not by the mesher of libfive, which walks the thousands of terms of that field at every point it asks for
+// (a minute for a few nodes).  The field is evaluated on a grid of cells `cell` wide, only where the surface is (a block is left when the field at its middle is farther from zero than the block is wide), a
+// vertex is put in every cell the surface passes through, joined to the vertices of the cells next to it (surface nets) and moved onto the surface along the slope of the cell.  Where an edge of the grid
+// that the surface crosses has a cell next to it that was left, that block is looked at too, so that no hole is left by the test.  nullptr where the field cannot be read from the numbers (a profile of a
+// primitive, an offset section, a turned or scaled sweep): its field is meshed then
+std::unique_ptr<libfive::Mesh> Shape::blendedSweepMesh(const SweepNumbers& in, double cell, const std::atomic<bool>* cancel, std::atomic<double>* progress)
+{
+    using Vec = Eigen::Vector3d;
+    using Tri = Eigen::Matrix<uint32_t, 3, 1>;
+    const auto t0 = std::chrono::steady_clock::now();
+    const bool timing = std::getenv("FIELDEV_TIMING") != nullptr;
+    if (!(cell > 0) || in.branches.empty() || in.closed) return nullptr;
+    // (a sweep that is only moved is carried by the move; a turn or a scale changes the distances of its field: that is left to the field)
+    Vec move = Vec::Zero();
+    if (in.placed)
+    {
+        for (int a = 0; a < 3; ++a)
+            if (std::fabs(in.rotate[a]) > 1e-9 || std::fabs(in.scale[a] - 1.0) > 1e-9) return nullptr;
+        move = in.move;
+    }
+    BlendedField field;
+    field.chains.resize(in.branches.size() + 1);
+    field.width.assign(field.chains.size(), 0.0);
+    Vec shift = Vec::Zero();
+    if (!sweepChain(in, nullptr, &shift, &field.chains[0]) || !field.chains[0].ok) return nullptr;
+    for (size_t b = 0; b < in.branches.size(); ++b)
+    {
+        const SweepNumbers::Chain& branch = in.branches[b];
+        SweepNumbers one = in;
+        one.branches.clear();
+        one.path = branch.path;
+        one.size = branch.size;
+        one.pathDefault = branch.pathDefault;
+        one.closed = false;
+        one.roundStart = branch.roundStart;
+        one.roundEnd = branch.roundEnd;
+        if (!sweepChain(one, &shift, nullptr, &field.chains[b + 1]) || !field.chains[b + 1].ok) return nullptr;
+        double mean = 0;
+        size_t count = 0;
+        for (size_t i = 1; i < branch.size.size(); ++i)
+        {
+            mean += std::max(branch.size[i], 1e-3);
+            ++count;
+        }
+        if (!count) return nullptr;
+        field.width[b + 1] = field.chains[0].profileRadius * (mean / double(count)) * in.blend;
+    }
+
+    // The box the surface can be in
+    Vec lo = Vec::Constant(1e300), hi = Vec::Constant(-1e300);
+    double wmax = 0, reachMax = 0;
+    for (size_t b = 0; b < field.chains.size(); ++b)
+    {
+        wmax = std::max(wmax, field.width[b]);
+        reachMax = std::max(reachMax, field.chains[b].guard);
+        for (const SweepFieldChain::Piece& q : field.chains[b].pieces)
+        {
+            lo = lo.cwiseMin(q.from).cwiseMin(q.to);
+            hi = hi.cwiseMax(q.from).cwiseMax(q.to);
+        }
+    }
+    const double pad = reachMax + 0.25 * wmax + 4.0 * cell;
+    lo = lo - Vec::Constant(pad);
+    hi = hi + Vec::Constant(pad);
+
+    // The grid, and the blocks of it the surface passes through: a block of LEAF cells is a leaf; the field at the middle of a bigger block tells whether it is worth looking into (the field is no more than
+    // about twice as steep as a distance: a block whose middle is farther from zero than twice its half diagonal holds no surface)
+    constexpr int LEAF = 4;
+    struct Leaf { int i, j, k; };
+    // (the field as it is -- except past the end of every chain, where it is 1000 and more, and jumps from about zero at the plane of the end: there the field without that penalty, which runs on from the plane)
+    const auto cullValue = [&](const Vec& c) {
+        const double v = field.value(c, true);
+        return v < 500.0 ? v : field.value(c, false);
+    };
+    std::vector<Leaf> leaves;
+    int N[3] = {0, 0, 0};
+    double h = cell;
+    for (int attempt = 0; attempt < 6; ++attempt)
+    {
+        bool tooMany = false;
+        for (int a = 0; a < 3; ++a)
+        {
+            const double cells = std::ceil((hi[a] - lo[a]) / h);
+            if (!(cells < 2000000.0)) tooMany = true;
+            N[a] = int(std::min(std::max(cells, 1.0), 2000000.0));
+        }
+        leaves.clear();
+        if (!tooMany)
+        {
+            int root = LEAF;
+            while (root < std::max(N[0], std::max(N[1], N[2]))) root *= 2;
+            struct Block { int i, j, k, size; };
+            std::vector<Block> stack;
+            stack.push_back({0, 0, 0, root});
+            while (!stack.empty() && !tooMany)
+            {
+                if (cancel && cancel->load()) return nullptr;
+                const Block bl = stack.back();
+                stack.pop_back();
+                if (bl.i >= N[0] || bl.j >= N[1] || bl.k >= N[2]) continue;
+                const Vec centre = lo + Vec(bl.i + 0.5 * bl.size, bl.j + 0.5 * bl.size, bl.k + 0.5 * bl.size) * h;
+                const double reach = 0.8660254037844386 * bl.size * h;
+                if (std::fabs(cullValue(centre)) > 2.0 * reach + 0.05) continue;
+                if (bl.size <= LEAF)
+                {
+                    leaves.push_back({bl.i, bl.j, bl.k});
+                    if (leaves.size() > 1500000) tooMany = true;
+                    continue;
+                }
+                const int half = bl.size / 2;
+                for (int dz = 1; dz >= 0; --dz)
+                    for (int dy = 1; dy >= 0; --dy)
+                        for (int dx = 1; dx >= 0; --dx) stack.push_back({bl.i + dx * half, bl.j + dy * half, bl.k + dz * half, half});
+            }
+        }
+        if (!tooMany) break;
+        h *= 2.0;            // (more cells than there is room for: coarser, as the mesher of libfive would be told to be)
+    }
+    if (leaves.empty()) return nullptr;
+    const auto t1 = std::chrono::steady_clock::now();
+    if (progress) progress->store(0.1);
+
+    const auto node = [&](int i, int j, int k) { return Vec(lo + Vec(i, j, k) * h); };
+    const auto key = [](int i, int j, int k) { return (uint64_t(i) << 42) | (uint64_t(j) << 21) | uint64_t(k); };
+    const double jump = 8.0 * h + 1e-3;                     // (a step of the field this long is not a slope: it is the edge of a piece, the end of a sweep)
+    // Where the surface crosses the edge between two nodes of different sign: where the line between the values crosses zero, or -- where the field jumps there -- found by halving
+    const auto crossing = [&](const Vec& pa, double fa, const Vec& pb, double fb) -> Vec {
+        if (std::fabs(fb - fa) <= jump) return Vec(pa + (pb - pa) * (fa / (fa - fb)));
+        Vec in0 = fa < 0 ? pa : pb, out0 = fa < 0 ? pb : pa;
+        for (int i = 0; i < 12; ++i)
+        {
+            const Vec mid = 0.5 * (in0 + out0);
+            if (field.value(mid, true) < 0) in0 = mid; else out0 = mid;
+        }
+        return Vec(0.5 * (in0 + out0));
+    };
+    std::atomic<double> steepest{0.0};                     // (the steepest slope of the field seen at the vertices)
+    // A point moved onto the surface along the gradient of the field -- the slope of the cell it is in, read off the values at the corners of it, so that the field is asked for no more than the steps themselves --: a step
+    // is kept only when it brings the field nearer to zero.  Where the cell holds a jump of the field (the end of a sweep) the point stays where the edges put it
+    const auto project = [&](Vec p, const double* cv) -> Vec {
+        for (int a = 0; a < 8; ++a)
+            for (int b = a + 1; b < 8; ++b)
+                if (((a ^ b) == 1 || (a ^ b) == 2 || (a ^ b) == 4) && std::fabs(cv[a] - cv[b]) > jump) return p;
+        const Vec g(((cv[1] - cv[0]) + (cv[3] - cv[2]) + (cv[5] - cv[4]) + (cv[7] - cv[6])) / (4.0 * h),
+                    ((cv[2] - cv[0]) + (cv[3] - cv[1]) + (cv[6] - cv[4]) + (cv[7] - cv[5])) / (4.0 * h),
+                    ((cv[4] - cv[0]) + (cv[5] - cv[1]) + (cv[6] - cv[2]) + (cv[7] - cv[3])) / (4.0 * h));
+        const double gg = g.squaredNorm();
+        if (gg < 1e-12) return p;
+        {
+            const double slope = std::sqrt(gg);
+            double seen = steepest.load();
+            while (slope > seen && !steepest.compare_exchange_weak(seen, slope)) {}
+        }
+        double f = field.value(p, true);
+        for (int it = 0; it < 3 && std::fabs(f) >= 1e-3 * h; ++it)
+        {
+            Vec step = g * (f / gg);
+            const double len = step.norm();
+            if (len > 0.9 * h) step *= 0.9 * h / len;
+            const Vec q = p - step;
+            const double fq = field.value(q, true);
+            if (!(std::fabs(fq) < std::fabs(f))) break;
+            p = q;
+            f = fq;
+        }
+        return p;
+    };
+
+    struct CellVertex { uint64_t key; Vec p; };
+    struct EdgeRec { int i, j, k, axis; bool insideFirst; };
+    static const int cornerEdge[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3}, {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+    // One block of LEAF cells: the field at its nodes, a vertex in each cell the surface passes through, and the edges of the grid the surface crosses
+    const auto processLeaf = [&](const Leaf& lf, std::vector<CellVertex>& cvOut, std::vector<EdgeRec>& edOut) {
+        double v[LEAF + 1][LEAF + 1][LEAF + 1];
+        for (int c = 0; c <= LEAF; ++c)
+            for (int b = 0; b <= LEAF; ++b)
+                for (int a = 0; a <= LEAF; ++a)
+                {
+                    const int gi = lf.i + a, gj = lf.j + b, gk = lf.k + c;
+                    v[a][b][c] = (gi > N[0] || gj > N[1] || gk > N[2]) ? 1e9 : field.value(node(gi, gj, gk), true);
+                }
+        for (int c = 0; c < LEAF; ++c)
+            for (int b = 0; b < LEAF; ++b)
+                for (int a = 0; a < LEAF; ++a)
+                {
+                    const int gi = lf.i + a, gj = lf.j + b, gk = lf.k + c;
+                    if (gi >= N[0] || gj >= N[1] || gk >= N[2]) continue;
+                    double cv[8];
+                    Vec cp[8];
+                    int inside = 0;
+                    for (int q = 0; q < 8; ++q)
+                    {
+                        const int da = q & 1, db = (q >> 1) & 1, dc = (q >> 2) & 1;
+                        cv[q] = v[a + da][b + db][c + dc];
+                        cp[q] = node(gi + da, gj + db, gk + dc);
+                        if (cv[q] < 0) ++inside;
+                    }
+                    if (inside == 0 || inside == 8) continue;
+                    Vec sum = Vec::Zero();
+                    int crossings = 0;
+                    for (const auto& e : cornerEdge)
+                        if ((cv[e[0]] < 0) != (cv[e[1]] < 0))
+                        {
+                            sum += crossing(cp[e[0]], cv[e[0]], cp[e[1]], cv[e[1]]);
+                            ++crossings;
+                        }
+                    cvOut.push_back({key(gi, gj, gk), project(Vec(sum / double(crossings)), cv)});
+                }
+        for (int c = 0; c < LEAF; ++c)
+            for (int b = 0; b < LEAF; ++b)
+                for (int a = 0; a < LEAF; ++a)
+                {
+                    const int gi = lf.i + a, gj = lf.j + b, gk = lf.k + c;
+                    if (gi >= N[0] || gj >= N[1] || gk >= N[2]) continue;
+                    const double v0 = v[a][b][c];
+                    const double next[3] = {v[a + 1][b][c], v[a][b + 1][c], v[a][b][c + 1]};
+                    for (int axis = 0; axis < 3; ++axis)
+                        if ((v0 < 0) != (next[axis] < 0)) edOut.push_back({gi, gj, gk, axis, v0 < 0});
+                }
+    };
+    std::vector<std::vector<CellVertex>> cellVertices;
+    std::vector<std::vector<EdgeRec>> edges;
+    const size_t chunk = 8;
+    std::atomic<size_t> doneChunks{0};
+    const size_t firstChunks = (leaves.size() + chunk - 1) / chunk;
+    // A list of blocks looked at, on as many threads as there are (in chunks, kept in the order they were asked in so that the mesh does not depend on which thread was quicker); false when it was cancelled
+    const auto runLeaves = [&](const std::vector<Leaf>& list) -> bool {
+        const size_t chunks = (list.size() + chunk - 1) / chunk;
+        const size_t base = cellVertices.size();
+        cellVertices.resize(base + chunks);
+        edges.resize(base + chunks);
+        std::atomic<size_t> nextChunk{0};
+        std::atomic<bool> cancelled{false};
+        const auto work = [&]() {
+            for (size_t c; (c = nextChunk.fetch_add(1)) < chunks; )
+            {
+                if (cancel && cancel->load())
+                {
+                    cancelled.store(true);
+                    return;
+                }
+                for (size_t l = c * chunk; l < std::min(list.size(), (c + 1) * chunk); ++l) processLeaf(list[l], cellVertices[base + c], edges[base + c]);
+                const size_t done = doneChunks.fetch_add(1) + 1;
+                if (progress) progress->store(0.1 + 0.85 * std::min(1.0, double(done) / double(std::max<size_t>(1, firstChunks))));
+            }
+        };
+        const unsigned threads = std::max(1u, std::min(8u, std::thread::hardware_concurrency()));
+        std::vector<std::thread> pool;
+        for (unsigned t = 1; t < threads; ++t) pool.emplace_back([&work] { libfive::lowerThreadPriority(); work(); });
+        work();
+        for (auto& th : pool) th.join();
+        return !cancelled.load();
+    };
+    std::unordered_map<uint64_t, char> looked;               // (the blocks that were looked at, by the key of their first cell)
+    for (const Leaf& lf : leaves) looked.emplace(key(lf.i, lf.j, lf.k), 1);
+    if (!runLeaves(leaves)) return nullptr;
+    const auto t2 = std::chrono::steady_clock::now();
+
+    // The vertices, and for every edge of the grid the surface crosses the four cells round it joined into two triangles (along the shorter diagonal), facing out of the inside.  A cell next to such an edge that
+    // has no vertex is one whose block was left by the test: the block is looked at, and so on until no edge has a cell missing
+    auto out = std::make_unique<libfive::Mesh>();
+    std::unordered_map<uint64_t, uint32_t> index;
+    const auto cellsOf = [](const EdgeRec& e, int ci[4][3]) {
+        if (e.axis == 0) { const int t[4][3] = {{e.i, e.j - 1, e.k - 1}, {e.i, e.j, e.k - 1}, {e.i, e.j, e.k}, {e.i, e.j - 1, e.k}}; std::memcpy(ci, t, sizeof(t)); }
+        else if (e.axis == 1) { const int t[4][3] = {{e.i - 1, e.j, e.k - 1}, {e.i, e.j, e.k - 1}, {e.i, e.j, e.k}, {e.i - 1, e.j, e.k}}; std::memcpy(ci, t, sizeof(t)); }
+        else { const int t[4][3] = {{e.i - 1, e.j - 1, e.k}, {e.i, e.j - 1, e.k}, {e.i, e.j, e.k}, {e.i - 1, e.j, e.k}}; std::memcpy(ci, t, sizeof(t)); }
+    };
+    size_t indexed = 0, scanned = 0, extraLeaves = 0;
+    int rounds = 0;
+    for (;;)
+    {
+        for (; indexed < cellVertices.size(); ++indexed)
+            for (const CellVertex& cvx : cellVertices[indexed])
+            {
+                index.emplace(cvx.key, uint32_t(out->verts.size()));
+                out->verts.push_back(Eigen::Vector3f(float(cvx.p.x() + move.x()), float(cvx.p.y() + move.y()), float(cvx.p.z() + move.z())));
+            }
+        std::vector<Leaf> more;
+        for (; scanned < edges.size(); ++scanned)
+            for (const EdgeRec& e : edges[scanned])
+            {
+                int ci[4][3];
+                cellsOf(e, ci);
+                for (int c = 0; c < 4; ++c)
+                {
+                    if (ci[c][0] < 0 || ci[c][1] < 0 || ci[c][2] < 0 || ci[c][0] >= N[0] || ci[c][1] >= N[1] || ci[c][2] >= N[2]) continue;
+                    if (index.count(key(ci[c][0], ci[c][1], ci[c][2]))) continue;
+                    const Leaf lf = {ci[c][0] - ci[c][0] % LEAF, ci[c][1] - ci[c][1] % LEAF, ci[c][2] - ci[c][2] % LEAF};
+                    if (looked.emplace(key(lf.i, lf.j, lf.k), 1).second) more.push_back(lf);
+                }
+            }
+        if (more.empty() || ++rounds > 16) break;
+        extraLeaves += more.size();
+        if (!runLeaves(more)) return nullptr;
+    }
+    for (; scanned < edges.size(); ++scanned) {}
+    for (const auto& list : edges)
+        for (const EdgeRec& e : list)
+        {
+            int ci[4][3];
+            cellsOf(e, ci);
+            uint32_t q[4];
+            bool all = true;
+            for (int c = 0; c < 4 && all; ++c)
+            {
+                if (ci[c][0] < 0 || ci[c][1] < 0 || ci[c][2] < 0) { all = false; break; }
+                const auto it = index.find(key(ci[c][0], ci[c][1], ci[c][2]));
+                if (it == index.end()) all = false; else q[c] = it->second;
+            }
+            if (!all) continue;
+            const Eigen::Vector3f p0 = out->verts[q[0]], p1 = out->verts[q[1]], p2 = out->verts[q[2]], p3 = out->verts[q[3]];
+            Eigen::Vector3f outward = Eigen::Vector3f::Zero();
+            outward[e.axis] = e.insideFirst ? 1.0f : -1.0f;
+            if ((p2 - p0).cross(p3 - p1).dot(outward) < 0) std::swap(q[1], q[3]);
+            const Eigen::Vector3f a0 = out->verts[q[0]], a1 = out->verts[q[1]], a2 = out->verts[q[2]], a3 = out->verts[q[3]];
+            if ((a2 - a0).squaredNorm() <= (a3 - a1).squaredNorm())
+            {
+                out->branes.push_back(Tri(q[0], q[1], q[2]));
+                out->branes.push_back(Tri(q[0], q[2], q[3]));
+            }
+            else
+            {
+                out->branes.push_back(Tri(q[1], q[2], q[3]));
+                out->branes.push_back(Tri(q[1], q[3], q[0]));
+            }
+            (void) p1;
+        }
+    size_t openEdges = 0;
+    if (timing)
+    {
+        // (for checking: a closed surface has every edge in two triangles)
+        std::unordered_map<uint64_t, int> uses;
+        for (const Tri& tri : out->branes)
+            for (int e = 0; e < 3; ++e)
+            {
+                const uint32_t ea = tri[e], eb = tri[(e + 1) % 3];
+                ++uses[(uint64_t(std::min(ea, eb)) << 32) | uint64_t(std::max(ea, eb))];
+            }
+        for (const auto& u : uses)
+            if (u.second != 2) ++openEdges;
+    }
+    if (progress) progress->store(0.97);
+    if (timing)
+    {
+        fprintf(stderr, "[blend] the mesh that stays: %zu chains, cell %g, %zu blocks in %.0f ms (and %zu more where the test had left a cell next to the surface, in %d rounds), the surface in %.0f ms, the mesh in %.0f ms: %zu vertices, %zu triangles\n",
+                field.chains.size(), h, leaves.size(), 1000.0 * std::chrono::duration<double>(t1 - t0).count(), extraLeaves, rounds, 1000.0 * std::chrono::duration<double>(t2 - t1).count(),
+                1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t2).count(), out->verts.size(), out->branes.size());
+        fprintf(stderr, "[blend] the steepest slope of the field at the vertices: %.2f (the block test allows 2, and 0.05 more); %zu edges are not shared by exactly two triangles (0: closed); the widest blend %.3g\n",
+                steepest.load(), openEdges, wmax);
+    }
+    if (out->verts.empty() || out->branes.empty()) return nullptr;
     return out;
 }
 
@@ -3494,7 +4115,57 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
                     m ? "drawn from the numbers of its points" : ready ? "its profile cannot be cut into triangles: its field is meshed" : "its numbers cannot be read: its field is meshed",
                     1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tLevel).count());
     }
-    if (finalFromField && std::getenv("FIELDEV_TIMING"))
+    // The last level of a blended sweep is the mesh of its field, made natively from the formula of that field (blendedSweepMesh); FIELDEV_FIELD_FINAL meshes the field with libfive instead, to compare (it takes a minute)
+    static const bool fieldFinal = std::getenv("FIELDEV_FIELD_FINAL") != nullptr;
+    if (!m && finalFromField && !fieldFinal)
+    {
+        SweepNumbers sn;
+        const auto tNative = std::chrono::steady_clock::now();
+        const bool ready = sweepNow(run_flat_vars, sn);
+        if (ready)
+        {
+            m = blendedSweepMesh(sn, mesh_settings.min_feature, &mesh_settings.cancel, &render_progress);
+            smoothNative = bool(m);
+            if (m && std::getenv("FIELDEV_BLEND_CHECK"))
+            {
+                // (for checking: the mesh against the field it is the mesh of -- the field of libfive read at its vertices, how far from zero it is)
+                ensureField();
+                libfive::ArrayEvaluator check(tree, vars);
+                const size_t batch = LIBFIVE_EVAL_ARRAY_SIZE;
+                double worst = 0, sum = 0;
+                size_t far = 0;
+                std::vector<std::pair<double, size_t>> offenders;
+                for (size_t i = 0; i < m->verts.size(); i += batch)
+                {
+                    const size_t count = std::min(batch, m->verts.size() - i);
+                    for (size_t j = 0; j < count; ++j) check.set(m->verts[i + j], j);
+                    const auto vals = check.values(count);
+                    for (size_t j = 0; j < count; ++j)
+                    {
+                        if (i + j == 0) continue;           // (the first vertex of a mesh is nobody's)
+                        const double a = std::fabs(double(vals[j]));
+                        worst = std::max(worst, a);
+                        sum += a;
+                        if (a > 0.5 * mesh_settings.min_feature)
+                        {
+                            ++far;
+                            offenders.emplace_back(a, i + j);
+                        }
+                    }
+                }
+                fprintf(stderr, "[blend] check against the field of libfive at its %zu vertices: mean |f| %.2g, worst |f| %.2g (a cell is %g wide), %zu vertices farther than half a cell\n", m->verts.size(),
+                        sum / double(std::max<size_t>(1, m->verts.size())), worst, mesh_settings.min_feature, far);
+                std::sort(offenders.begin(), offenders.end(), [](const std::pair<double, size_t>& x, const std::pair<double, size_t>& y) { return x.first > y.first; });
+                for (size_t q = 0; q < std::min<size_t>(10, offenders.size()); ++q)
+                    fprintf(stderr, "[blend]   |f| %.3g at (%.4f, %.4f, %.4f)\n", offenders[q].first, m->verts[offenders[q].second].x(), m->verts[offenders[q].second].y(), m->verts[offenders[q].second].z());
+            }
+        }
+        if (std::getenv("FIELDEV_TIMING"))
+            fprintf(stderr, "[at %lld ms] [sweep] line %d: the last level of a blended sweep: %s (%.0f ms, cell %g)\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), source_line + 1,
+                    m ? "the mesh of its field, made from the formula of the field" : ready ? "its field is meshed" : "its numbers cannot be read: its field is meshed",
+                    1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tNative).count(), mesh_settings.min_feature);
+    }
+    else if (finalFromField && std::getenv("FIELDEV_TIMING"))
         fprintf(stderr, "[at %lld ms] [sweep] line %d: the last level of a blended sweep: its field is meshed\n", (long long)(QDateTime::currentMSecsSinceEpoch() % 100000000), source_line + 1);
     // The render cache: the finished mesh of this very shape may be on disk (a coarser level is not
     // kept: a render is read from it in one step, or meshed level by level).  Not asked of a mesh that is made from the numbers of
@@ -3636,12 +4307,19 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
     }
     else
     {
+        const auto tField0 = std::chrono::steady_clock::now();
         ensureField();                     // (made here when nothing made it yet: a sweep that could not be drawn from its numbers)
+        const auto tField1 = std::chrono::steady_clock::now();
         m = run_step_exact ? exactMeshOf(*run_step_exact, identity, r)
           : exactCurrent() ? exactMeshIn(r)
           : m_flat ? libfive::Mesh::renderFlat(tree, run_flat_vars, mesh_region, run_has_frame ? run_frame : nullptr, mesh_settings,
                                                &flat_outlines)
           : libfive::Mesh::render(es.data(), mesh_region, mesh_settings);
+
+        if (std::getenv("FIELDEV_TIMING"))
+            fprintf(stderr, "[shape] line %d: the field of the shape %.0f ms, its mesh %.0f ms (%zu vertices; cell %g, error %g)\n", source_line + 1,
+                    1000.0 * std::chrono::duration<double>(tField1 - tField0).count(), 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - tField1).count(),
+                    m ? m->verts.size() : size_t(0), mesh_settings.min_feature, mesh_settings.max_err);
     }
     // A flat face is a few big triangles: a colour read at the vertices only would run across them.  Where it is coloured by a field, the
     // triangles are cut (at the middles of their edges) until they are about as small as the cells of the render

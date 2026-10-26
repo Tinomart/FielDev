@@ -60,6 +60,9 @@ namespace libfive { class Tape; /*  forward declaration */ }
 namespace FielDev {
 
 
+struct SweepFieldChain;      // (what the field of a sweep with blended branches is evaluated from: see shape.cpp)
+
+
 class Shape : public QObject, QOpenGLFunctions
 {
     Q_OBJECT
@@ -238,7 +241,7 @@ public:
     void clearSweepPreview();
     bool hasSweep() const { return !m_sweep_path.empty() && !m_sweep_profile.empty() && !m_sweep_seed; }
     /*  A sweep with branches that are blended into what they hang from: what it is drawn as from its numbers is only a quick picture to follow a drag by (every piece a tube of its own, the blend is not
-     *  in it); the picture that stays is the mesh of its field, the blend that is exported  */
+     *  in it); the picture that stays is the mesh of its field, the blend that is exported (made natively from the formula of the field: see blendedSweepMesh)  */
     bool hasBlendedSweep() const { return hasSweep() && m_sweep_blend > 1e-9 && !m_sweep_branches.empty(); }
     /*  An armature of ONE node -- a ball -- that carries what its next node would make of it a sweep of: the profile, the node as a path of one, how it is placed.  It is not a sweep (it is drawn from its
      *  field) until a node is previewed on it (previewSweepNode): then the click draws the sweep at once, before the script has run with the node  */
@@ -809,7 +812,9 @@ protected:
     libfive::Tree m_sweep_scale[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
     bool sweepNow(const std::map<libfive::Tree::Id, float>& v, SweepNumbers& out) const;
     static std::unique_ptr<libfive::Mesh> sweepMesh(const SweepNumbers& in);
-    static std::unique_ptr<libfive::Mesh> sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed);
+    static std::unique_ptr<libfive::Mesh> sweepChain(const SweepNumbers& in, const Eigen::Vector3d* forcedShift, Eigen::Vector3d* shiftUsed, SweepFieldChain* field = nullptr);
+    /*  The mesh that stays of a sweep with blended branches, made natively from the formula of its field (see shape.cpp); nullptr where it cannot be  */
+    static std::unique_ptr<libfive::Mesh> blendedSweepMesh(const SweepNumbers& in, double cell, const std::atomic<bool>* cancel, std::atomic<double>* progress);
     struct SweepPreviewNode { QVector3D anchor, at; double size = 1; };
     std::vector<SweepPreviewNode> m_sweepPreview;           // (read by the render thread, changed by the GUI's: m_previewMutex)
     mutable std::mutex m_previewMutex;
