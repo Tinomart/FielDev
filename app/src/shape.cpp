@@ -1562,6 +1562,10 @@ struct NativeFieldPart
 struct NativeFieldSpec
 {
     std::vector<NativeFieldPart> parts;
+    bool placed = false;                          // (the model as a whole is moved, turned or scaled: a point p of the scene is read at `place * p + shift` of the model)
+    Eigen::Matrix3d place = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d shift = Eigen::Vector3d::Zero();
+    double slope = 1.0;                           // (how much steeper than the field of the model the placed field can be: the greatest stretch of `place`)
     int mirror = -1;                              // (0, 1 or 2: the half past that plane is the mirror image of the half before it -- `symmetric_x` and its kin read the field at |x|)
     std::map<libfive::Tree::Id, float> vars;      // (the numbers the generic parts' fields are read with)
 };
@@ -1634,7 +1638,7 @@ struct NativeField
     }
     double value(const Eigen::Vector3d& pw, bool penalty, Context& ctx) const
     {
-        Eigen::Vector3d p = pw;
+        Eigen::Vector3d p = spec.placed ? Eigen::Vector3d(spec.place * pw + spec.shift) : pw;
         if (spec.mirror >= 0) p[spec.mirror] = std::fabs(p[spec.mirror]);
         double out = partValue(spec.parts[0], p, penalty, ctx);
         for (size_t i = 1; i < spec.parts.size(); ++i)
@@ -1683,6 +1687,32 @@ struct NativeField
         hi = whi;
     }
 };
+
+}   // namespace
+
+namespace
+{
+
+// The map a placement makes of the points of the scene, as a matrix and a shift: `g` are the three coordinates it makes of x, y and z (the placed field is the field of the model read at g(p)).  A move, a turn, a
+// scale and a reflection are affine, so the value at the origin and at a point along each axis give it -- at the numbers the var()s have now.  False where a value is not a number
+bool affineOf(const libfive::Tree* g, const std::map<libfive::Tree::Id, float>& v, Eigen::Matrix3d& a, Eigen::Vector3d& b)
+{
+    const float reach = 64.0f;
+    for (int r = 0; r < 3; ++r)
+    {
+        if (!g[r].is_valid()) return false;
+        libfive::ArrayEvaluator e(g[r], v);
+        e.set(Eigen::Vector3f(0.0f, 0.0f, 0.0f), 0);
+        e.set(Eigen::Vector3f(reach, 0.0f, 0.0f), 1);
+        e.set(Eigen::Vector3f(0.0f, reach, 0.0f), 2);
+        e.set(Eigen::Vector3f(0.0f, 0.0f, reach), 3);
+        const auto values = e.values(4);
+        b[r] = double(values[0]);
+        for (int k = 0; k < 3; ++k) a(r, k) = (double(values[k + 1]) - double(values[0])) / double(reach);
+        if (!std::isfinite(b[r]) || !std::isfinite(a(r, 0)) || !std::isfinite(a(r, 1)) || !std::isfinite(a(r, 2))) return false;
+    }
+    return true;
+}
 
 }   // namespace
 
@@ -1764,6 +1794,31 @@ bool Shape::nativeSpec(const std::map<libfive::Tree::Id, float>& v, NativeFieldS
         spec.mirror = m_group->mirror;
         spec.vars = v;
         int slot = 0;
+        // (a model that is moved, turned or scaled as a whole: each transform made the three coordinates of the point its field is read at -- affine ones --, so four points of each give the matrix and the shift they come
+        // to at the numbers the var()s have now.  The first transform is the innermost one: the placed field is the field of the model read at G1(G2(...(p))))
+        for (const SweepGroup::Step& step : m_group->steps)
+        {
+            Eigen::Matrix3d a;
+            Eigen::Vector3d b;
+            if (!affineOf(step.g, v, a, b))
+            {
+                if (std::getenv("FIELDEV_TIMING")) fprintf(stderr, "[blend] not made natively: a placement could not be read from its numbers\n");
+                return false;
+            }
+            spec.shift = spec.place * b + spec.shift;
+            spec.place = spec.place * a;
+            spec.placed = true;
+        }
+        if (spec.placed)
+        {
+            const Eigen::JacobiSVD<Eigen::Matrix3d> svd(spec.place);
+            spec.slope = svd.singularValues()(0);
+            if (!(spec.slope > 1e-9) || !(svd.singularValues()(2) > 1e-9 * spec.slope))
+            {
+                if (std::getenv("FIELDEV_TIMING")) fprintf(stderr, "[blend] not made natively: a placement that flattens the model\n");
+                return false;
+            }
+        }
         for (const SweepGroup::Part& part : m_group->parts)
         {
             NativeFieldPart p;
@@ -1843,6 +1898,21 @@ std::unique_ptr<libfive::Mesh> meshNativeField(const NativeFieldSpec& spec, doub
         lo[spec.mirror] = -reach;
         hi[spec.mirror] = reach;
     }
+    if (spec.placed)
+    {
+        // (the box is the box of the model: the scene has it where the placement puts it)
+        const Eigen::Matrix3d back = spec.place.inverse();
+        Vec wlo = Vec::Constant(1e300), whi = Vec::Constant(-1e300);
+        for (int corner = 0; corner < 8; ++corner)
+        {
+            const Vec q((corner & 1) ? hi.x() : lo.x(), (corner & 2) ? hi.y() : lo.y(), (corner & 4) ? hi.z() : lo.z());
+            const Vec w = back * (q - spec.shift);
+            wlo = wlo.cwiseMin(w);
+            whi = whi.cwiseMax(w);
+        }
+        lo = wlo;
+        hi = whi;
+    }
     lo = lo - Vec::Constant(4.0 * cell);
     hi = hi + Vec::Constant(4.0 * cell);
     // (what is outside the region of the scene is not meshed, as the mesher of libfive does not: a model that is mostly outside it costs what the part that is inside costs)
@@ -1887,7 +1957,7 @@ std::unique_ptr<libfive::Mesh> meshNativeField(const NativeFieldSpec& spec, doub
                 if (bl.i >= N[0] || bl.j >= N[1] || bl.k >= N[2]) continue;
                 const Vec centre = lo + Vec(bl.i + 0.5 * bl.size, bl.j + 0.5 * bl.size, bl.k + 0.5 * bl.size) * h;
                 const double reach = 0.8660254037844386 * bl.size * h;
-                if (std::fabs(cullValue(centre)) > 2.0 * reach + 0.05) continue;
+                if (std::fabs(cullValue(centre)) > 2.0 * spec.slope * reach + 0.05) continue;
                 if (bl.size <= LEAF)
                 {
                     leaves.push_back({bl.i, bl.j, bl.k});
@@ -1909,7 +1979,7 @@ std::unique_ptr<libfive::Mesh> meshNativeField(const NativeFieldSpec& spec, doub
 
     const auto node = [&](int i, int j, int k) { return Vec(lo + Vec(i, j, k) * h); };
     const auto key = [](int i, int j, int k) { return (uint64_t(i) << 42) | (uint64_t(j) << 21) | uint64_t(k); };
-    const double jump = 8.0 * h + 1e-3;                     // (a step of the field this long is not a slope: it is the edge of a piece, the end of a sweep)
+    const double jump = 8.0 * h * spec.slope + 1e-3;                     // (a step of the field this long is not a slope: it is the edge of a piece, the end of a sweep)
     // Where the surface crosses the edge between two nodes of different sign: where the line between the values crosses zero, or -- where the field jumps there -- found by halving
     const auto crossing = [&](const Vec& pa, double fa, const Vec& pb, double fb, NativeField::Context& ctx) -> Vec {
         if (std::fabs(fb - fa) <= jump) return Vec(pa + (pb - pa) * (fa / (fa - fb)));
@@ -2131,8 +2201,8 @@ std::unique_ptr<libfive::Mesh> meshNativeField(const NativeFieldSpec& spec, doub
         fprintf(stderr, "[blend] the mesh that stays: %zu parts, cell %g, %zu blocks in %.0f ms (and %zu more where the test had left a cell next to the surface, in %d rounds), the surface in %.0f ms, the mesh in %.0f ms: %zu vertices, %zu triangles\n",
                 spec.parts.size(), h, leaves.size(), 1000.0 * std::chrono::duration<double>(t1 - t0).count(), extraLeaves, rounds, 1000.0 * std::chrono::duration<double>(t2 - t1).count(),
                 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t2).count(), out->verts.size(), out->branes.size());
-        fprintf(stderr, "[blend] the steepest slope of the field at the vertices: %.2f (the block test allows 2, and 0.05 more); %zu edges are not shared by exactly two triangles (0: closed); the widest blend %.3g\n",
-                steepest.load(), openEdges, wmax);
+        fprintf(stderr, "[blend] the steepest slope of the field at the vertices: %.2f (the block test allows %.2g, and 0.05 more); %zu edges are not shared by exactly two triangles (0: closed); the widest blend %.3g\n",
+                steepest.load(), 2.0 * spec.slope, openEdges, wmax);
     }
     if (out->verts.empty() || out->branes.empty()) return nullptr;
     return out;

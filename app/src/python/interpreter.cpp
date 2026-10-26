@@ -2038,6 +2038,26 @@ void Interpreter::recordShape(
                     }
                     group->parts.push_back(std::move(p));
                 }
+                // (a model that is moved, turned or scaled as a whole: for each transform the three coordinates it makes of x, y and z -- see fieldev.stdlib.transforms)
+                PyObject* gs = PyObject_GetAttrString(obj, "_group_steps");
+                if (!gs) PyErr_Clear();
+                for (Py_ssize_t i = 0; ok && gs && PyList_Check(gs) && i < PyList_Size(gs); ++i)
+                {
+                    PyObject* item = PyList_GetItem(gs, i);
+                    if (!PyTuple_Check(item) || PyTuple_Size(item) != 3)
+                    {
+                        ok = false;
+                        break;
+                    }
+                    Shape::SweepGroup::Step step;
+                    for (int a = 0; a < 3; ++a)
+                    {
+                        step.g[a] = treeOfShape(PyTuple_GetItem(item, a));
+                        if (!step.g[a].is_valid()) ok = false;
+                    }
+                    group->steps.push_back(std::move(step));
+                }
+                Py_XDECREF(gs);
                 PyObject* gb = PyObject_GetAttrString(obj, "_group_blend");
                 group->branchWidth = gb && PyNumber_Check(gb) ? PyFloat_AsDouble(gb) : -1.0;
                 Py_XDECREF(gb);

@@ -241,6 +241,13 @@ public:
      *  each is blended into the ones before it, the plane of the mirror (see nativeSpec)  */
     struct SweepGroup
     {
+        // A character, or an armature with branches, that is moved, turned or scaled as a whole: one step for each transform, in the order they were made, each as the three coordinates it makes of x, y and z
+        // (the placed model is the model read at that point: see nativeSpec)
+        struct Step
+        {
+            libfive::Tree g[3] = {libfive::Tree::invalid(), libfive::Tree::invalid(), libfive::Tree::invalid()};
+        };
+        std::vector<Step> steps;
         struct Part
         {
             std::shared_ptr<Shape> sweep;                          // (an armature or a sweep: its numbers, read as a sweep of its own)

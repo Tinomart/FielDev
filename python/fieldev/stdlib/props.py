@@ -137,7 +137,7 @@ def placed(prop, position=(0.0, 0.0, 0.0), turn=0.0, scale=1.0):
         return move(out, position)
 
     parts = getattr(prop, '_parts', None)
-    if parts is None:
+    if not isinstance(parts, tuple):            # (a prop's is a tuple; a character's is the list of its armatures)
         return transform(prop)
     body, layers, grow = parts
     moved = []
@@ -155,7 +155,7 @@ def merge(props, blend=0.0):
     by_name = {}
     for p in props:
         parts = getattr(p, '_parts', None)
-        body, own, grow = parts if parts is not None else (p, [], 0.0)
+        body, own, grow = parts if isinstance(parts, tuple) else (p, [], 0.0)
         bodies.append(body)
         for m in own:
             if m.where is None and len(props) > 1:

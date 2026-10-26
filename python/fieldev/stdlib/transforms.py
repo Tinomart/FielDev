@@ -544,25 +544,39 @@ def _lazy_once(fn):
 RAW = {}
 
 
+def _affine_of(axes):
+    ''' The matrix and the shift of an affine map p -> (axes[0](p), axes[1](p), axes[2](p)), worked out from its value at four points (with the numbers the script has for its var()s).  A transform
+        makes the field `shape` composed with its inverse G, so applied to the coordinate fields it hands back G itself '''
+    from fieldev.stdlib.fields import _eval_many
+    probes = [(0.0, 0.0, 0.0), (100.0, 0.0, 0.0), (0.0, 100.0, 0.0), (0.0, 0.0, 100.0)]
+    g = [_eval_many(axis, probes) for axis in axes]
+    b = [g[r][0] for r in range(3)]
+    a = [[(g[r][c + 1] - g[r][0]) / 100.0 for c in range(3)] for r in range(3)]       # G(p) = a p + b
+    return a, b
+
+
+def _inverse3(a):
+    ''' The inverse of a 3x3 matrix (rows); None when it has none '''
+    (m00, m01, m02), (m10, m11, m12), (m20, m21, m22) = a
+    det = m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20)
+    if abs(det) < 1e-12:
+        return None
+    return [[(m11 * m22 - m12 * m21) / det, (m02 * m21 - m01 * m22) / det, (m01 * m12 - m02 * m11) / det],
+            [(m12 * m20 - m10 * m22) / det, (m00 * m22 - m02 * m20) / det, (m02 * m10 - m00 * m12) / det],
+            [(m10 * m21 - m11 * m20) / det, (m01 * m20 - m00 * m21) / det, (m00 * m11 - m01 * m10) / det]]
+
+
 def _placed_display(display, prev, args, kwargs):
     ''' The triangles a tessellated part is drawn from (see importing.tessellate), placed as the transform `prev(shape, *args)`
         -- one of the affine ones: move, rotate, scale, reflect -- places the part.  A transform makes the field `shape`
         composed with its inverse G, so applied to the coordinate fields it hands back G itself, worked out here from
         G at four points (with the numbers the script has for its var()s); the triangles' matrix is then G^-1 after
         the one they had.  Nothing of the triangles is touched: they are the same bytes, placed by a matrix. '''
-    from fieldev.stdlib.fields import _eval_many
     key, verts, tris, m = display
-    probes = [(0.0, 0.0, 0.0), (100.0, 0.0, 0.0), (0.0, 100.0, 0.0), (0.0, 0.0, 100.0)]
-    g = [_eval_many(prev(axis, *args, **kwargs), probes) for axis in (Shape.X(), Shape.Y(), Shape.Z())]
-    b = [g[r][0] for r in range(3)]
-    a = [[(g[r][c + 1] - g[r][0]) / 100.0 for c in range(3)] for r in range(3)]       # G(p) = a p + b
-    (m00, m01, m02), (m10, m11, m12), (m20, m21, m22) = a
-    det = m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20)
-    if abs(det) < 1e-12:
+    a, b = _affine_of([prev(axis, *args, **kwargs) for axis in (Shape.X(), Shape.Y(), Shape.Z())])       # G(p) = a p + b
+    inv = _inverse3(a)
+    if inv is None:
         return None
-    inv = [[(m11 * m22 - m12 * m21) / det, (m02 * m21 - m01 * m22) / det, (m01 * m12 - m02 * m11) / det],
-           [(m12 * m20 - m10 * m22) / det, (m00 * m22 - m02 * m20) / det, (m02 * m10 - m00 * m12) / det],
-           [(m10 * m21 - m11 * m20) / det, (m01 * m20 - m00 * m21) / det, (m00 * m11 - m01 * m10) / det]]
     old = [[m[4 * r + c] for c in range(3)] for r in range(3)]
     shift = [m[4 * r + 3] - b[r] for r in range(3)]
     new = []
@@ -570,6 +584,46 @@ def _placed_display(display, prev, args, kwargs):
         row = [sum(inv[r][k] * old[k][c] for k in range(3)) for c in range(3)]
         new.extend(row + [sum(inv[r][k] * shift[k] for k in range(3))])
     return (key, verts, tris, tuple(new))
+
+
+def _carry_group(out, t, prev, args, kwargs):
+    ''' A character, or an armature with blended branches, that is moved, turned or scaled stays a model that the application meshes natively from the numbers of its nodes (armature.py: `_group_*`): what it
+        is made of goes on to `out`, with the transform itself as the three coordinates it makes of x, y and z (`out` is the field of the model read at that point), which the application works the matrix out of at
+        the numbers the var()s have then.  A shape without that is meshed from its field, which is thousands of terms '''
+    parts = getattr(t, '_group_parts', None)
+    if parts is not None:
+        made = (list(parts), list(getattr(t, '_group_joins', [])), getattr(t, '_group_blend', -1.0), getattr(t, '_group_mirror', ''))
+    elif getattr(t, '_sweep_ppos', None) is not None and getattr(t, '_sweep_branches', None):
+        made = ([t], [0.0], -1.0, '')
+    else:
+        return
+    try:
+        step = tuple(prev(axis, *args, **kwargs) for axis in (Shape.X(), Shape.Y(), Shape.Z()))
+    except Exception:
+        return
+    out._group_parts, out._group_joins, out._group_blend, out._group_mirror = made
+    out._group_steps = list(getattr(t, '_group_steps', [])) + [step]
+    # (the box of the model, where the placement puts it: the corners of the box it had, taken back through the map -- a box that holds it, not its exact extent)
+    box = getattr(t, '_bounds', None)
+    if box and getattr(out, '_bounds', None) is None:
+        try:
+            a, b = _affine_of(step)
+            inv = _inverse3(a)
+            if inv is not None:
+                corners = [(x, y, z) for x in (box[0][0], box[1][0]) for y in (box[0][1], box[1][1]) for z in (box[0][2], box[1][2])]
+                points = [tuple(sum(inv[r][k] * (corner[k] - b[k]) for k in range(3)) for r in range(3)) for corner in corners]
+                out._bounds = (tuple(min(p[r] for p in points) for r in range(3)), tuple(max(p[r] for p in points) for r in range(3)))
+                out._bounds_loose = True
+        except Exception:
+            pass
+    try:
+        from fieldev.kinds import keep_kind
+        keep_kind(out, t)
+        if getattr(t, '_render_hint', None) is not None and getattr(out, '_bounds', None):
+            from fieldev.stdlib.armature import _own_region
+            _own_region(out)
+    except Exception:
+        pass
 
 
 def _exact_follows(name):
@@ -594,6 +648,7 @@ def _exact_follows(name):
             moved = _placed_display(display, prev, args, kwargs)
             if moved is not None:
                 out._display_mesh = moved
+        _carry_group(out, t, prev, args, kwargs)
         return out
     f.__doc__ = prev.__doc__
     f.__name__ = name
