@@ -147,7 +147,7 @@
  "Auto scale": "自動スケール",
  "on": "オン",
  "off": "オフ",
- "auto_scale=True (the default): the region follows the models in the script -- it grows when a model reaches out of it, as you move it or type it out, and shrinks when the models get much smaller -- and every model is meshed at its own resolution, scaled by its size next to the region.\nauto_scale=False: the region is exactly what the script says, nothing outside it is drawn, and every model is meshed at the scene's resolution.  Click to switch.": "auto_scale=True（既定）: 領域はスクリプト内のモデルに追従します。モデルを動かしたり数値で大きくして領域の外にはみ出すと領域が広がり、モデルがずっと小さくなると縮みます。また、各モデルは領域に対するサイズに応じて拡大縮小された独自の解像度でメッシュ化されます。\nauto_scale=False: 領域はスクリプトに書かれたとおりで、その外側は描画されず、すべてのモデルはシーンの解像度でメッシュ化されます。クリックで切り替えます。",
+ "auto_scale=True (the default): the region follows the models in the script -- it grows when a model reaches out of it, as you move it or type it out, and shrinks when the models get much smaller -- and every model is meshed at its own resolution, scaled by its size next to the region (a small model in a big region is drawn finer, up to about 110 samples across it, and never below the scene's resolution).\nauto_scale=False: the region is exactly what the script says, nothing outside it is drawn, and every model is meshed at the scene's resolution.  Click to switch.": "auto_scale=True（既定）: 領域はスクリプト内のモデルに追従します。モデルを動かしたり数値で大きくして領域の外にはみ出すと領域が広がり、モデルがずっと小さくなると縮みます。また、各モデルは領域に対するサイズに応じて拡大縮小された独自の解像度でメッシュ化されます（広い領域にある小さなモデルはより細かく描かれますが、幅あたり約110サンプルまでで、シーンの解像度を下回ることはありません）。\nauto_scale=False: 領域はスクリプトに書かれたとおりで、その外側は描画されず、すべてのモデルはシーンの解像度でメッシュ化されます。クリックで切り替えます。",
  "Resolution": "解像度",
  "Samples per mm: more is a finer picture and a slower one": "1 mm あたりのサンプル数: 多いほど細かく、遅くなります",
  "Quality": "品質",

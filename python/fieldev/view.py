@@ -23,7 +23,8 @@ except ImportError:
     def set_bounds(lo, hi, auto_scale=True):
         ''' The region the viewport meshes: its lower and upper corner (mm).  auto_scale (the default): FielDev rewrites these numbers in the
             script to follow the models -- grown when a model reaches out of the region, shrunk when the models get much smaller -- and
-            meshes every model at the scene's resolution scaled by its size next to the region; False: the region is exactly what is
+            meshes every model at the scene's resolution scaled by its size next to the region (a small model in a big region is drawn
+            finer, up to about 110 samples across it, and never below the scene's resolution); False: the region is exactly what is
             written, and every model is meshed at the scene's resolution '''
         settings['bounds'] = (tuple(lo), tuple(hi))
         settings['auto_scale'] = bool(auto_scale)

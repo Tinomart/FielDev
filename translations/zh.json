@@ -147,7 +147,7 @@
  "Auto scale": "自动缩放",
  "on": "开",
  "off": "关",
- "auto_scale=True (the default): the region follows the models in the script -- it grows when a model reaches out of it, as you move it or type it out, and shrinks when the models get much smaller -- and every model is meshed at its own resolution, scaled by its size next to the region.\nauto_scale=False: the region is exactly what the script says, nothing outside it is drawn, and every model is meshed at the scene's resolution.  Click to switch.": "auto_scale=True（默认）：区域在脚本中跟随模型——当模型超出区域时（无论是移动还是输入数值）区域会扩大，当模型变得小很多时区域会缩小——并且每个模型按其相对区域的大小缩放，以各自的分辨率划分网格。\nauto_scale=False：区域严格按脚本所写，区域之外不绘制任何内容，所有模型都按场景的分辨率划分网格。点击可切换。",
+ "auto_scale=True (the default): the region follows the models in the script -- it grows when a model reaches out of it, as you move it or type it out, and shrinks when the models get much smaller -- and every model is meshed at its own resolution, scaled by its size next to the region (a small model in a big region is drawn finer, up to about 110 samples across it, and never below the scene's resolution).\nauto_scale=False: the region is exactly what the script says, nothing outside it is drawn, and every model is meshed at the scene's resolution.  Click to switch.": "auto_scale=True（默认）：区域在脚本中跟随模型——当模型超出区域时（无论是移动还是输入数值）区域会扩大，当模型变得小很多时区域会缩小——并且每个模型按其相对区域的大小缩放，以各自的分辨率划分网格（大区域中的小模型会画得更精细，但最多约为其宽度上的110个采样，且绝不低于场景的分辨率）。\nauto_scale=False：区域严格按脚本所写，区域之外不绘制任何内容，所有模型都按场景的分辨率划分网格。点击可切换。",
  "Resolution": "分辨率",
  "Samples per mm: more is a finer picture and a slower one": "每毫米采样数：越多图像越精细，也越慢",
  "Quality": "质量",

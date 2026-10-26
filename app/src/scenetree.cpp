@@ -2421,7 +2421,7 @@ void ScenePanel::rebuild()
             auto c = makeRow(row, T("Auto scale") + "   " + (autoOn ? T("on") : T("off")), QIcon(), "setting", QJsonObject(), "setting:auto_scale");
             c->setData(COL_NAME, ROLE_LINE, -1);
             c->setForeground(COL_NAME, autoOn ? QColor(0xee, 0xe8, 0xd5) : kDim);
-            c->setToolTip(COL_NAME, T("auto_scale=True (the default): the region follows the models in the script -- it grows when a model reaches out of it, as you move it or type it out, and shrinks when the models get much smaller -- and every model is meshed at its own resolution, scaled by its size next to the region.\n"
+            c->setToolTip(COL_NAME, T("auto_scale=True (the default): the region follows the models in the script -- it grows when a model reaches out of it, as you move it or type it out, and shrinks when the models get much smaller -- and every model is meshed at its own resolution, scaled by its size next to the region (a small model in a big region is drawn finer, up to about 110 samples across it, and never below the scene's resolution).\n"
                                     "auto_scale=False: the region is exactly what the script says, nothing outside it is drawn, and every model is meshed at the scene's resolution.  Click to switch."));
         }
         const auto res = settings["resolution"].toObject(), qual = settings["quality"].toObject();

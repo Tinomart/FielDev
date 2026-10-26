@@ -91,7 +91,7 @@ They are statements like any other and appear under *Render settings* in the tre
 become much smaller than it -- type `sphere(30)` where there was `sphere(3)`, or drag a model out of the region, and watch the region
 grow. **A model that is moved, stretched or typed out of the region is taken in: the region grows to hold it.**
 `auto_scale` also sets how finely each model is meshed: with it on, every model gets the resolution of the scene scaled by its size next to
-the region (a small part beside a big one has samples enough across it); with it off, every model is meshed at the scene's resolution and
+the region (a small part beside a big one has samples enough across it: up to about 110 across, and never fewer than the scene's own resolution gives); with it off, every model is meshed at the scene's resolution and
 the region is exactly what you wrote.
 For imports,
 `view.set_bounds(*roi(parts))` sets the region to enclose them and

@@ -46,6 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "libfive.h"
 #include "fieldev/shader.hpp"
 #include "fieldev/colormap.hpp"
+#include "fieldev/outline_index.hpp"
 
 #include "libfive/render/brep/free_thread_handler.hpp"
 #include "libfive/render/brep/spawn.hpp"
@@ -777,6 +778,7 @@ struct SweepFieldChain
     std::vector<Piece> pieces;
     std::vector<Dome> domes;
     std::vector<Eigen::Vector2d> prof;                  // (the outline of the profile, from the middle of its box)
+    OutlineIndex outline;                               // (the same outline cut into cells, for the distance to it: see outline_index.hpp)
     double guard = 0;                                   // (how far from the path the sweep can be)
     double widest = 0;                                  // (how far the outline reaches from the middle of its box)
     double profileRadius = 0;                           // (the mean distance of the outline from the middle of its box: what an armature measures its blends by)
@@ -1261,6 +1263,7 @@ std::unique_ptr<libfive::Mesh> Shape::sweepChain(const SweepNumbers& in, const E
     {
         field->ok = !offsetMode && !closed && !badFrame && !field->pieces.empty() && int(field->pieces.size()) == pieces;
         field->prof.assign(prof.begin(), prof.end());
+        field->outline.build(field->prof);
         double widest = 0, meanReach = 0;
         for (const auto& q : prof)
         {
@@ -1388,24 +1391,7 @@ std::unique_ptr<libfive::Mesh> Shape::sweepMesh(const SweepNumbers& in)
 namespace
 {
 
-// The signed distance from (x, y) to the closed outline `poly`, negative inside it: exact, as the field of a profile has it
-double outlineSigned(const std::vector<Eigen::Vector2d>& poly, double x, double y)
-{
-    const size_t n = poly.size();
-    bool inside = false;
-    double best = 1e300;
-    for (size_t i = 0; i < n; ++i)
-    {
-        const Eigen::Vector2d& a = poly[i];
-        const Eigen::Vector2d& b = poly[(i + 1) % n];
-        if ((a.y() > y) != (b.y() > y) && x < a.x() + (y - a.y()) * (b.x() - a.x()) / (b.y() - a.y())) inside = !inside;
-        const double dx = b.x() - a.x(), dy = b.y() - a.y(), l2 = dx * dx + dy * dy;
-        const double t = l2 > 0 ? std::max(0.0, std::min(1.0, ((x - a.x()) * dx + (y - a.y()) * dy) / l2)) : 0.0;
-        const double px = a.x() + t * dx - x, py = a.y() + t * dy - y;
-        best = std::min(best, px * px + py * py);
-    }
-    return inside ? -std::sqrt(best) : std::sqrt(best);
-}
+// (the signed distance to the outline of a profile, exact, is `SweepFieldChain::outline.signedDistance`: see outline_index.hpp)
 
 // `smooth_union(a, b, k)` of fields.py
 double smoothUnionOf(double a, double b, double k)
@@ -1442,7 +1428,7 @@ double domesValue(const SweepFieldChain& c, const Eigen::Vector3d& p, double bes
         if (lower >= best) continue;
         const double ratio = along / d.reach;
         const double size = std::max(std::sqrt(std::max(1.0 - ratio * ratio, 1e-6)) * d.size0, 1e-3);
-        const double f = outlineSigned(c.prof, d.nk.dot(r) / size, d.bk.dot(r) / size) * size;
+        const double f = c.outline.signedDistance(d.nk.dot(r) / size, d.bk.dot(r) / size) * size;
         best = std::min(best, std::max(f, lower));
     }
     return best;
@@ -1493,7 +1479,7 @@ double chainValue(const SweepFieldChain& c, const Eigen::Vector3d& p, bool penal
         const double qa = sa / div / size, qb = sb / div / size;
         // (the outline is no nearer than the distance from its middle less how far it reaches: a group that cannot be the least is left)
         if (size * (std::hypot(qa, qb) - c.widest) >= best) continue;
-        double f = outlineSigned(c.prof, qa, qb) * size;
+        double f = c.outline.signedDistance(qa, qb) * size;
         f = std::max(f, std::max(startFirst, stopLast));
         if (count == 0 && penalty) f += 1000.0;
         f = std::max(f, guard);
@@ -1537,12 +1523,12 @@ double chainValueExact(const SweepFieldChain& c, const Eigen::Vector3d& p)
             const double length = ab.norm();
             const double size = std::max(q.s0 + (q.s1 - q.s0) / (length + 1e-300) * (ab.dot(r) / std::max(length, 1e-300)), 1e-3);
             if (size * (std::hypot(a / size, b / size) - c.widest) >= best) return;
-            f = outlineSigned(c.prof, a / size, b / size) * size;
+            f = c.outline.signedDistance(a / size, b / size) * size;
         }
         else
         {
             if (std::hypot(a, b) - c.widest >= best) return;
-            f = outlineSigned(c.prof, a, b);
+            f = c.outline.signedDistance(a, b);
         }
         best = std::min(best, std::max(f, planes[k]));
     };
@@ -2976,7 +2962,10 @@ double Shape::autoResolution(const Settings& s) const
     const double L = std::max(size.x(), std::max(size.y(), size.z()));
     if (!(R > 0) || !(L > 1e-6)) return s.res;
     double res = s.res * std::sqrt(std::max(1.0, R / L));
-    res = std::min(res, 2000.0 / L);
+    // (the rise stops where the shape is `kAutoAcross` samples across: that is about a hundred thousand vertices, a second or two of the mesher.  Without it a shape of 1.7 mm in a region of 100 was meshed at 310 samples per mm,
+    // 1.4 million vertices and half a minute each -- several at once -- and the fine picture never came, or the memory ran out.  The scene's own resolution is the floor below, and is not capped here: it is what was asked for)
+    constexpr double kAutoAcross = 110.0;
+    res = std::min(res, kAutoAcross / L);
     // (the script's box of a shape whose surface is being pulled is the box it had before: the shape is larger, or smaller, than it says, and the region has grown to hold it -- the box
     // would make it finer at every move.  It is meshed as finely as it was, and the script, which says the box again when the pull is let go, sizes it then)
     if (m_ext_stale && m_geometry_known && m_geometry.res > 0) res = std::min(res, double(m_geometry.res));
