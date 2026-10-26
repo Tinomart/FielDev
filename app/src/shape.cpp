@@ -4133,7 +4133,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
                 libfive::ArrayEvaluator check(tree, vars);
                 const size_t batch = LIBFIVE_EVAL_ARRAY_SIZE;
                 double worst = 0, sum = 0;
-                size_t far = 0;
+                size_t distant = 0;
                 std::vector<std::pair<double, size_t>> offenders;
                 for (size_t i = 0; i < m->verts.size(); i += batch)
                 {
@@ -4148,13 +4148,13 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
                         sum += a;
                         if (a > 0.5 * mesh_settings.min_feature)
                         {
-                            ++far;
+                            ++distant;
                             offenders.emplace_back(a, i + j);
                         }
                     }
                 }
                 fprintf(stderr, "[blend] check against the field of libfive at its %zu vertices: mean |f| %.2g, worst |f| %.2g (a cell is %g wide), %zu vertices farther than half a cell\n", m->verts.size(),
-                        sum / double(std::max<size_t>(1, m->verts.size())), worst, mesh_settings.min_feature, far);
+                        sum / double(std::max<size_t>(1, m->verts.size())), worst, mesh_settings.min_feature, distant);
                 std::sort(offenders.begin(), offenders.end(), [](const std::pair<double, size_t>& x, const std::pair<double, size_t>& y) { return x.first > y.first; });
                 for (size_t q = 0; q < std::min<size_t>(10, offenders.size()); ++q)
                     fprintf(stderr, "[blend]   |f| %.3g at (%.4f, %.4f, %.4f)\n", offenders[q].first, m->verts[offenders[q].second].x(), m->verts[offenders[q].second].y(), m->verts[offenders[q].second].z());
