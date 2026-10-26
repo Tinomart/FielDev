@@ -58,7 +58,7 @@ class Armature:
         node in.  `parents` says which node each hangs from (-1: the first), `chains` the nodes of every piece that is swept in one go: the chain from the first node, then each branch, a branch
         beginning with the node it hangs from '''
 
-    def __init__(self, name, ctrls, joints, parent, sizes, profile=None, start=None, multipliers=None, parents=None, chains=None, pieces=None, widths=None):
+    def __init__(self, name, ctrls, joints, parent, sizes, profile=None, start=None, multipliers=None, parents=None, chains=None, pieces=None, widths=None, starts=None):
         self.name = name
         self.ctrls = ctrls
         self.joints = joints
@@ -71,6 +71,7 @@ class Armature:
         self.chains = chains if chains is not None else [list(range(len(ctrls)))]
         self.pieces = pieces            # (the shape of each chain, where there are branches: `character` joins them with a blend as wide as each branch is thick -- `widths`)
         self.widths = widths
+        self.starts = starts            # (for each piece: how far a point is past the plane the piece starts at -- the blend of a branch begins there)
 
     def __repr__(self):
         return 'armature(%r, %d nodes)' % (self.name, len(self.ctrls))
@@ -135,6 +136,16 @@ def _placed_natively(placed, sweep, move):
 _BLEND = 1.2
 
 
+def _blend_from(width, ahead):
+    ''' A blend `width` wide that begins at the plane a branch starts at and grows to its full width along a smooth step over that width.  `ahead` is how far a point is past that plane (None: no plane,
+        the blend is `width` everywhere).  Behind the plane nothing is blended -- what lies there is the union of the two as they are --, so that nothing a branch has behind its start is thickened by
+        the blend, and the blend adds material only where the branch leaves.  The application's mesher does the same (shape.cpp, NativeField::partValue) '''
+    if ahead is None or not width > 0:
+        return width
+    s = (ahead * (1.0 / width)).max(0.0).min(1.0)
+    return (s * s * (3.0 - 2.0 * s)) * width
+
+
 
 def _thickness(one):
     ''' How thick an armature is, as a number: the size of its cross-section times the mean size of its nodes (a ball: its radius); None for what is not an armature (a feature model) '''
@@ -153,9 +164,10 @@ def _whole(one, width=None):
     pieces = getattr(info, 'pieces', None)
     if not pieces or len(pieces) < 2:
         return one
+    starts = getattr(info, 'starts', None) or [None] * len(pieces)
     out = pieces[0]
-    for piece, own in zip(pieces[1:], info.widths[1:]):
-        out = F.smooth_union(out, piece, own if width is None else width)
+    for piece, own, ahead in zip(pieces[1:], info.widths[1:], starts[1:]):
+        out = F.smooth_union(out, piece, _blend_from(own if width is None else width, ahead))
     return out
 
 
@@ -222,7 +234,7 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
         The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
-        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  A branch is blended into the piece it hangs from, over a width as thick as the branch is -- what is exported.  While a node is dragged every chain is drawn from the nodes at once, ring by ring, each as a tube of its own (a quick picture to follow the hand by); the mesh that stays once it is let go is the mesh of the
+        last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins flat, cut square at the node it hangs from: nothing of it lies behind that plane, so nothing sticks out of the far side of what it hangs from.  A branch is blended into the piece it hangs from, over a width as thick as the branch is that grows from nothing at the plane its start is cut by, so that the blend adds material only where the branch leaves -- what is exported.  While a node is dragged every chain is drawn from the nodes at once, ring by ring, each as a tube of its own (a quick picture to follow the hand by); the mesh that stays once it is let go is the mesh of the
         field, which has the blend '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more; a list among them is a branch')
@@ -264,7 +276,7 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         number = _profile_radius(profile)
         thickness = [number * m for m in multipliers]
     base, start = None, None
-    pieces, piece_widths = None, None
+    pieces, piece_widths, aheads = None, None, None
     if n == 1:
         base = profile
         out = round_cone(ctrls[0].expr, ctrls[0].expr, thickness[0], thickness[0])
@@ -305,13 +317,13 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         base = profile if profile is not None else _base_profile(number)
         # (every chain of nodes that has two or more is swept from its first node: the main chain, and each branch from the node it hangs from.  The cross-section is the same for all of them)
         swept = [chain for chain in chains if len(chain) > 1]
-        sweeps, placed, ways = [], [], []
+        sweeps, placed, ways, aheads = [], [], [], []
         across_ref = _profile_radius(base)
         for chain in swept:
             way = C.spline([nodes[i] for i in chain])
             # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
-            # circle -- in the field and for the viewport by the same law.  A branch begins round: its start is inside the node it hangs from)
-            rounds = (ctrls[0].flag != 0 if chain is chains[0] else True, ctrls[chain[-1]].flag != 0)
+            # circle -- in the field and for the viewport by the same law.  A branch begins flat, cut square at the node it hangs from: a dome there would stick out of the far side of what it hangs from)
+            rounds = (ctrls[0].flag != 0 if chain is chains[0] else False, ctrls[chain[-1]].flag != 0)
             # (the field of a sweep of an armature with branches is the small one -- see `cheap` of path_extrude --, for what is made of it; every chain is drawn natively from its nodes, branches too)
             sweep = path_extrude(base, way, twist, ends=rounds, across=True, sizes=[multipliers[i] for i in chain], cheap=len(swept) > 1)
             moved = sweep
@@ -331,6 +343,10 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
                         item._weld_shift = None
                     except AttributeError:
                         pass
+            ahead = getattr(sweep, '_start_ahead', None)
+            if ahead is not None and moved is not sweep:
+                ahead = transforms.move(ahead, back)             # (the plane goes where the sweep goes)
+            aheads.append(ahead)
             sweeps.append(sweep)
             placed.append(moved)
             ways.append(way)
@@ -349,8 +365,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
             # the mesh it shows after is the mesh of this field (`_sweep_blend`, the width of the blend as a multiple of the thickness of the branch, tells the viewport that the sweep has blended branches))
             pieces = placed
             out = placed[0]
-            for piece, own in zip(placed[1:], piece_widths[1:]):
-                out = F.smooth_union(out, piece, own)
+            for piece, own, ahead in zip(placed[1:], piece_widths[1:], aheads[1:]):
+                out = F.smooth_union(out, piece, _blend_from(own, ahead))
             if _carry_native(out, placed[0]):
                 out._sweep_branches = list(sweeps[1:])
                 out._sweep_blend = _BLEND
@@ -386,7 +402,7 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         if hint is not None:
             out._render_hint = hint
     out._group_pos = [ctl.expr for ctl in ctrls]        # (the points it is made of: the viewport shares their gizmos when the armature is selected as a whole, as it does for a profile's)
-    out._armature = Armature(label, ctrls, list(joints), None if parent is None else str(parent), thickness, base, start, multipliers, parents, chains, pieces, piece_widths)
+    out._armature = Armature(label, ctrls, list(joints), None if parent is None else str(parent), thickness, base, start, multipliers, parents, chains, pieces, piece_widths, aheads if pieces is not None else None)
     out._kind = 'solid'                     # (an armature is a body: said here, so that nothing probes the field of a sweep -- thousands of terms -- to find it out)
     out._no_gizmo = True                    # (no gizmo() line with numbers of its own: its nodes have them, and the viewport shares them -- View::groupGizmo -- to move, turn and scale the armature)
     out._outline_gizmo = True               # (the model tree's gizmo button gives it a line without numbers, `x = gizmo(x, mode=...)`: when that shared gizmo is shown, off until said; the armature itself is returned)

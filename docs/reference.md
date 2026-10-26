@@ -875,7 +875,7 @@ resolution  samples per mm (the scene's resolution by default, limited to 2 mill
 
 A field is not a mesh: this is the sampling of it that other programs work with, at the resolution asked for.  Returns the path.
 
-### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None, pivot=None, normals=None, textures=None, uv_layout=None, max_influences=4)`
+### `export_mesh(part, path, bounds=None, resolution=None, name=None, ascii=False, units=None, up=None, max_triangles=None, symmetric=None, materials=None, colors=None, uvs=None, skeleton=None, skin_falloff=None, pivot=None, normals=None, textures=None, uv_layout=None, max_influences=4, model_unit=None)`
 
 Writes the surface of a body as a triangle mesh file, in the format of the file's extension:
 
@@ -911,6 +911,9 @@ skin_falloff  how far, in mm, a bone can be behind the nearest one and still mov
 max_influences  the most joints that move a vertex: 4 (what the engines run), up to 8
 pivot       where the origin of the file is: "origin" (default: as modelled), "base" (the middle of the bottom of the model: a character stands on the ground, its feet
             at 0), "center" (the middle of its box), or a place (x, y, z) of the model.  The skeleton moves with it
+
+model_unit  what one number of the model is: "mm" (default: the numbers are millimetres), "cm", "m" or "in".  A level modelled in metres is exported with `model_unit="m"`: a
+            wall 4 long is 4 metres in a glTF and 4000 millimetres in a file that has no unit (with `units="m"` it is 4 there).  Not for a skeleton
 
 Millimetres and Z up in every format that has no unit or axis (see units, up); the ones that state their unit (3MF, FBX, DXF) say millimetres
 (a glTF is in metres, Y up, as glTF is), and units= or up= for them are an error.  Returns the path.
@@ -1432,7 +1435,7 @@ A 2D shape pulled into a solid: the part of space between the distances `a` and 
 z = 0 for the shapes that lie there -- a circle, a rectangle -- so that is zmin and zmax; the plane of a profile is the plane of its points,
 and the normal is the direction u x v of that plane).  `extrude(circle(5), 0, 10)` is a cylinder 10 tall
 
-### `path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None)`
+### `path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, cheap=False)`
 
 A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
 along `path`, turning with it, without twisting about it unless the points of the curve say so.
@@ -1462,6 +1465,9 @@ sizes    how big the section is at each point of the path: one number (or var())
          not the scale of the point, which is how strongly the curve leaves it (the influence of the point: its gizmo, a point of the path that is selected)
 across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
          in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle
+cheap    True: the field is made of far fewer terms.  The profile is evaluated ONCE, at the coordinates and the size of the piece of the path that the point lies in -- they run smoothly
+         from one piece to the next, so there is no step where two pieces meet -- and not once for every piece, so that the sweep can be meshed in a moment and blended with other
+         sweeps (an armature with branches).  It is not drawn natively from the numbers of its points: it is meshed from its field
 
 ### `profile(source, smooth=False, radius=0, sizing=None)`
 
@@ -1551,7 +1557,8 @@ A character joins its armatures with a blend as wide as each one is thick (`blen
 the size of the character; `blend=3` is 3 mm everywhere.
 
 A BRANCH is a list among the nodes: `armature([hip, knee, ankle, [toe_a, toe_b], heel_end])` -- it hangs from the node before it (the ankle), is swept from there with the same cross-section and the same
-sizes and joints lists.  It is part of the armature -- one profile, one cross-section, one skeleton -- and `character` joins it with a blend as wide as it is thick.
+sizes and joints lists.  It is part of the armature -- one profile, one cross-section, one skeleton, and ONE field: the field of the whole armature blends the branch into the piece it hangs from,
+over a width as thick as the branch is (a branch is not a second tube united with the first afterwards).
 
 The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it (the first
 node of a branch: from the node it branches from).  An armature
@@ -1592,8 +1599,8 @@ The cross-section says how the size of a node sizes it: `sizing=` of the 2D shap
 nothing and for the cross-section the armature makes for itself (see `with_sizing`)
 
 The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
-last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  The armature
-is one body: a branch begins round, inside the node it hangs from, and is blended into the piece it hangs from -- a smooth union (`smooth_union`) as wide as the branch is thick: one surface, in the field, and so in the mesh that is shown once a node is let go and in the one that is exported; while a node is dragged every chain is drawn from its nodes at once, each as a tube of its own.  `character` joins separate armatures, and the branches of one, with a smooth blend
+last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins flat, cut square at the node it hangs from: nothing of it lies behind that plane, so nothing sticks out of the far side of what it hangs from.  A branch is blended into the piece it hangs from, over a width as thick as the branch is that grows from nothing at the plane its start is cut by, so that the blend adds material only where the branch leaves -- what is exported.  While a node is dragged every chain is drawn from the nodes at once, ring by ring, each as a tube of its own (a quick picture to follow the hand by); the mesh that stays once it is let go is the mesh of the
+field, which has the blend
 
 ### `character(armatures, blend='auto', symmetric=None)`
 

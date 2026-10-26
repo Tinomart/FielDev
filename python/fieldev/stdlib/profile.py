@@ -815,6 +815,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
     hi = [-1e300] * 3
     best = None
     chosen = []                 # (cheap: what each piece says -- see _selected_field)
+    first_start = None
     for k in range(pieces):
         j = (k + 1) % n
         phi = (roll_at(k) + roll_at(j)) * 0.5 + total
@@ -856,6 +857,8 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
                 mj = C.mul(flat, side)
         start = _linear(C.mul(mk, -1.0), C.dot(mk, V[k]) - 1e-3)
         stop = _linear(mj, -C.dot(mj, V[j]) - 1e-3)
+        if k == 0:
+            first_start = start
         if cheap:
             chosen.append((a, b, s0, s1, start, stop))
         else:
@@ -908,6 +911,8 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
                 lo[axis_i] = min(lo[axis_i], end_at[axis_i] + axis[axis_i] * reach)
                 hi[axis_i] = max(hi[axis_i], end_at[axis_i] + axis[axis_i] * reach)
     out = Shape(lib.libfive_tree_copy(best.ptr))
+    if first_start is not None and not closed:
+        out._start_ahead = -first_start          # (how far a point is past the plane the sweep starts at: where the blend of a branch begins -- see armature)
     out._sweep_inner = float(inner)         # (the radius of the widest circle the section holds: what the ring of a node is measured by when the sweep is offset)
     if box_ring:
         # (the box of the rings: one that holds the sweep, not its exact extent)

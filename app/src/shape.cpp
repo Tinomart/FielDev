@@ -1632,7 +1632,12 @@ struct NativeField
             // (where a branch is farther than its blend is wide -- the value of a chain is not below its distance from the path less twice how far the sweep can be from it --, the union is the least of the
             // two, which is what is there already)
             if (axis - 2.0 * part.chains[b].guard >= out + part.width[b]) continue;
-            out = smoothUnionOf(out, chainValueOf(part.chains[b], p, penalty, axis), part.width[b]);
+            // (the blend of a branch begins at the plane its start is cut by and grows to its full width along a smooth step over that width: nothing behind the plane is blended, so nothing the branch has there
+            // is thickened -- the law of `_blend_from` in armature.py)
+            const SweepFieldChain::Piece& root = part.chains[b].pieces[0];
+            const double blend = part.width[b];
+            const double along = blend > 0 ? std::min(std::max((root.mk.dot(p) - root.startOff) / blend, 0.0), 1.0) : 0.0;
+            out = smoothUnionOf(out, chainValueOf(part.chains[b], p, penalty, axis), blend * along * along * (3.0 - 2.0 * along));
         }
         return out;
     }
