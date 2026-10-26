@@ -25,7 +25,8 @@ A character joins its armatures with a blend as wide as each one is thick (`blen
 the size of the character; `blend=3` is 3 mm everywhere.
 
 A BRANCH is a list among the nodes: `armature([hip, knee, ankle, [toe_a, toe_b], heel_end])` -- it hangs from the node before it (the ankle), is swept from there with the same cross-section and the same
-sizes and joints lists.  It is part of the armature -- one profile, one cross-section, one skeleton -- and `character` joins it with a blend as wide as it is thick.
+sizes and joints lists.  It is part of the armature -- one profile, one cross-section, one skeleton, and ONE field: the field of the whole armature blends the branch into the piece it hangs from,
+over a width as thick as the branch is (a branch is not a second tube united with the first afterwards).
 
 The nodes of an armature are the joints of the skeleton: `skeleton_of` makes a joint for each, named by `joints=` (or `<name>_0`, `<name>_1` ...), each hanging from the one before it (the first
 node of a branch: from the node it branches from).  An armature
@@ -221,7 +222,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
 
         The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
         last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  The armature
-        is the union of its pieces -- what the viewport draws -- and `character` joins them with a blend as wide as each branch is thick, as it joins armatures '''
+        is ONE field: a branch is blended into the piece it hangs from, over a width as thick as the branch is -- what the viewport meshes and what is exported.  An armature with no branch is
+        drawn from its nodes, ring by ring, as before '''
     if not isinstance(points, (list, tuple)) or not points:
         raise TypeError('armature(points): a list of nodes (points or tuples of numbers), one or more; a list among them is a branch')
     nodes, parents, chains = _node_tree(points)
@@ -309,7 +311,8 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
             # (the ends: a dome at a node that is a spline point, the flat face of the cross-section at a corner.  path_extrude makes the dome -- the cross-section itself shrinking along a quarter of a
             # circle -- in the field and for the viewport by the same law.  A branch begins round: its start is inside the node it hangs from)
             rounds = (ctrls[0].flag != 0 if chain is chains[0] else True, ctrls[chain[-1]].flag != 0)
-            sweep = path_extrude(base, way, twist, ends=rounds, across=True, sizes=[multipliers[i] for i in chain])
+            # (an armature with branches is ONE field: every chain is made of the small field, and they are blended below -- see `cheap` of path_extrude.  One without a branch is drawn natively)
+            sweep = path_extrude(base, way, twist, ends=rounds, across=True, sizes=[multipliers[i] for i in chain], cheap=len(swept) > 1)
             moved = sweep
             # (path_extrude starts the sweep where the 2D shape is -- the origin for a shape in the plane z = 0 -- and draws the path and its points there.  An armature is at its NODES: the sweep is
             # carried by what it was moved, with the nodes' own numbers, so that a node dragged moves the armature, and the nodes are drawn where they are)
@@ -341,10 +344,10 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
                 own = chain[1:]
                 mean = sum(max(C.value_of(Shape.wrap(multipliers[i])), 1e-3) for i in own) / len(own)
                 piece_widths.append(across_ref * mean * _BLEND)
-            pieces = placed
-            out = F.union_all(placed)
-            if _carry_native(out, placed[0]):
-                out._sweep_branches = list(sweeps[1:])
+            # (one field: each branch is blended into what it hangs from, from the start -- not a second tube united with the first afterwards)
+            out = placed[0]
+            for piece, own in zip(placed[1:], piece_widths[1:]):
+                out = F.smooth_union(out, piece, own)
         if len(ways[0].vertices) > 1:
             start = C.unit(C.sub(ways[0].vertices[1], ways[0].vertices[0]))
         # (the viewport draws the ring of every node of a selected armature as a circle of the armature's real radius there: the node's size times the size of the cross-section)

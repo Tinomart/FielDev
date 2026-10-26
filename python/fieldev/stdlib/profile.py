@@ -584,7 +584,7 @@ def _section_sizes(sizes, count, who):
     return exprs, values
 
 
-def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
+def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, cheap=False):
     ''' A 2D shape swept along a curve: the `profile` -- its own axes across the curve (x and y for a shape in the plane z = 0, the two axes of the plane of a profile) -- carried
         along `path`, turning with it, without twisting about it unless the points of the curve say so.
         THE 2D SHAPE IS WHERE THE SWEEP STARTS: the curve says how it travels, not where from -- the whole sweep is moved so that the first point of the curve is the middle of
@@ -612,7 +612,10 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
         sizes    how big the section is at each point of the path: one number (or var()) for each point, 1 (the default: every point) the section as it is, 2 twice as thick -- a number of its own,
                  not the scale of the point, which is how strongly the curve leaves it (the influence of the point: its gizmo, a point of the path that is selected)
         across   True: the first section is turned the least that puts it across the path, so that both ends of an open sweep are square to it (an armature is made so); False: the section stays
-                 in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle '''
+                 in its own plane -- the shape you edit is the base of the sweep -- and is cut slanted when the path leaves it at an angle
+        cheap    True: the field is made of far fewer terms.  The profile is evaluated ONCE, at the coordinates and the size of the piece of the path that the point lies in -- they run smoothly
+                 from one piece to the next, so there is no step where two pieces meet -- and not once for every piece, so that the sweep can be meshed in a moment and blended with other
+                 sweeps (an armature with branches).  It is not drawn natively from the numbers of its points: it is meshed from its field '''
     ends = (False, False) if ends is None else (bool(ends[0]), bool(ends[1]))
     sizing = getattr(profile, '_sizing', None) or 'scale'          # (the section says how it is sized: `profile(..., sizing=)`, `with_sizing` ...; 'scale' where it says nothing)
     if isinstance(path, (list, tuple)):
@@ -629,8 +632,8 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
     # minutes.  A path that long is thinned -- every point that was made stays (the corners and the places the twist and the thickness are given), the pieces of the
     # curves between them are made fewer -- so that the sweep can be drawn
     limit = 160
-    if n > limit + 1:
-        every = -(-n // limit)
+    if cheap or n > limit + 1:
+        every = max(-(-n // limit), 2 if cheap else 1)          # (cheap: a piece for every second vertex is plenty -- the sections turn smoothly from one piece to the next)
         keep = [j for j in range(n) if j % every == 0 or owners[j][1] == 0.0 or j == n - 1]
         V = [V[j] for j in keep]
         owners = [owners[j] for j in keep]
@@ -811,6 +814,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
     lo = [1e300] * 3
     hi = [-1e300] * 3
     best = None
+    chosen = []                 # (cheap: what each piece says -- see _selected_field)
     for k in range(pieces):
         j = (k + 1) % n
         phi = (roll_at(k) + roll_at(j)) * 0.5 + total
@@ -838,7 +842,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
             span = math.sqrt(C.dot(C.sub(V[j], V[k]), C.sub(V[j], V[k]))) + 1e-300
             slope = (s1 - s0) / span
             size = _linear(C.mul(T[k], slope), s0 - C.dot(T[k], V[k]) * slope).max(1e-3)
-        f = _profile_at(profile, a, b, size, centre2d, grow)
+        f = None if cheap else _profile_at(profile, a, b, size, centre2d, grow)
         # the piece ends at the planes that bisect the corners (square at the ends of an open path), a hair past them, so that two pieces overlap there and
         # the joint is inside, not a plane where the field is zero
         mk, mj = tangent_at(k), tangent_at(j)
@@ -852,8 +856,20 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
                 mj = C.mul(flat, side)
         start = _linear(C.mul(mk, -1.0), C.dot(mk, V[k]) - 1e-3)
         stop = _linear(mj, -C.dot(mj, V[j]) - 1e-3)
-        body = f.max(start).max(stop)
-        best = body if best is None else best.min(body)
+        if cheap:
+            chosen.append((a, b, s0, s1, start, stop))
+        else:
+            body = f.max(start).max(stop)
+            best = body if best is None else best.min(body)
+    if cheap and chosen:
+        # (how far from the path the sweep can be: the widest point of the section -- or the push of an offset -- at the thickest the path gets, with room to spare: what the small field's
+        # tube is made of, so that a cell far from the sweep is told empty at once)
+        reach_guard = None
+        if box_ring:
+            widest = max(math.hypot(px, py) for px, py in box_ring)
+            thickest = max(max(vertex_size), 1e-3)
+            reach_guard = (widest * 1.3 * thickest if grow is None else widest * 1.3 + max(thickest - 1.0, 0.0) * grow) + 1e-2
+        best = _selected_field(profile, chosen, centre2d, grow, 4, V if reach_guard is not None else None, reach_guard)
     # Round ends: past the end of an open path the cross-section shrinks along a quarter of a circle, so that the end is a dome of the cross-section itself and not a ball that its shape
     # clashes with.  It is one more piece of the sweep: the profile in the frame of the end piece (the ring's own plane, which is across the path unless the path leaves the profile at an
     # angle), at the size that runs down to nothing at the tip, between the plane of the end and the tip
@@ -898,7 +914,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
         pad = 0.02 * max(hi[a] - lo[a] for a in range(3)) + 1e-3
         out._bounds = (tuple(lo[a] - pad for a in range(3)), tuple(hi[a] + pad for a in range(3)))
         out._bounds_loose = True
-    if ring:
+    if ring and not cheap:
         # A sweep of a profile is drawn natively from the numbers of the points of the profile and of the path (as a straight extrusion is: see `extrude`), so it
         # follows a point while the point is dragged and nothing is meshed.  Its field (above) is for what is made *of* it -- and it is not searched for or counted
         # for handles: it is a field of thousands of terms
@@ -930,6 +946,46 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None):
         out._sweep_across = bool(across)
         out._drawn_key = _sweep_key          # (what tells whether two sweeps are the same shape without meshing either: see symmetries.symmetry_images, distinct=True)
     return out
+
+
+def _selected_field(profile, pieces, centre2d, grow, group=4, axis=None, reach=None):
+    ''' The field of a sweep made of far fewer terms.  A sweep of the usual kind is one piece of field for every piece of the path, each carrying the whole profile: for an armature of a few
+        nodes tens of thousands of terms, which no renderer meshes in a moment.  Here the profile is evaluated ONCE for a group of `group` pieces, at the coordinates (a, b) and the size of the
+        piece of the path that the point lies in.  `pieces`: for each (a, b, s0, s1, start, stop) -- the two coordinates of a point in the plane of the profile (fields), the sizes at its two
+        ends, and the two planes it lies between (fields, not positive inside).  A point is in the piece whose two planes it lies between.  Between its two planes the coordinates and the size
+        run from the ones of this piece to the ones of the next, so that the section turns and grows smoothly and there is no step at the plane where two pieces meet.  Where no piece of a
+        group holds a point the group is positive; past the two ends the planes of the ends are the field.  The groups are the least of each other (`min`), each one limited to the two
+        planes it lies between and to a tube of radius `reach` round its part of the path `axis` (`max`: the vertices of the path, one more than the pieces): a renderer that looks at a cell
+        far from the sweep must be able to tell that nothing is there from the few terms of the tube, and not look at every plane that crosses the cell '''
+    from fieldev.stdlib.curves import polyline_field
+    m = len(pieces)
+    sized = any(abs(s0 - 1.0) > 1e-9 or abs(s1 - 1.0) > 1e-9 for _a, _b, s0, s1, _start, _stop in pieces)
+    best = None
+    for g0 in range(0, m, group):
+        g1 = min(g0 + group, m)
+        count = a_sum = b_sum = size_sum = None
+        for k in range(g0, g1):
+            a, b, s0, s1, start, stop = pieces[k]
+            inside = (1.0 - start.compare(0.0).max(0.0)) * (1.0 - stop.compare(0.0).max(0.0))          # (1 between the two planes, 0 elsewhere)
+            s = ((-start) / ((-start) + (-stop)).max(1e-6)).max(0.0).min(1.0)                          # (how far along between them: 0 at the first plane, 1 at the second)
+            a_to, b_to = (pieces[k + 1][0], pieces[k + 1][1]) if k + 1 < m else (a, b)
+            here_a = a + (a_to - a) * s
+            here_b = b + (b_to - b) * s
+            count = inside if count is None else count + inside
+            term_a, term_b = inside * here_a, inside * here_b
+            a_sum = term_a if a_sum is None else a_sum + term_a
+            b_sum = term_b if b_sum is None else b_sum + term_b
+            if sized:
+                term_s = inside * (s * (s1 - s0) + s0)
+                size_sum = term_s if size_sum is None else size_sum + term_s
+        divisor = count.max(1.0)                                # (where two pieces overlap, a hair, the two are averaged)
+        size = (size_sum / divisor).max(1e-3) if sized else None
+        f = _profile_at(profile, a_sum / divisor, b_sum / divisor, size, centre2d, grow)
+        f = f.max(pieces[g0][4]).max(pieces[g1 - 1][5]) + (1.0 - count).max(0.0) * 1000.0
+        if axis is not None and reach is not None and g1 - g0 >= 1:
+            f = f.max(polyline_field(list(axis[g0:g1 + 1]), False) + (-reach))
+        best = f if best is None else best.min(f)
+    return best
 
 
 def _sweep_key(s):

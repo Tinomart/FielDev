@@ -1593,7 +1593,8 @@ nothing and for the cross-section the armature makes for itself (see `with_sizin
 
 The ends are round at a node that is a spline point (every node is, unless it says `point(..., smooth=False)`; the nodes put down in the viewport are corners except the first and the
 last) and flat at a corner.  The cross-section at the first node is turned across the path, so that both ends are square to it.  A branch begins round, inside the node it hangs from.  The armature
-is the union of its pieces -- what the viewport draws -- and `character` joins them with a blend as wide as each branch is thick, as it joins armatures
+is ONE field: the pieces of the main chain and of every branch are blended into it from the start, with a blend as wide as each branch is thick, so the junction is a fillet of the armature's own
+field (an unbranched armature is drawn from its nodes at once; a branched one is meshed from its field, and a dragged node bends it when you let go).  `character` joins separate armatures with a blend, as before
 
 ### `character(armatures, blend='auto', symmetric=None)`
 
