@@ -4,7 +4,7 @@ Terrain: the ground as a field.
 A heightmap is a picture of heights; a terrain here is a FIELD -- the ground is where z is below a height that is itself a field of x and y, and everything you do to it is
 arithmetic on that field.  So:
 
-  * there is no grid and no resolution: the same ground is meshed coarse for a preview and fine for an export;
+  * there is no grid and no resolution: the same ground is meshed coarse for a preview and fine for an export, and a chunk cut out of it fits the next chunk exactly (both are cut from the one field -- there is no seam to stitch);
   * a hill, a flat place to build on, a road, a river are smooth blends of fields: they cannot leave a crack, and a road keeps its width over any hill;
   * it is a solid, not a surface: caves, arches and overhangs are boolean cuts of the same body, which a heightmap cannot have;
   * the material of a place is a field too -- grass where the ground is flat, rock where it is steep, snow high up -- and goes to the exported file.
@@ -17,7 +17,7 @@ arithmetic on that field.  So:
     ground = ground.cave([(60, -60, 4), (80, -30, 6), (100, 0, 8)], radius=5)
     shown = ground.textured(snow_line=26, beach=1.5)                       # grass, rock, snow, sand: by the slope and the height
 
-`ground.height_at(x, y)` is the height of the ground there (for standing a prop on it: see props.scatter).
+`ground.height_at(x, y)` is the height of the ground there (for standing a prop on it: see props.scatter); `ground.chunk(ix, iy, size)` is one square of the world, cut from the same field, and `ground.chunks(size)` are all of them.
 
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -305,6 +305,25 @@ class Terrain(Shape):
                 if self.slope_at(cx - sx / 2.0 + (i + 0.5) * sx / n, cy - sy / 2.0 + (j + 0.5) * sy / n) <= float(max_angle):
                     ok += 1
         return ok / float(n * n)
+
+    # ---- cutting it up
+
+    def chunk(self, ix, iy, size):
+        ''' One square of the world, `size` across, the one `ix` squares along x and `iy` along y from the corner of the ground: a body.  Squares that touch are cut from the
+            same field, so they meet exactly -- there is nothing to stitch '''
+        from fieldev.stdlib.shapes import _bounded
+        cx, cy, sx, sy = self._box
+        x0, y0 = cx - sx / 2.0 + ix * float(size), cy - sy / 2.0 + iy * float(size)
+        mx, my = x0 + size / 2.0, y0 + size / 2.0
+        body = self.max((Shape.X() - mx).abs() - size / 2.0).max((Shape.Y() - my).abs() - size / 2.0)
+        low, high = _height_range(self._height, mx, my, size, size, 9)
+        _bounded(body, [x0, y0, min(self._base, low) - 1.0], [x0 + size, y0 + size, high + 1.0 + 0.1 * (high - low)])
+        return body
+
+    def chunks(self, size):
+        ''' All the squares of the ground, `size` across: a list of (ix, iy, body) '''
+        cx, cy, sx, sy = self._box
+        return [(ix, iy, self.chunk(ix, iy, size)) for iy in range(int(math.ceil(sy / size - 1e-9))) for ix in range(int(math.ceil(sx / size - 1e-9)))]
 
     # ---- what it is made of
 

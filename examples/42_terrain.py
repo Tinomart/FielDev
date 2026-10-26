@@ -4,6 +4,7 @@
 #   ground = terrain(size=(120, 120), height=5, scale=40, seed=3)         the slab: a solid whose top is noise
 #   ground.raised(...)  .flattened(...)  .road(...)  .river(...)  .cave(...)      each gives a new ground; the old one is left as it was
 #   ground.textured(snow_line=9, beach=0.5)                               the materials: where the ground is steep, high, low
+#   ground.chunk(ix, iy, 60)    ground.chunks(60)                                 squares of the ground that fit exactly: they are cut from the one field
 #
 # What to look at: the road keeps its width over the hill; the river's banks slope into the ground; the flat place is flat; the cave goes into the hill (it is
 # a cut of the solid -- a heightmap cannot have one); rock shows where the ground is steep, sand where it is low.  One number of this scene is one metre.

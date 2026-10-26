@@ -2,7 +2,7 @@
 
 FielDev models with **fields**: a shape is a number at every point of space, negative inside. For game assets that has consequences nothing else gives you:
 
-* **No grid, no stitching.** A terrain is one field. Hills, roads and rivers are blended in it, so there are no pieces to join and no seam can appear.
+* **No grid, no stitching.** A terrain is one field. A chunk cut from it meets the next chunk exactly, because both are cut from the same numbers.
 * **Walls are what is left round empty space.** You say where the rooms and corridors are; the walls have the same thickness everywhere, two rooms that touch share a wall, and a corridor that runs into a room opens into it.
 * **Everything blends.** A road keeps its width over any hill, a river bank slopes into the ground, a hill joins the plain. They are sums of fields: they cannot leave a crack.
 * **Materials are fields too.** Grass where the ground is flat, rock where it is steep, snow high up, bark below the crown: a material is *where* a field is negative, and it goes to the exported file.
@@ -48,6 +48,7 @@ The materials of a model shown with `with_materials` are exported with it (`expo
 | `.steep_places(max_angle)`, `.walkable_fraction(max_angle, samples)` | The ground in its materials with red where it is steeper than `max_angle` degrees (a check to look at while modelling), and the share of the ground that is not. |
 | `.cave(path, radius, blend)`, `.add(shape, blend)`, `.cut(shape, blend)` | 3D changes of the solid. |
 | `.height_at(x, y)`, `.slope_at(x, y)` | Numbers, for standing things on the ground. |
+| `.chunk(ix, iy, size)`, `.chunks(size)` | A square of the ground, or all of them, cut from its one field: squares that touch meet exactly. |
 | `.textured(...)`, `.material_layers(...)` | Grass, rock (steeper than `rock_angle`, and the walls of caves), snow (above `snow_line`), sand (below `beach`), and a road and a river bed wherever `.road` and `.river` were made. |
 | `water(size, level, depth)` | A slab of water. |
 
@@ -105,8 +106,9 @@ Everything in this list is built as fields (arithmetic on x, y and z) and is mes
 | Levels | The space inside is a field; the walls are that field grown by the wall thickness, and the space is subtracted again. |
 | Kit pieces | Each piece is a field clipped to its cell; `seam` asks two fields whether they are solid on the face they share. |
 | Props | Noise, ellipsoids and blended unions; the rules of `scatter` (`where`, the slope) are fields. |
+| Chunks | The one field of the ground, cut by a box. |
 
-A mesh is made by `export_mesh`, and by the viewport to show a model: nothing of the field is left in an exported file. Nothing else is made here -- what an engine does with a model (levels of detail, collision, chunks, instances) is the engine's job, not this program's.
+A mesh is made by `export_mesh`, and by the viewport to show a model: nothing of the field is left in an exported file. Nothing else is made here -- what an engine does with a model (levels of detail, collision, streaming, instances) is the engine's job, not this program's.
 
 ## What is not here yet
 
