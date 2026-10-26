@@ -1806,7 +1806,7 @@ void Interpreter::recordShape(
             Py_XDECREF(pp);
             PyErr_Clear();
         }
-        {
+        const auto readSweep = [&](PyObject* obj, Shape* shape) {
             // (a sweep of a profile of points along a curve of points: both lists of points, the twist and where the gizmo places it -- the viewport makes it from the numbers
             // natively at every render: see Shape::setSweep and fieldev.stdlib.profile.path_extrude)
             PyObject* pp = PyObject_GetAttrString(obj, "_sweep_ppos");
@@ -1984,6 +1984,74 @@ void Interpreter::recordShape(
             }
             Py_XDECREF(pp);
             Py_XDECREF(qp);
+            PyErr_Clear();
+        };
+        readSweep(obj, shape);
+        {
+            // (a character: armatures and models joined with a blend, and perhaps the other half as the mirror image -- the viewport meshes it natively from the numbers of its armatures: see Shape::nativeSpec
+            // and fieldev.stdlib.armature.character)
+            PyObject* gp = PyObject_GetAttrString(obj, "_group_parts");
+            PyObject* gj = PyObject_GetAttrString(obj, "_group_joins");
+            if (gp && PyList_Check(gp) && PyList_Size(gp) > 0 && gj && PyList_Check(gj) && PyList_Size(gj) == PyList_Size(gp))
+            {
+                auto group = std::make_shared<Shape::SweepGroup>();
+                bool ok = true;
+                for (Py_ssize_t i = 0; ok && i < PyList_Size(gp); ++i)
+                {
+                    PyObject* part = PyList_GetItem(gp, i);
+                    Shape::SweepGroup::Part p;
+                    p.join = PyFloat_AsDouble(PyList_GetItem(gj, i));
+                    p.tree = treeOfShape(part);
+                    if (!p.tree.is_valid())
+                    {
+                        ok = false;
+                        break;
+                    }
+                    const auto member = std::make_shared<Shape>(p.tree, vars);
+                    readSweep(part, member.get());
+                    if (member->hasSweep())
+                        p.sweep = member;
+                    else
+                    {
+                        PyObject* bb = PyObject_GetAttrString(part, "_bounds");
+                        if (bb && PyTuple_Check(bb) && PyTuple_Size(bb) == 2)
+                        {
+                            p.hasBox = true;
+                            for (int k = 0; k < 2 && p.hasBox; ++k)
+                            {
+                                PyObject* corner = PyTuple_GetItem(bb, k);
+                                if (!PyTuple_Check(corner) || PyTuple_Size(corner) != 3)
+                                {
+                                    p.hasBox = false;
+                                    break;
+                                }
+                                for (int a = 0; a < 3; ++a)
+                                {
+                                    const double value = PyFloat_AsDouble(PyTuple_GetItem(corner, a));
+                                    (k == 0 ? p.lo : p.hi)[a] = value;
+                                    if (!std::isfinite(value)) p.hasBox = false;
+                                }
+                            }
+                        }
+                        Py_XDECREF(bb);
+                        PyErr_Clear();
+                    }
+                    group->parts.push_back(std::move(p));
+                }
+                PyObject* gb = PyObject_GetAttrString(obj, "_group_blend");
+                group->branchWidth = gb && PyNumber_Check(gb) ? PyFloat_AsDouble(gb) : -1.0;
+                Py_XDECREF(gb);
+                PyObject* gm = PyObject_GetAttrString(obj, "_group_mirror");
+                if (gm && PyUnicode_Check(gm))
+                {
+                    const char* axis = PyUnicode_AsUTF8(gm);
+                    if (axis && axis[0] >= 'x' && axis[0] <= 'z' && axis[1] == 0) group->mirror = axis[0] - 'x';
+                }
+                Py_XDECREF(gm);
+                if (ok) shape->setSweepGroup(group);
+            }
+            Py_XDECREF(gp);
+            Py_XDECREF(gj);
             PyErr_Clear();
         }
         {

@@ -569,6 +569,32 @@ def _own_region(body):
     body._render_hint = (tuple(v - grow for v in box[0]), tuple(v + grow for v in box[1]), 1.0, ext + 2.0 * grow, 1.0)
 
 
+def _join_widths(parts):
+    """ How wide each part of a character is blended into the ones before it (the first: 0): as thick as the part is -- or, for a part that is not an armature, as thick as the armatures are on
+        average -- times `_BLEND`, the way `_joined` does.  The viewport meshes a character natively from these numbers (`_group_*`) """
+    sizes = [_thickness(p) for p in parts]
+    known = [s for s in sizes if s]
+    fallback = sum(known) / len(known) if known else 3.0
+    return [0.0] + [float((size or fallback) * _BLEND) for size in sizes[1:]]
+
+
+def _describe_group(target, parts, blend, symmetric):
+    """ What the viewport meshes a character from, natively and in a moment, at every render: its parts, how wide each is blended into the ones before it, the width the branches of its armatures are
+        blended with when one is given (-1: as thick as each branch is), and the plane the other half is the mirror image in.  A character whose blend is not a plain number is left to its field """
+    try:
+        if isinstance(blend, str):
+            joins, given = _join_widths(parts), -1.0
+        else:
+            given = float(blend)
+            joins = [0.0] + [given] * (len(parts) - 1)
+    except (TypeError, ValueError):
+        return
+    target._group_parts = list(parts)
+    target._group_joins = joins
+    target._group_blend = given
+    target._group_mirror = str(symmetric).lower() if symmetric else ''
+
+
 def character(armatures, blend="auto", symmetric=None):
     ''' The body made of armatures and feature models: joined as one with a smooth blend where they meet, and, with `symmetric` "x", "y" or "z", the other half as the mirror
         image (the parts are modelled on one side of the plane; the parts that lie across it, a spine and a head, are in both)
@@ -584,6 +610,7 @@ def character(armatures, blend="auto", symmetric=None):
     else:
         body = F.union_all([_whole(p, blend) for p in armatures], blend)
     body._parts = list(armatures)               # (the parts the UV map by armature unwraps the body by: armatures and feature models)
+    _describe_group(body, armatures, blend, None)
     boxes = [getattr(p, '_bounds', None) for p in armatures]
     if all(boxes):
         body._bounds = (tuple(min(b[0][c] for b in boxes) for c in range(3)), tuple(max(b[1][c] for b in boxes) for c in range(3)))
@@ -608,6 +635,7 @@ def character(armatures, blend="auto", symmetric=None):
         _own_region(out)
     out._parts = list(armatures)
     out._symmetric_axis = str(symmetric).lower()
+    _describe_group(out, armatures, blend, symmetric)
     return out
 
 
