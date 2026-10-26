@@ -32,7 +32,7 @@ from fieldev.stdlib.fields import noise_field, smoothstep, smooth_union, smooth_
 from fieldev.stdlib.materials import material, material_preset, with_materials
 
 __all__ = ['terrain', 'Terrain', 'water', 'terrain_raised', 'terrain_flattened', 'terrain_road', 'terrain_river', 'terrain_river_water', 'terrain_cave', 'terrain_add', 'terrain_cut',
-           'terrain_steep_places', 'terrain_textured', 'terrain_chunk', 'terrain_walkable_fraction', 'terrain_height_at', 'terrain_slope_at']
+           'terrain_steep_places', 'terrain_textured', 'terrain_chunk', 'terrain_walkable_fraction', 'terrain_height_at', 'terrain_slope_at', 'terrain_chunks', 'terrain_height_field']
 
 
 def _pair(v, what):
@@ -452,6 +452,18 @@ def terrain_walkable_fraction(ground, max_angle=35.0, samples=30):
     return share
 
 
+def terrain_chunks(ground, size=50.0):
+    ''' `ground.chunks(size)`: all the squares of the ground, `size` across, as a list of bodies (in the order of `chunks`: along x, then along y), cut from the one field of the ground '''
+    return [body for _ix, _iy, body in _ground(ground, 'terrain_chunks').chunks(size)]
+
+
+def terrain_height_field(ground):
+    ''' `ground.height_field()`: the height of the ground as a field of x and y, a model of its own (a field) for your own arithmetic -- a material, a mask '''
+    out = owned(_ground(ground, 'terrain_height_field').height_field())
+    out._kind = 'field'
+    return out
+
+
 def terrain_height_at(ground, x=0.0, y=0.0):
     ''' `ground.height_at(x, y)`: the height of the ground there, a number.  It is printed too, so that the menu's entry shows it below the editor '''
     h = _ground(ground, 'terrain_height_at').height_at(x, y)
@@ -469,6 +481,6 @@ def terrain_slope_at(ground, x=0.0, y=0.0):
 from fieldev.kinds import takes as _declare
 
 for _fn in (terrain_raised, terrain_flattened, terrain_road, terrain_river, terrain_river_water, terrain_cave, terrain_add, terrain_cut, terrain_steep_places, terrain_textured, terrain_chunk,
-            terrain_walkable_fraction, terrain_height_at, terrain_slope_at):
+            terrain_walkable_fraction, terrain_height_at, terrain_slope_at, terrain_chunks, terrain_height_field):
     _fn._takes = _declare({'solid'}, [{'solid'}])
     _fn._on = 'Terrain'                     # (the menu offers them for a terrain(...) only)

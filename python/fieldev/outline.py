@@ -176,8 +176,8 @@ def facts_of(v):
          'is_list': isinstance(v, list), 'is_pair': isinstance(v, tuple) and len(v) == 2}
     if failed:
         f['error'] = v.error
-    if mkind == 'surface':
-        f['cls'] = type(v).__name__
+    if shape or mkind == 'surface':
+        f['cls'] = type(v).__name__             # (the class of a model: what the menus offer an entry for -- the terrain edits are for a Terrain only)
     if getattr(v, '_is_viewport', False):
         f['viewport'] = True            # (app.viewport(...): a setting of an app, not a model: no row)
         f['shown'] = False
@@ -1195,7 +1195,7 @@ def outline_json(arg):
                         first = [i for i in inputs if i.get('index') == 0 and not i.get('in_list') and 'keyword' not in i]
                         if first:
                             item['part_name'] = first[0]['name']
-                    if mkind == 'surface' and facts.get('cls'):
+                    if facts.get('cls'):
                         item['cls'] = facts['cls']
                     item['points'] = A._points_of(stmt.value, ns) if isinstance(stmt.value, ast.Call) else []
                     item['callee'] = callee

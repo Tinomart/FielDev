@@ -373,6 +373,8 @@ OPERATIONS = [
     ('terrain_textured', 'Terrain', 'terrain_textured({body})', False),
     ('terrain_steep_places', 'Terrain', 'terrain_steep_places({body})', False),
     ('terrain_chunk', 'Terrain', 'terrain_chunk({body})', False),
+    ('terrain_chunks', 'Terrain', 'terrain_chunks({body})', False),
+    ('terrain_height_field', 'Terrain', 'terrain_height_field({body})', False),
     ('terrain_walkable_fraction', 'Terrain', 'terrain_walkable_fraction({body})', False),
     ('terrain_height_at', 'Terrain', 'terrain_height_at({body})', False),
     ('terrain_slope_at', 'Terrain', 'terrain_slope_at({body})', False),

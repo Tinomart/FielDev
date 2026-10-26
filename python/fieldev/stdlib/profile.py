@@ -869,7 +869,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
             widest = max(math.hypot(px, py) for px, py in box_ring)
             thickest = max(max(vertex_size), 1e-3)
             reach_guard = (widest * 1.3 * thickest if grow is None else widest * 1.3 + max(thickest - 1.0, 0.0) * grow) + 1e-2
-        best = _selected_field(profile, chosen, centre2d, grow, 4, V if reach_guard is not None else None, reach_guard)
+        best = _selected_field(profile, chosen, centre2d, grow, 28, V if reach_guard is not None else None, reach_guard)
     # Round ends: past the end of an open path the cross-section shrinks along a quarter of a circle, so that the end is a dome of the cross-section itself and not a ball that its shape
     # clashes with.  It is one more piece of the sweep: the profile in the frame of the end piece (the ring's own plane, which is across the path unless the path leaves the profile at an
     # angle), at the size that runs down to nothing at the tip, between the plane of the end and the tip
@@ -948,7 +948,7 @@ def path_extrude(profile, path, twist=0, ends=None, across=False, sizes=None, ch
     return out
 
 
-def _selected_field(profile, pieces, centre2d, grow, group=4, axis=None, reach=None):
+def _selected_field(profile, pieces, centre2d, grow, group=28, axis=None, reach=None):
     ''' The field of a sweep made of far fewer terms.  A sweep of the usual kind is one piece of field for every piece of the path, each carrying the whole profile: for an armature of a few
         nodes tens of thousands of terms, which no renderer meshes in a moment.  Here the profile is evaluated ONCE for a group of `group` pieces, at the coordinates (a, b) and the size of the
         piece of the path that the point lies in.  `pieces`: for each (a, b, s0, s1, start, stop) -- the two coordinates of a point in the plane of the profile (fields), the sizes at its two

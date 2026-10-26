@@ -22,14 +22,14 @@ Everything on this page is in the right-click menu; an entry writes the call int
 | `rock`, `tree`, `crate`, `barrel` | *Parametric shapes ▸ Game* | the prop, `placed` at the click |
 | `kit`, `floor_tile`, `ceiling_tile`, `wall_piece`, `corner_piece`, `pillar_piece`, `stairs_piece` | *Parametric shapes ▸ Game* | the whole kit built from a plan (`edges`, `levels`, `ceiling` and `stairs` are written, for you to fill), or one piece of it |
 | `kit_check` | *Parametric shapes ▸ Game* | the check of a kit: whether its pieces meet where they stand side by side; the answer is printed below the editor |
-| the edits of a ground: `terrain_raised`, `terrain_flattened`, `terrain_road`, `terrain_river`, `terrain_river_water`, `terrain_cave`, `terrain_add`, `terrain_cut`, `terrain_textured`, `terrain_steep_places`, `terrain_chunk` | right-click a terrain, *Operations ▸ Terrain* | `terrain_raised(ground, center=..., radius=..., ...)`: the function form of `ground.raised(...)`, and so on; the ground stays a terrain, so the edits chain. `terrain_add` and `terrain_cut` take a second model, selected with the ground |
+| the edits of a ground: `terrain_raised`, `terrain_flattened`, `terrain_road`, `terrain_river`, `terrain_river_water`, `terrain_cave`, `terrain_add`, `terrain_cut`, `terrain_textured`, `terrain_steep_places`, `terrain_chunk`, `terrain_chunks` (all the squares, a list of bodies), `terrain_height_field` (the height as a field of its own) | right-click a terrain, *Operations ▸ Terrain* | `terrain_raised(ground, center=..., radius=..., ...)`: the function form of `ground.raised(...)`, and so on; the ground stays a terrain, so the edits chain. `terrain_add` and `terrain_cut` take a second model, selected with the ground |
 | the numbers of a ground: `terrain_walkable_fraction`, `terrain_height_at`, `terrain_slope_at` | *Operations ▸ Terrain* | the number, which is printed below the editor too |
 | `placed`, `merge`, `scatter_prop` | *Operations ▸ Props* | `placed(prop, ...)`; `merge([a, b, ...])` of the models selected; `scatter_prop([props], ground, ...)`: select the prop (or several, for variants) and the terrain, in any order |
 | `join_levels` | *Operations ▸ Level* | `join_levels([room, corridor, ...])`: the rooms and corridors selected made one level, so that the wall between them is open where a corridor ends in a room. A doorway or a window is taken out of a wall with *Combining ▸ difference*; a pillar or a staircase is added with *Combining ▸ union* |
 | `covered`, `with_materials` | *Operations ▸ Materials* | snow, moss or dust as geometry; a material for the model |
 | materials by drag and drop | *View ▸ Materials* | see below |
 
-A terrain edit is offered for a terrain only (for another model its entry is greyed out): a ground that was given its colours (`textured`, `steep_places`) is a plain body, so make the edits first and dress it last. Not in the menu are `.chunks(size)`, `.height_field()`, `.material_layers()` and a kit's `place`, `seam` and `pieces`: they give a list or a dictionary to your own script, not a model (`terrain_chunk` once for every square does what `chunks` does; `kit_check` is the seam check).
+A terrain edit is offered for a terrain only (in the menu of any other model the whole *Terrain* group is left out): a ground that was given its colours (`textured`, `steep_places`) is a plain body, so make the edits first and dress it last. Not in the menu under a name of their own are `.material_layers()` (a list of materials: `terrain_textured` and `terrain_steep_places` take its colours as arguments and dress the ground with them) and a kit's `place`, `seam` and `pieces` (`place` is *Moving ▸ move* and *rotate_z* on a piece, `seam` is what `kit_check` runs, `pieces` are the six piece entries of *Game*).
 
 ## Materials: drag and drop
 
@@ -132,5 +132,5 @@ A mesh is made by `export_mesh`, and by the viewport to show a model: nothing of
 ## What is not here yet
 
 * The kit's seam check covers plain walls, floors and ceilings, not stairs.
-* The right-click menus were dumped and every entry's text was run in the virtual display; a terrain edit being greyed out for a model that is no terrain was tested on the function that decides it, not on the popup.
+* The right-click menus were dumped and every entry's text was run in the virtual display; the menu of the model-tree row of a terrain has the *Terrain* group and the menu of the row of a box does not (`treecontext`, `popup dump`). Nothing was seen in a real window.
 * Anything seen in a real window or on Windows: all of this was run only in a virtual display on a Linux machine.

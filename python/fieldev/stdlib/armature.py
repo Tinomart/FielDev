@@ -376,7 +376,9 @@ def armature(points, radii=None, profile=None, name=None, joints=None, parent=No
         # (a sweep that is not drawn natively from its points -- a profile that is not made of points -- is meshed from its field, which is slow to clear empty space of: over the whole region
         # of the scene it takes seconds at every node put down, so it is meshed over a cube of its own)
         from fieldev.stdlib.custom_resolution import render_hint_for
-        hint = render_hint_for(out._bounds[0], out._bounds[1], 2.0 * ref * max(min(C.value_of(Shape.wrap(m)) for m in multipliers), 1e-3))
+        # (six samples across the thinnest place: three left the tube of a branched armature -- which is meshed, not drawn from its nodes -- faceted (3.7 s), eight made it smooth (14.5 s): the
+        # same armature in the virtual machine)
+        hint = render_hint_for(out._bounds[0], out._bounds[1], 2.0 * ref * max(min(C.value_of(Shape.wrap(m)) for m in multipliers), 1e-3), per_thin=6.0)
         if hint is not None:
             out._render_hint = hint
     out._group_pos = [ctl.expr for ctl in ctrls]        # (the points it is made of: the viewport shares their gizmos when the armature is selected as a whole, as it does for a profile's)
