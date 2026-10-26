@@ -381,16 +381,13 @@ def _blocks():
         return []
 
 
-# What a game engine asks of an asset -- units, the up axis, a budget of triangles, levels of detail, UV maps, baked textures, a skeleton, the pivot -- is the arguments of `export_mesh`.  These
+# What a game engine asks of an asset -- units, the up axis, a budget of triangles, UV maps, baked textures, a skeleton, the pivot -- is the arguments of `export_mesh`.  These
 # entries of the Export menu of a model write the call into the script, with the choices written out for the user to change and run (key, group in the menu, label, tooltip, the call;
 # `{var}` is the model)
 EXPORTS = [
     ('game', '', tr('Game-ready glTF'),
      tr('A .glb with its origin at the feet, UV islands packed into the texture, smooth normals and a budget of 8000 triangles: export_mesh(model, "model.glb", ...)'),
      'export_mesh({var}, "{var}.glb", max_triangles=8000, pivot="base", uvs=uv_unwrap(), normals=True)'),
-    ('lods', '', tr('Levels of detail'),
-     tr('The same model at 8000, 2000 and 500 triangles, a file for each: export_lods(model, "model.glb", [8000, 2000, 500])'),
-     'export_lods({var}, "{var}.glb", [8000, 2000, 500], pivot="base")'),
     ('engine_obj', '', tr('OBJ in metres, Y up'),
      tr('A file as most engines read it: metres, and Y up (the model is turned, not mirrored)'),
      'export_mesh({var}, "{var}.obj", units="m", up="y")'),

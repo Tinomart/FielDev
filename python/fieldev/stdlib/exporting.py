@@ -22,7 +22,7 @@ from fieldev.stdlib import meshfiles, rigging, texturing, uvmaps
 from fieldev.stdlib.materials import Material, material
 from fieldev.stdlib.rigging import Joint
 
-__all__ = ['export_mesh', 'export_lods', 'export_field']
+__all__ = ['export_mesh', 'export_field']
 
 
 def _host(name, default=None):
@@ -584,30 +584,6 @@ def _turned(directions, stride):
     for i in range(0, len(directions), stride):
         out[i + 1], out[i + 2] = directions[i + 2], -directions[i + 1]
     return out
-
-
-def export_lods(part, path, triangles, **options):
-    ''' Writes levels of detail of a body, each a mesh of at most so many triangles (see `max_triangles` of export_mesh): `export_lods(hero, "hero.glb", [8000, 2000, 500])` writes
-        hero_lod0.glb with at most 8000 triangles, hero_lod1.glb with 2000 and hero_lod2.glb with 500.  `triangles` is the budgets, the finest first and each smaller than the
-        one before; None for a level with no budget.  The other options are those of export_mesh (units, up, symmetric, materials, skeleton, pivot ...), the same for every
-        level.  Returns the paths written '''
-    if 'max_triangles' in options:
-        raise TypeError('export_lods: the budgets are the list of triangles, not max_triangles')
-    budgets = list(triangles) if isinstance(triangles, (list, tuple)) else [triangles]
-    if not budgets:
-        raise ValueError('export_lods: a list of budgets of triangles, the finest first')
-    last = None
-    for n in budgets:
-        if n is not None:
-            if int(n) < 4:
-                raise ValueError('export_lods: a budget of {!r} triangles -- a closed surface has at least four'.format(n))
-            if last is not None and int(n) >= last:
-                raise ValueError('export_lods: each level is smaller than the one before: {} after {}'.format(int(n), last))
-            last = int(n)
-        elif budgets.index(n) != 0:
-            raise ValueError('export_lods: only the first level (the finest) can have no budget')
-    base, ext = os.path.splitext(os.fspath(path))
-    return [export_mesh(part, '{}_lod{}{}'.format(base, k, ext), max_triangles=n, **options) for k, n in enumerate(budgets)]
 
 
 def _eval_at(shape, xyz, count):

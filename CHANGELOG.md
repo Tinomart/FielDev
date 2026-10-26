@@ -19,6 +19,7 @@ All of this was seen only in a virtual display (software rendering, a Linux mach
   Example `46_water_and_walking.py`.
 - **Snow, moss and dust as geometry**: `covered(model, depth=0.1, angle=50, name="snow")` lays a cover on every surface that faces up -- thickest where it faces straight up, thinning out where it would slide off --, with a material of its own that lies only on the cover; it works on props and on kit pieces, and a covered prop can still be `placed`, `merge`d and `scatter`ed; the right-click menu of a model has it too (under *Materials*).
   **Stairs in a kit's plan**: `walls.build(plan, levels=2, stairs={(0, 0, 0): 3})` puts a stairs piece in a cell, leaves out the floor above it and leads up into the next cell; the stairs reach the top of that floor.  Examples `47_snow_and_moss.py`, `48_kit_stairs.py`.
+- **Removed**: `export_lods` and the *Levels of detail* entry of the export menu (an engine makes levels of detail); example `37_pivot_and_lods.py` is now `37_pivot.py` and is only about the pivot.
 
 ### After a click nothing flickers; a node brings the armature mode back; closing does not wait for a heavy render
 - **No flicker on a click (seen in a virtual display with software rendering, not on a real screen, not on Windows).** Four causes, found by recording every frame: (1) the shapes a run replaced were deleted before the new ones had a mesh, so the rings, dots and tube
@@ -100,7 +101,7 @@ All of this was seen only in a virtual display (software rendering, a Linux mach
   FielDev writes the bind pose; it has no animation and no morph targets.
 
 ### Exporting for a game engine
-- `export_mesh`: the unit and the up axis (`units=`, `up=`), a budget of triangles (`max_triangles=`) and `export_lods`, a mesh that is exactly symmetric (`symmetric=`), the origin where the asset stands (`pivot="base"`), materials
+- `export_mesh`: the unit and the up axis (`units=`, `up=`), a budget of triangles (`max_triangles=`), a mesh that is exactly symmetric (`symmetric=`), the origin where the asset stands (`pivot="base"`), materials
   by region and vertex colours from fields; STL, OBJ, PLY, 3MF, glTF (`.glb`, `.gltf`), FBX, OFF and DXF.
 
 ### The product

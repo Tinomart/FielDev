@@ -52,7 +52,7 @@ makes the script re-read a file that changed on disk.
 - **File → Export mesh…** (`F7`, `Ctrl+Alt+E`) writes the shapes shown in the viewport as one mesh, in the format of the file's extension.
 - **Right-click a model → Export → Mesh** writes that one model (the file is asked for, and written in the background).
 - **Right-click a model → Export → For a game engine** writes the `export_mesh` call into the script, with the options an engine asks of an asset written out for you to change and run: a
-  game-ready glTF (origin at the feet, UV islands, smooth normals, a budget of triangles), levels of detail, an OBJ in metres with Y up, an exactly symmetric mesh, a rigged export with a
+  game-ready glTF (origin at the feet, UV islands, smooth normals, a budget of triangles), an OBJ in metres with Y up, an exactly symmetric mesh, a rigged export with a
   skeleton, baked textures, and a **UV map** submenu (box, planar, cylinder, sphere, unwrapped atlas, by armature part -- each also writes the picture of the UV map beside the file, to check it).
 - From a script:
 
@@ -237,24 +237,18 @@ export_mesh(hero, "hero.glb", skeleton=bones)                              # ski
 - It can be written with the materials, the colours, the texture coordinates and the baked textures in the same file. A whole character -- armatures, body and skeleton
   from the same nodes -- is in [Characters](characters.md#armatures-armatures-a-character-a-skeleton).
 
-### The origin of the asset, and levels of detail
+### The origin of the asset
 
 ```python
 export_mesh(hero, "hero.glb", pivot="base")                      # the middle of the bottom of the model is the origin: the feet are at z = 0
 export_mesh(hero, "hero.glb", pivot=(0, 0, 92))                  # a place of your own: here the hips
-export_lods(hero, "hero.glb", [8000, 2000, 500])                 # hero_lod0.glb, hero_lod1.glb, hero_lod2.glb
 ```
 
 - **`pivot=`** says where the origin of the file is: `"origin"` (the default: as modelled), `"base"` (the middle of the bottom of the model: a character or a prop
   that stands on the ground), `"center"` (the middle of its box), or a place `(x, y, z)` of the model. It is done last, so that the materials (`where`), the
   skin weights and the symmetry are made where the model is; the skeleton moves with it.
-- **`export_lods(part, path, triangles, **options)`** writes a level of detail for each budget, `hero_lod0.glb` for the first: at most that many triangles
-  (see `max_triangles`), the finest first and each smaller than the one before; `None` for a first level with no budget. The other options -- units, up
-  axis, symmetry, materials, skeleton, pivot -- are the same for every level. It returns the paths. The levels are meshes of their own resolution, not decimations,
-  so each is an even mesh of the same body.
 
-[`examples/37_pivot_and_lods.py`](../examples/37_pivot_and_lods.py) writes them and reads them back: the box of each pivot, the skeleton that follows it, the
-budgets of three levels.
+[`examples/37_pivot.py`](../examples/37_pivot.py) writes them and reads them back: the box of each pivot, the skeleton that follows it.
 
 [`examples/36_skeleton.py`](../examples/36_skeleton.py) reads the file back and checks the nodes and the hierarchy, the inverse bind matrices, that the tip of the
 hand, the head, the forearms, the shin and the foot are moved by their joints, that no joint of the left half moves a vertex of the right, and the refusals.

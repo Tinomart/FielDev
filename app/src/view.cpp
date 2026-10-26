@@ -4222,7 +4222,7 @@ void View::addExportMenu(QMenu* menu, int line)
     }
     if (shape)
     {
-        // What a game engine asks of an asset -- units, the up axis, a budget of triangles, levels of detail, UV maps, baked textures, a skeleton -- is the arguments of `export_mesh`: these write
+        // What a game engine asks of an asset -- units, the up axis, a budget of triangles, UV maps, baked textures, a skeleton -- is the arguments of `export_mesh`: these write
         // the call into the script, the choices written out, for you to change and run
         auto game = sub->addMenu(T("For a game engine"));
         game->setToolTipsVisible(true);

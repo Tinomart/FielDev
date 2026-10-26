@@ -4,7 +4,7 @@ FielDev is a **modelling program**: fields, shapes, materials, editing -- for pe
 
 ## The rule (the user has said it again and again; on 2026-10-26: "THIS IS AN ENGINE LEVEL FEATURE. ENGINES DO THIS. THIS IS NOT AN ENGINE. THIS IS A MODELLING PROGRAM. FOCUS ON THE MODELLING, DONT TRY TO ADD YOUR OWN VERSION OF ENGINE LEVEL TASKS.")
 
-**Never build anything an engine does.** Engines make level-of-detail meshes, collision meshes, chunks and streaming, instancing and scatter lists, scene and prefab files, navigation meshes, and the like. Before you add any feature, ask: *would an engine do this?* If yes, do not build it -- however convenient it looks, and however much of it "could be derived from the field".
+**Never build anything an engine does.** Engines make level-of-detail meshes, collision meshes, streaming a world in at runtime, instancing and scatter lists, scene and prefab files, navigation meshes, and the like. Before you add any feature, ask what it *does*: a field operation on the model (cutting it into pieces, a blend, a material as a field, a check you look at while modelling) belongs here; a job that the engine does at runtime does not -- whatever the feature is called, and however much of it "could be derived from the field". Cutting a model into pieces is modelling; loading the pieces at runtime is the engine's.
 
 * What belongs here is the **model**: fields and the arithmetic on them, shapes, terrain / levels / props / kits as things to *model*, materials (as fields, and by drag and drop), editing in the viewport and in the script, and checks that help *while modelling* (a seam check, a slope colouring).
 * Export is a plain export of the model (`export_mesh`): the model, its materials, its unit. No pipelines around it.
