@@ -25,7 +25,8 @@ except ImportError:
             script to follow the models -- grown when a model reaches out of the region, shrunk when the models get much smaller -- and
             meshes every model at the scene's resolution scaled by its size next to the region (a small model in a big region is drawn
             finer, up to about 110 samples across it, and never below the scene's resolution); False: the region is exactly what is
-            written, and every model is meshed at the scene's resolution '''
+            written, and every model is meshed at the scene's resolution.  An armature or a character is meshed at least 8 cells across its
+            thinnest cross-section, never at less than the scene's resolution, with auto_scale on or off '''
         settings['bounds'] = (tuple(lo), tuple(hi))
         settings['auto_scale'] = bool(auto_scale)
 

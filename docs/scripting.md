@@ -93,6 +93,8 @@ grow. **A model that is moved, stretched or typed out of the region is taken in:
 `auto_scale` also sets how finely each model is meshed: with it on, every model gets the resolution of the scene scaled by its size next to
 the region (a small part beside a big one has samples enough across it: up to about 110 across, and never fewer than the scene's own resolution gives); with it off, every model is meshed at the scene's resolution and
 the region is exactly what you wrote.
+An armature or a character is meshed from its numbers and has no box to scale by: it is meshed at least 8 cells across its thinnest cross-section (but at most 300 samples along the whole model), never at less than the scene's
+resolution, with auto scale on or off.
 For imports,
 `view.set_bounds(*roi(parts))` sets the region to enclose them and
 `view.set_resolution(roi_resolution(parts))` picks a resolution for the parts (each part is meshed at

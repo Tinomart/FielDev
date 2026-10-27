@@ -4404,6 +4404,48 @@ std::unique_ptr<libfive::Mesh> Shape::prismMesh(const std::vector<libfive::point
 }
 
 // This function is called in a separate thread:
+// The resolution a model that is meshed natively (an armature with branches, a character) is meshed at.  The shapes that are meshed from their field are raised above the scene's resolution for their size
+// next to the region (autoResolution); these have no box to scale by, and were meshed at the scene's own: at the default of 10 per mm a tube of 0.15 mm was a cell and a half across and looked like a handful
+// of facets beside any primitive.  They are meshed at least `kCellsAcross` cells across their thinnest cross-section, never at less than the scene's resolution, and at no more than `kMostAcross` samples along the
+// whole model (a mesh of that many takes a fraction of a second to about a second: the native mesher is made for it)
+static double nativeResolution(const NativeFieldSpec& spec, double res)
+{
+    constexpr double kCellsAcross = 8.0, kMostAcross = 300.0;
+    double thin = 1e300, reach = 0;
+    Eigen::Vector3d lo = Eigen::Vector3d::Constant(1e300), hi = Eigen::Vector3d::Constant(-1e300);
+    for (const NativeFieldPart& part : spec.parts)
+        for (const SweepFieldChain& c : part.chains)
+        {
+            if (c.prof.size() < 3 || !c.ok) continue;
+            double x0 = 1e300, x1 = -1e300, y0 = 1e300, y1 = -1e300;
+            for (const auto& p : c.prof)
+            {
+                x0 = std::min(x0, p.x());
+                x1 = std::max(x1, p.x());
+                y0 = std::min(y0, p.y());
+                y1 = std::max(y1, p.y());
+            }
+            // (how thick the section is at its thinnest and at its thickest: a node of a smaller size is a thinner tube; a size is never counted below a fifth, where the tube ends in its dome)
+            double smallest = c.sized ? 1e300 : 1.0, largest = c.sized ? 0.0 : 1.0;
+            if (c.sized)
+                for (const auto& q : c.pieces)
+                {
+                    smallest = std::min(smallest, std::min(q.s0, q.s1));
+                    largest = std::max(largest, std::max(q.s0, q.s1));
+                }
+            smallest = std::max(smallest, 0.2);
+            thin = std::min(thin, std::max(std::min(x1 - x0, y1 - y0), 0.0) * smallest);
+            reach = std::max(reach, c.widest * std::max(largest, 1.0));
+            lo = lo.cwiseMin(c.lo);
+            hi = hi.cwiseMax(c.hi);
+        }
+    if (!(thin < 1e300) || !(thin > 1e-6)) return res;
+    const double extent = (hi - lo).maxCoeff() + 2.0 * reach;                 // (the box of the path and the reach of the section round it)
+    const double wanted = kCellsAcross / thin;
+    const double most = extent > 1e-6 ? kMostAcross / extent : wanted;
+    return std::max(res, std::min(wanted, most));
+}
+
 Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
 {
     // Use the global bounds settings
@@ -4503,7 +4545,7 @@ Shape::BoundedMesh Shape::renderMesh(RenderSettings s)
         const bool ready = nativeSpec(run_flat_vars, spec);
         if (ready)
         {
-            m = meshNativeField(spec, mesh_settings.min_feature, Eigen::Vector3d(mesh_region.lower.x(), mesh_region.lower.y(), mesh_region.lower.z()),
+            m = meshNativeField(spec, 1 / (nativeResolution(spec, res) / (1 << s.div)), Eigen::Vector3d(mesh_region.lower.x(), mesh_region.lower.y(), mesh_region.lower.z()),
                                 Eigen::Vector3d(mesh_region.upper.x(), mesh_region.upper.y(), mesh_region.upper.z()), &mesh_settings.cancel, &render_progress);
             smoothNative = bool(m);
             nativeCancelled = !m && mesh_settings.cancel.load();
