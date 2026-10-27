@@ -2956,6 +2956,16 @@ bool Shape::searchExtent(const std::map<libfive::Tree::Id, float>& numbers, cons
 
 double Shape::autoResolution(const Settings& s) const
 {
+    // A point is not painted -- its dot is drawn from its numbers; its ball only gives it a place for its gizmo and a box -- so 8 samples across it are enough, whatever the scene's resolution and the
+    // size of the region are.  It used to be meshed like any other shape: at 40 samples per mm in a region of 20 mm each of the nine points of a small armature (its nodes and the corners of its cross-section,
+    // balls of 0.33 mm) was raised to 310 per mm, 88 000 vertices and 4 to 8 s, 53 s of the mesher in all and 14.5 s on four cores, for a picture that nothing draws; at the default 10 per mm
+    // it was 7 900 vertices each, and the bar stayed up for them after the armature itself was finished
+    if (m_isPoint && m_ext_valid)
+    {
+        const QVector3D box = m_ext_hi - m_ext_lo;
+        const double side = std::max(box.x(), std::max(box.y(), box.z()));
+        if (side > 1e-6) return 8.0 / side;
+    }
     if (!s.autoScale || !m_ext_valid || has_hint) return s.res;
     const QVector3D region = s.max - s.min, size = m_ext_hi - m_ext_lo;
     const double R = std::max(region.x(), std::max(region.y(), region.z()));

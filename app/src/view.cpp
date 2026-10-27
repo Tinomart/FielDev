@@ -424,7 +424,8 @@ void View::linkFollowers()
 
 bool View::isRendering() const
 {
-    for (const auto* s : shapes) if (!s->done()) return true;
+    // (a point is not painted -- its ball only gives it a place for its gizmo -- so its render is nothing that the bar, or anything that waits for a render, has to wait for)
+    for (const auto* s : shapes) if (!s->noPaint() && !s->done()) return true;
     return false;
 }
 
@@ -448,6 +449,7 @@ double View::renderFraction() const
     double known = 0.0, nKnown = 0.0;
     for (const auto* s : shapes)
     {
+        if (s->noPaint()) continue;                 // (a point: see isRendering)
         const double w = s->renderWeight();
         if (w > 0) { known += w; nKnown += 1.0; }
     }
@@ -455,6 +457,7 @@ double View::renderFraction() const
     double sum = 0.0, total = 0.0;
     for (const auto* s : shapes)
     {
+        if (s->noPaint()) continue;
         const double w0 = s->renderWeight();
         const double w = w0 > 0 ? w0 : unknown;
         sum += w * s->renderFraction();
@@ -1281,6 +1284,30 @@ void View::drawRenderProgress(QPainter& painter)
     painter.setPen(QColor(255, 255, 255, 170));
     painter.drawText(QRectF(bar.left() - 200, bar.top() - fm.height() - 3, w + 200, fm.height()),
                      Qt::AlignRight | Qt::AlignVCenter, text);
+    // A render of this program takes a fraction of a second to a few seconds.  One that is still going after FIELDEV_BAR_INFO_AFTER seconds (5 by default) is not working as it should, so the bar says what it is
+    // waiting for -- the line of each shape that is not done and the numbers the program keeps of its render -- where a picture of the window shows it
+    static const double infoAfter = qEnvironmentVariableIsSet("FIELDEV_BAR_INFO_AFTER") ? qEnvironmentVariable("FIELDEV_BAR_INFO_AFTER").toDouble() : 5.0;
+    if (e > infoAfter)
+    {
+        QStringList waiting;
+        for (const auto* s : shapes)
+            if (!s->noPaint() && !s->done()) waiting << QString("line %1: %2").arg(s->sourceLine() + 1).arg(s->renderDebug());
+        font.setPointSizeF(7.0);
+        painter.setFont(font);
+        const QFontMetrics small(font);
+        double y = bar.top() - fm.height() - 6;
+        const int shown = std::min(4, int(waiting.size()));
+        for (int k = 0; k < shown; ++k)
+        {
+            y -= small.height();
+            painter.drawText(QRectF(bar.left() - 560, y, w + 560, small.height()), Qt::AlignRight | Qt::AlignVCenter, waiting[k]);
+        }
+        if (waiting.size() > shown)
+        {
+            y -= small.height();
+            painter.drawText(QRectF(bar.left() - 560, y, w + 560, small.height()), Qt::AlignRight | Qt::AlignVCenter, QString("and %1 more").arg(waiting.size() - shown));
+        }
+    }
     painter.restore();
 }
 
